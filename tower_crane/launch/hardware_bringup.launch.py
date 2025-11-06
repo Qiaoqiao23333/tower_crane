@@ -110,6 +110,20 @@ def generate_launch_description():
         }],
     )
 
+    device_container_node = Node(
+        package="canopen_core",
+        executable="device_container_node",
+        name="device_container_node",
+        output="screen",
+        parameters=[{
+            "bus_config": bus_config,
+            "master_config": master_config,
+            "master_bin_path": master_bin_path,
+            "can_interface_name": can_interface_name,
+        }]
+    )
+
+
     joint_state_broadcaster_spawner = Node(
         package="controller_manager",
         executable="spawner",
@@ -128,6 +142,7 @@ def generate_launch_description():
     nodes_list = [
         robot_state_publisher_node,
         controller_manager_node,
+        device_container_node, 
         joint_state_broadcaster_spawner,
         crane_controller_spawner,
     ]
