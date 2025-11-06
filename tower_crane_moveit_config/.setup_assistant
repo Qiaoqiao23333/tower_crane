@@ -1,0 +1,25 @@
+moveit_setup_assistant_config:
+  urdf:
+    package: tower_crane
+    relative_path: urdf/Tower_crane.urdf
+  srdf:
+    relative_path: config/tower_crane.srdf
+  package_settings:
+    author_name: Qiaoqiao Chen
+    author_email: yaosiledeqingwa@gmail.com
+    generated_timestamp: 1762437291
+  control_xacro:
+    command:
+      - position
+    state:
+      - position
+      - velocity
+  modified_urdf:
+    xacros:
+      - control_xacro
+  control_xacro:
+    command:
+      - position
+    state:
+      - position
+      - velocity

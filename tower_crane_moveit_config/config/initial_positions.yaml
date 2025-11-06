@@ -1,0 +1,6 @@
+# Default initial positions for tower_crane's ros2_control fake system
+
+initial_positions:
+  hook_joint: 0
+  slewing_joint: 0.5
+  trolley_joint: -0.3

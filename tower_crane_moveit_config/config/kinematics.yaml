@@ -1,0 +1,6 @@
+robot_description_planning:
+  default_robot_padding: 0.001
+  default_robot_scale: 1.0
+  link_padding:
+    trolley_Link: 0.0
+    hook_Link: 0.0
