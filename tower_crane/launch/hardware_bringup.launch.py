@@ -53,6 +53,7 @@ def generate_launch_description():
     bus_config = PathJoinSubstitution([
         FindPackageShare("tower_crane"),
         "config",
+        'robot_control',
         "bus.yml"
     ])
 
@@ -103,11 +104,7 @@ def generate_launch_description():
         package="controller_manager",
         executable="ros2_control_node",
         output="both",
-        parameters=[robot_description, controller_config, {
-            "bus_config": bus_config,
-            "master_config": master_config,
-            "master_bin_path": master_bin_path,
-        }],
+        parameters=[robot_description, controller_config],
     )
 
     device_container_node = Node(
@@ -123,17 +120,16 @@ def generate_launch_description():
         }]
     )
 
-
     joint_state_broadcaster_spawner = Node(
         package="controller_manager",
         executable="spawner",
         arguments=["joint_state_broadcaster", "--controller-manager", "/controller_manager"],
     )
 
-    crane_controller_spawner = Node(
+    forward_position_controller_spawner = Node(
         package="controller_manager",
         executable="spawner",
-        arguments=["crane_controller", "--controller-manager", "/controller_manager"],
+        arguments=["forward_position_controller", "--controller-manager", "/controller_manager"],
     )
 
     # -------------------------------
@@ -144,7 +140,7 @@ def generate_launch_description():
         controller_manager_node,
         device_container_node, 
         joint_state_broadcaster_spawner,
-        crane_controller_spawner,
+        forward_position_controller_spawner,
     ]
 
     return LaunchDescription(declared_arguments + nodes_list)

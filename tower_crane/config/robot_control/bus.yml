@@ -5,9 +5,10 @@ options:
 master:
   node_id: 1
   driver: "ros2_canopen::MasterDriver"
-  package: "canopen_master_driver"
+  package: "canopen_core"
+  namespace: "/master"
   sync_period: 10000
-  boot_timeout_ms: 10000
+  boot_timeout: 10000
 
 defaults:
   dcf: "DSY-C.EDS"
@@ -15,7 +16,7 @@ defaults:
   package: "canopen_402_driver"
   period: 10
   revision_number: 0
-  boot_timeout_ms: 5000
+  boot_timeout: 5000
   sdo:
     - {index: 0x60C2, sub_index: 1, value: 50} # Set interpolation time for cyclic modes to 50 ms
     - {index: 0x60C2, sub_index: 2, value: -3} # Set base 10-3s
@@ -51,15 +52,20 @@ defaults:
       - {index: 0x6040, sub_index: 0} # Controlword
       - {index: 0x60FF, sub_index: 0} # Target velocity
 
-nodes:
+devices:
   slewing_motor:
     node_id: 2
-    package: "canopen_402_driver"
-    dcf: "DSY-C.EDS"
-    driver: "ros2_canopen::Cia402Driver"
     namespace: "/roscan"
-    boot_timeout_ms: 10000
+    # package: "canopen_402_driver"
+    # dcf: "DSY-C.EDS"
+    driver: "ros2_canopen::Cia402Driver"
+    # namespace: "/roscan"
+    # boot_timeout_ms: 10000
   trolley_motor:
     node_id: 3
+    namespace: "/roscan"
+    driver: "ros2_canopen::Cia402Driver"
   hoist_motor:
     node_id: 4
+    namespace: "/roscan"
+    driver: "ros2_canopen::Cia402Driver"

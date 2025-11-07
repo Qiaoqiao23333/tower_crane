@@ -8,9 +8,9 @@ moveit_controller_manager: moveit_simple_controller_manager/MoveItSimpleControll
 
 moveit_simple_controller_manager:
   controller_names:
-    - joint_trajectory_controller
+    - forward_position_controller
 
-  joint_trajectory_controller:
+  forward_position_controller:
     type: FollowJointTrajectory
     joints:
       - slewing_joint
