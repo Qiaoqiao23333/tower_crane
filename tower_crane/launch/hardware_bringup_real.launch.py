@@ -1,9 +1,22 @@
+# Copyright 2024
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 from ament_index_python import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, TimerAction, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, TimerAction
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
-from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.descriptions import ParameterValue
@@ -26,8 +39,8 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             "can_interface_name",
-            default_value="vcan0",
-            description="CAN interface (e.g. vcan0 or can0)",
+            default_value="can0",
+            description="CAN interface (e.g. can0 for real hardware)",
         )
     )
 
@@ -102,84 +115,15 @@ def generate_launch_description():
         parameters=[robot_description],
     )
 
-    # Fake CANopen slave devices for testing with vcan0
-    # These simulate the actual motors on the CAN bus
-    slave_config = PathJoinSubstitution([
-        FindPackageShare("tower_crane"),
-        "config",
-        "robot_control",
-        "DSY-C.EDS"
-    ])
-    
-    slave_launch = PathJoinSubstitution([
-        FindPackageShare("canopen_fake_slaves"),
-        "launch",
-        "cia402_slave.launch.py"
-    ])
-    
-    # Node ID 2: slewing_motor
-    slave_node_1 = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(slave_launch),
-        launch_arguments={
-            "node_id": "2",
-            "node_name": "slave_node_1",
-            "slave_config": slave_config,
-        }.items(),
-    )
-    
-    # Node ID 1: trolley_motor
-    slave_node_2 = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(slave_launch),
-        launch_arguments={
-            "node_id": "1",
-            "node_name": "slave_node_2",
-            "slave_config": slave_config,
-        }.items(),
-    )
-    
-    # Node ID 3: hoist_motor (hook_joint)
-    slave_node_3 = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(slave_launch),
-        launch_arguments={
-            "node_id": "3",
-            "node_name": "slave_node_3",
-            "slave_config": slave_config,
-        }.items(),
-    )
-
-    # Start device_container_node after fake slaves are ready
-    # Give fake slaves time to initialize before master tries to boot them
-    device_container_node = TimerAction(
-        period=2.0,
-        actions=[
-            Node(
-                package="canopen_core",
-                executable="device_container_node",
-                name="device_container_node",
-                output="screen",
-                parameters=[{
-                    "bus_config": bus_config,
-                    "master_config": master_config,
-                    "master_bin_path": master_bin_path,
-                    "can_interface_name": can_interface_name,
-                }]
-            )
-        ]
-    )
-
-    # Start controller_manager after device_container is ready
-    # The hardware plugin will create its own device container internally
-    controller_manager_node = TimerAction(
-        period=4.0,
-        actions=[
-            Node(
-                package="controller_manager",
-                executable="ros2_control_node",
-                output="screen",
-                parameters=[robot_description, controller_config],
-                name="controller_manager",
-            )
-        ]
+    # The hardware plugin (canopen_ros2_control/RobotSystem) creates its own device container internally
+    # DO NOT launch a separate device_container_node - it will conflict with the hardware plugin's internal one
+    # Start controller_manager - the hardware plugin will initialize the device container
+    controller_manager_node = Node(
+        package="controller_manager",
+        executable="ros2_control_node",
+        output="screen",
+        parameters=[robot_description, controller_config],
+        name="controller_manager",
     )
 
     # Spawn controllers after controller_manager is ready
@@ -211,13 +155,10 @@ def generate_launch_description():
     # -------------------------------
     nodes_list = [
         robot_state_publisher_node,
-        slave_node_1,  # Start fake slaves first so they're ready when master boots
-        slave_node_2,
-        slave_node_3,
-        device_container_node,
-        controller_manager_node,
+        controller_manager_node,  # Hardware plugin will create its own device container
         joint_state_broadcaster_spawner,
         forward_position_controller_spawner,
     ]
 
     return LaunchDescription(declared_arguments + nodes_list)
+

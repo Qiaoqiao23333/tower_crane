@@ -68,7 +68,7 @@ def generate_launch_description():
     slave_node_2 = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(slave_launch),
         launch_arguments={
-            "node_id": "3",
+            "node_id": "1",
             "node_name": "slave_node_2",
             "slave_config": slave_config,
         }.items(),
@@ -77,7 +77,7 @@ def generate_launch_description():
     slave_node_3 = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(slave_launch),
         launch_arguments={
-            "node_id": "4",
+            "node_id": "3",
             "node_name": "slave_node_3",
             "slave_config": slave_config,
         }.items(),

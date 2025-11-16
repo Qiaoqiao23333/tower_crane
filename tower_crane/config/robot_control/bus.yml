@@ -3,7 +3,7 @@ options:
   # dcf_path: "@BUS_CONFIG_PATH@"
 
 master:
-  node_id: 1
+  node_id: 4
   name: "master"
   driver: "ros2_canopen::MasterDriver"
   package: canopen_master_driver
@@ -20,8 +20,8 @@ slewing_motor:
   period: 10
   position_mode: 1
   revision_number: 0
-  boot_timeout: 5000
-  fake: true
+  boot_timeout: 10000
+  # fake: true
   sdo:
     - {index: 0x60C2, sub_index: 1, value: 50} # Set interpolation time for cyclic modes to 50 ms
     - {index: 0x60C2, sub_index: 2, value: -3} # Set base 10-3s
@@ -58,7 +58,7 @@ slewing_motor:
       - {index: 0x60FF, sub_index: 0} # Target velocity
 
 trolley_motor:
-  node_id: 3
+  node_id: 1
   namespace: "/roscan"
   package: "canopen_402_driver"
   dcf: "DSY-C.EDS"
@@ -66,8 +66,8 @@ trolley_motor:
   period: 10
   position_mode: 1
   revision_number: 0
-  boot_timeout: 5000
-  fake: true
+  boot_timeout: 10000
+  # fake: true
   sdo:
     - {index: 0x60C2, sub_index: 1, value: 50} # Set interpolation time for cyclic modes to 50 ms
     - {index: 0x60C2, sub_index: 2, value: -3} # Set base 10-3s
@@ -104,7 +104,7 @@ trolley_motor:
       - {index: 0x60FF, sub_index: 0} # Target velocity
 
 hoist_motor:
-  node_id: 4
+  node_id: 3
   namespace: "/roscan"
   package: "canopen_402_driver"
   dcf: "DSY-C.EDS"
@@ -112,8 +112,8 @@ hoist_motor:
   period: 10
   position_mode: 1
   revision_number: 0
-  boot_timeout: 5000
-  fake: true
+  boot_timeout: 10000
+  # fake: true
   sdo:
     - {index: 0x60C2, sub_index: 1, value: 50} # Set interpolation time for cyclic modes to 50 ms
     - {index: 0x60C2, sub_index: 2, value: -3} # Set base 10-3s

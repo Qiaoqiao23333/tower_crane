@@ -1,3 +1,17 @@
+# Copyright 2024
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 from ament_index_python import get_package_share_directory
 from launch import LaunchDescription
@@ -93,17 +107,9 @@ def generate_launch_description():
     }
 
     # -------------------------------
-    # Nodes
-    # -------------------------------
-    robot_state_publisher_node = Node(
-        package="robot_state_publisher",
-        executable="robot_state_publisher",
-        output="both",
-        parameters=[robot_description],
-    )
-
     # Fake CANopen slave devices for testing with vcan0
     # These simulate the actual motors on the CAN bus
+    # -------------------------------
     slave_config = PathJoinSubstitution([
         FindPackageShare("tower_crane"),
         "config",
@@ -147,30 +153,26 @@ def generate_launch_description():
         }.items(),
     )
 
-    # Start device_container_node after fake slaves are ready
-    # Give fake slaves time to initialize before master tries to boot them
-    device_container_node = TimerAction(
-        period=2.0,
-        actions=[
-            Node(
-                package="canopen_core",
-                executable="device_container_node",
-                name="device_container_node",
-                output="screen",
-                parameters=[{
-                    "bus_config": bus_config,
-                    "master_config": master_config,
-                    "master_bin_path": master_bin_path,
-                    "can_interface_name": can_interface_name,
-                }]
-            )
-        ]
+    # -------------------------------
+    # Nodes
+    # -------------------------------
+    robot_state_publisher_node = Node(
+        package="robot_state_publisher",
+        executable="robot_state_publisher",
+        output="both",
+        parameters=[robot_description],
     )
 
-    # Start controller_manager after device_container is ready
-    # The hardware plugin will create its own device container internally
+    # The hardware plugin (canopen_ros2_control/RobotSystem) creates its own device container internally
+    # DO NOT launch a separate device_container_node - it will conflict with the hardware plugin's internal one
+    # Start controller_manager after fake slaves are fully ready and have sent boot-up frames
+    # Fake slaves send boot-up frames after ~1 second delay
+    # Need to wait longer to ensure:
+    # 1. Fake slaves have sent boot-up frames
+    # 2. CAN bus is stable
+    # 3. Master's CAN socket will be ready when it initializes
     controller_manager_node = TimerAction(
-        period=4.0,
+        period=6.0,
         actions=[
             Node(
                 package="controller_manager",
@@ -184,8 +186,9 @@ def generate_launch_description():
 
     # Spawn controllers after controller_manager is ready
     # Give time for the hardware plugin to boot devices and expose services
+    # Increased delays to allow device boot process to complete (controller_manager starts at 6.0s)
     joint_state_broadcaster_spawner = TimerAction(
-        period=8.0,
+        period=15.0,
         actions=[
             Node(
                 package="controller_manager",
@@ -196,7 +199,7 @@ def generate_launch_description():
     )
 
     forward_position_controller_spawner = TimerAction(
-        period=9.0,
+        period=16.0,
         actions=[
             Node(
                 package="controller_manager",
@@ -214,10 +217,10 @@ def generate_launch_description():
         slave_node_1,  # Start fake slaves first so they're ready when master boots
         slave_node_2,
         slave_node_3,
-        device_container_node,
-        controller_manager_node,
+        controller_manager_node,  # Hardware plugin will create its own device container
         joint_state_broadcaster_spawner,
         forward_position_controller_spawner,
     ]
 
     return LaunchDescription(declared_arguments + nodes_list)
+

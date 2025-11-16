@@ -242,7 +242,7 @@
       <plugin>canopen_ros2_control/RobotSystem</plugin>
       <param name="bus_config">/home/qiaoqiaochen/appdata/canros/install/tower_crane/share/tower_crane/config/robot_control/bus.yml</param>
       <param name="master_config">/home/qiaoqiaochen/appdata/canros/install/tower_crane/share/tower_crane/config/robot_control/master.dcf</param>
-      <param name="can_interface_name">vcan0</param>
+      <param name="can_interface_name">can0</param>
     </hardware>
 
     <joint name="slewing_joint">
