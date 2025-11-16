@@ -1,8 +1,9 @@
 import os
 from ament_index_python import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, TimerAction, IncludeLaunchDescription
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.descriptions import ParameterValue
@@ -60,6 +61,7 @@ def generate_launch_description():
     master_config = PathJoinSubstitution([
         FindPackageShare("tower_crane"),
         "config",
+        "robot_control",
         "master.dcf"
     ])
 
@@ -100,36 +102,108 @@ def generate_launch_description():
         parameters=[robot_description],
     )
 
-    controller_manager_node = Node(
-        package="controller_manager",
-        executable="ros2_control_node",
-        output="both",
-        parameters=[robot_description, controller_config],
+    # Fake CANopen slave devices for testing with vcan0
+    # These simulate the actual motors on the CAN bus
+    slave_config = PathJoinSubstitution([
+        FindPackageShare("tower_crane"),
+        "config",
+        "robot_control",
+        "DSY-C.EDS"
+    ])
+    
+    slave_launch = PathJoinSubstitution([
+        FindPackageShare("canopen_fake_slaves"),
+        "launch",
+        "cia402_slave.launch.py"
+    ])
+    
+    # Node ID 2: slewing_motor
+    slave_node_1 = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(slave_launch),
+        launch_arguments={
+            "node_id": "2",
+            "node_name": "slave_node_1",
+            "slave_config": slave_config,
+        }.items(),
+    )
+    
+    # Node ID 3: trolley_motor
+    slave_node_2 = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(slave_launch),
+        launch_arguments={
+            "node_id": "3",
+            "node_name": "slave_node_2",
+            "slave_config": slave_config,
+        }.items(),
+    )
+    
+    # Node ID 4: hoist_motor (hook_joint)
+    slave_node_3 = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(slave_launch),
+        launch_arguments={
+            "node_id": "4",
+            "node_name": "slave_node_3",
+            "slave_config": slave_config,
+        }.items(),
     )
 
-    device_container_node = Node(
-        package="canopen_core",
-        executable="device_container_node",
-        name="device_container_node",
-        output="screen",
-        parameters=[{
-            "bus_config": bus_config,
-            "master_config": master_config,
-            "master_bin_path": master_bin_path,
-            "can_interface_name": can_interface_name,
-        }]
+    # Start device_container_node after fake slaves are ready
+    # Give fake slaves time to initialize before master tries to boot them
+    device_container_node = TimerAction(
+        period=2.0,
+        actions=[
+            Node(
+                package="canopen_core",
+                executable="device_container_node",
+                name="device_container_node",
+                output="screen",
+                parameters=[{
+                    "bus_config": bus_config,
+                    "master_config": master_config,
+                    "master_bin_path": master_bin_path,
+                    "can_interface_name": can_interface_name,
+                }]
+            )
+        ]
     )
 
-    joint_state_broadcaster_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=["joint_state_broadcaster", "--controller-manager", "/controller_manager"],
+    # Start controller_manager after device_container is ready
+    # The hardware plugin will create its own device container internally
+    controller_manager_node = TimerAction(
+        period=4.0,
+        actions=[
+            Node(
+                package="controller_manager",
+                executable="ros2_control_node",
+                output="screen",
+                parameters=[robot_description, controller_config],
+                name="controller_manager",
+            )
+        ]
     )
 
-    forward_position_controller_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=["forward_position_controller", "--controller-manager", "/controller_manager"],
+    # Spawn controllers after controller_manager is ready
+    # Give time for the hardware plugin to boot devices and expose services
+    joint_state_broadcaster_spawner = TimerAction(
+        period=8.0,
+        actions=[
+            Node(
+                package="controller_manager",
+                executable="spawner",
+                arguments=["joint_state_broadcaster", "--controller-manager", "/controller_manager"],
+            )
+        ]
+    )
+
+    forward_position_controller_spawner = TimerAction(
+        period=9.0,
+        actions=[
+            Node(
+                package="controller_manager",
+                executable="spawner",
+                arguments=["forward_position_controller", "--controller-manager", "/controller_manager"],
+            )
+        ]
     )
 
     # -------------------------------
@@ -137,8 +211,11 @@ def generate_launch_description():
     # -------------------------------
     nodes_list = [
         robot_state_publisher_node,
+        slave_node_1,  # Start fake slaves first so they're ready when master boots
+        slave_node_2,
+        slave_node_3,
+        device_container_node,
         controller_manager_node,
-        device_container_node, 
         joint_state_broadcaster_spawner,
         forward_position_controller_spawner,
     ]

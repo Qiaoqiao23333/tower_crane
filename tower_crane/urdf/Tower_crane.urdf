@@ -240,7 +240,6 @@
   <ros2_control name="canopen_ros2_control/CanopenSystem" type="system">
     <hardware>
       <plugin>canopen_ros2_control/RobotSystem</plugin>
-      <plugin>gazebo_ros2_control/GazeboSystem</plugin>
       <param name="bus_config">/home/qiaoqiaochen/appdata/canros/install/tower_crane/share/tower_crane/config/robot_control/bus.yml</param>
       <param name="master_config">/home/qiaoqiaochen/appdata/canros/install/tower_crane/share/tower_crane/config/robot_control/master.dcf</param>
       <param name="can_interface_name">vcan0</param>
@@ -250,21 +249,21 @@
       <command_interface name="position"/>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
-      <param name="component_name">slewing_motor</param>
+      <param name="device_name">slewing_motor</param>
     </joint>
 
     <joint name="trolley_joint">
       <command_interface name="position"/>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
-      <param name="component_name">trolley_motor</param>
+      <param name="device_name">trolley_motor</param>
     </joint>
 
     <joint name="hook_joint">
       <command_interface name="position"/>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
-      <param name="component_name">hoist_motor</param>
+      <param name="device_name">hoist_motor</param>
     </joint>
   </ros2_control>
 

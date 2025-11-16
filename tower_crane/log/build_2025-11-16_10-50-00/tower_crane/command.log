@@ -1,0 +1,2 @@
+Invoking command in '/home/qiaoqiaochen/appdata/canros/src/tower_crane/build/tower_crane': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake /home/qiaoqiaochen/appdata/canros/src/tower_crane -DCMAKE_INSTALL_PREFIX=/home/qiaoqiaochen/appdata/canros/src/tower_crane/install/tower_crane
+Invoked command in '/home/qiaoqiaochen/appdata/canros/src/tower_crane/build/tower_crane' returned '1': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake /home/qiaoqiaochen/appdata/canros/src/tower_crane -DCMAKE_INSTALL_PREFIX=/home/qiaoqiaochen/appdata/canros/src/tower_crane/install/tower_crane

@@ -1,0 +1,43 @@
+[0.000000] (-) TimerEvent: {}
+[0.000062] (tower_crane) JobQueued: {'identifier': 'tower_crane', 'dependencies': OrderedDict()}
+[0.000286] (tower_crane) JobStarted: {'identifier': 'tower_crane'}
+[0.002982] (tower_crane) JobProgress: {'identifier': 'tower_crane', 'progress': 'cmake'}
+[0.003139] (tower_crane) Command: {'cmd': ['/usr/bin/cmake', '/home/qiaoqiaochen/appdata/canros/src/tower_crane', '-DCMAKE_INSTALL_PREFIX=/home/qiaoqiaochen/appdata/canros/src/tower_crane/install/tower_crane'], 'cwd': '/home/qiaoqiaochen/appdata/canros/src/tower_crane/build/tower_crane', 'env': OrderedDict([('GJS_DEBUG_TOPICS', 'JS ERROR;JS LOG'), ('LESSOPEN', '| /usr/bin/lesspipe %s'), ('VSCODE_CWD', '/home/qiaoqiaochen'), ('VSCODE_ESM_ENTRYPOINT', 'vs/workbench/api/node/extensionHostProcess'), ('LANGUAGE', 'en_GB:en'), ('USER', 'qiaoqiaochen'), ('LC_TIME', 'de_DE.UTF-8'), ('VSCODE_NLS_CONFIG', '{"userLocale":"en-gb","osLocale":"en-gb","resolvedLanguage":"en","defaultMessagesFile":"/usr/share/cursor/resources/app/out/nls.messages.json","locale":"en-gb","availableLanguages":{}}'), ('VSCODE_HANDLES_UNCAUGHT_ERRORS', 'true'), ('XDG_SESSION_TYPE', 'x11'), ('SHLVL', '0'), ('HOME', '/home/qiaoqiaochen'), ('CHROME_DESKTOP', 'cursor.desktop'), ('OLDPWD', '/home/qiaoqiaochen/appdata/canros/src'), ('DESKTOP_SESSION', 'ubuntu'), ('VSCODE_IPC_HOOK', '/run/user/1002/vscode-e7dd12de-2.0.-main.sock'), ('GIO_LAUNCHED_DESKTOP_FILE', '/usr/share/applications/cursor.desktop'), ('ROS_PYTHON_VERSION', '3'), ('GNOME_SHELL_SESSION_MODE', 'ubuntu'), ('GTK_MODULES', 'gail:atk-bridge'), ('LC_MONETARY', 'de_DE.UTF-8'), ('MANAGERPID', '2043'), ('SYSTEMD_EXEC_PID', '2295'), ('NO_COLOR', '1'), ('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1002/bus'), ('GIO_LAUNCHED_DESKTOP_FILE_PID', '8701'), ('VSCODE_CRASH_REPORTER_PROCESS_TYPE', 'extensionHost'), ('ROS_DISTRO', 'humble'), ('GTK_IM_MODULE', 'ibus'), ('LOGNAME', 'qiaoqiaochen'), ('FORCE_COLOR', '0'), ('JOURNAL_STREAM', '8:19285'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('XDG_SESSION_CLASS', 'user'), ('USERNAME', 'qiaoqiaochen'), ('TERM', 'dumb'), ('GNOME_DESKTOP_SESSION_ID', 'this-is-deprecated'), ('ROS_LOCALHOST_ONLY', '0'), ('COMPOSER_NO_INTERACTION', '1'), ('WINDOWPATH', '2'), ('PATH', '/opt/ros/humble/bin:/home/qiaoqiaochen/.local/bin:/home/qiaoqiaochen/.local/bin:/home/qiaoqiaochen/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/snap/bin'), ('SESSION_MANAGER', 'local/rodsk-Precision-3680:@/tmp/.ICE-unix/2270,unix/rodsk-Precision-3680:/tmp/.ICE-unix/2270'), ('INVOCATION_ID', '4a592aa550ab493c9dffc31800bdad95'), ('PAPERSIZE', 'a4'), ('XDG_MENU_PREFIX', 'gnome-'), ('LC_ADDRESS', 'de_DE.UTF-8'), ('VSCODE_PROCESS_TITLE', 'extension-host  [1-2]'), ('XDG_RUNTIME_DIR', '/run/user/1002'), ('GDK_BACKEND', 'x11'), ('CURSOR_AGENT', '1'), ('DISPLAY', ':1'), ('LANG', 'en_GB.UTF-8'), ('XDG_CURRENT_DESKTOP', 'Unity'), ('LC_TELEPHONE', 'de_DE.UTF-8'), ('RMW_IMPLEMENTATION', 'rmw_cyclonedds_cpp'), ('XMODIFIERS', '@im=ibus'), ('XDG_SESSION_DESKTOP', 'ubuntu'), ('XAUTHORITY', '/run/user/1002/gdm/Xauthority'), ('LS_COLORS', ''), ('CURSOR_TRACE_ID', '5565cabf4e554881a13ef41d008b7e19'), ('SSH_AGENT_LAUNCHER', 'gnome-keyring'), ('SSH_AUTH_SOCK', '/run/user/1002/keyring/ssh'), ('AMENT_PREFIX_PATH', '/opt/ros/humble'), ('ORIGINAL_XDG_CURRENT_DESKTOP', 'ubuntu:GNOME'), ('SHELL', '/bin/bash'), ('LC_NAME', 'de_DE.UTF-8'), ('QT_ACCESSIBILITY', '1'), ('GDMSESSION', 'ubuntu'), ('LESSCLOSE', '/usr/bin/lesspipe %s %s'), ('LC_MEASUREMENT', 'de_DE.UTF-8'), ('GPG_AGENT_INFO', '/run/user/1002/gnupg/S.gpg-agent:0:1'), ('GJS_DEBUG_OUTPUT', 'stderr'), ('LC_IDENTIFICATION', 'de_DE.UTF-8'), ('QT_IM_MODULE', 'ibus'), ('PWD', '/home/qiaoqiaochen/appdata/canros/src/tower_crane/build/tower_crane'), ('LC_ALL', 'en_US.UTF-8'), ('XDG_CONFIG_DIRS', '/etc/xdg/xdg-ubuntu:/etc/xdg'), ('VSCODE_CODE_CACHE_PATH', '/home/qiaoqiaochen/.config/Cursor/CachedData/ba90f2f88e4911312761abab9492c42442117cf0'), ('XDG_DATA_DIRS', '/usr/share/ubuntu:/usr/share/gnome:/usr/local/share/:/usr/share/:/var/lib/snapd/desktop'), ('PYTHONPATH', '/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('LC_NUMERIC', 'de_DE.UTF-8'), ('LC_PAPER', 'de_DE.UTF-8'), ('COLCON', '1'), ('VSCODE_PID', '8701'), ('CMAKE_PREFIX_PATH', '/opt/ros/humble')]), 'shell': False}
+[0.059434] (tower_crane) StdoutLine: {'line': b'-- The C compiler identification is GNU 11.4.0\n'}
+[0.097740] (tower_crane) StdoutLine: {'line': b'-- The CXX compiler identification is GNU 11.4.0\n'}
+[0.099903] (-) TimerEvent: {}
+[0.101039] (tower_crane) StdoutLine: {'line': b'-- Detecting C compiler ABI info\n'}
+[0.127445] (tower_crane) StdoutLine: {'line': b'-- Detecting C compiler ABI info - done\n'}
+[0.130664] (tower_crane) StdoutLine: {'line': b'-- Check for working C compiler: /usr/bin/cc - skipped\n'}
+[0.131635] (tower_crane) StdoutLine: {'line': b'-- Detecting C compile features\n'}
+[0.131843] (tower_crane) StdoutLine: {'line': b'-- Detecting C compile features - done\n'}
+[0.133299] (tower_crane) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info\n'}
+[0.164688] (tower_crane) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info - done\n'}
+[0.167900] (tower_crane) StdoutLine: {'line': b'-- Check for working CXX compiler: /usr/bin/c++ - skipped\n'}
+[0.168054] (tower_crane) StdoutLine: {'line': b'-- Detecting CXX compile features\n'}
+[0.168265] (tower_crane) StdoutLine: {'line': b'-- Detecting CXX compile features - done\n'}
+[0.170463] (tower_crane) StdoutLine: {'line': b'-- Found ament_cmake: 1.3.12 (/opt/ros/humble/share/ament_cmake/cmake)\n'}
+[0.199965] (-) TimerEvent: {}
+[0.233437] (tower_crane) StdoutLine: {'line': b'-- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter \n'}
+[0.276714] (tower_crane) StderrLine: {'line': b'CMake Error at CMakeLists.txt:13 (find_package):\n'}
+[0.276814] (tower_crane) StderrLine: {'line': b'  By not providing "Findcanopen_core.cmake" in CMAKE_MODULE_PATH this project\n'}
+[0.276840] (tower_crane) StderrLine: {'line': b'  has asked CMake to find a package configuration file provided by\n'}
+[0.276861] (tower_crane) StderrLine: {'line': b'  "canopen_core", but CMake did not find one.\n'}
+[0.276881] (tower_crane) StderrLine: {'line': b'\n'}
+[0.276900] (tower_crane) StderrLine: {'line': b'  Could not find a package configuration file provided by "canopen_core" with\n'}
+[0.276919] (tower_crane) StderrLine: {'line': b'  any of the following names:\n'}
+[0.276937] (tower_crane) StderrLine: {'line': b'\n'}
+[0.276955] (tower_crane) StderrLine: {'line': b'    canopen_coreConfig.cmake\n'}
+[0.276972] (tower_crane) StderrLine: {'line': b'    canopen_core-config.cmake\n'}
+[0.276991] (tower_crane) StderrLine: {'line': b'\n'}
+[0.277009] (tower_crane) StderrLine: {'line': b'  Add the installation prefix of "canopen_core" to CMAKE_PREFIX_PATH or set\n'}
+[0.277027] (tower_crane) StderrLine: {'line': b'  "canopen_core_DIR" to a directory containing one of the above files.  If\n'}
+[0.277045] (tower_crane) StderrLine: {'line': b'  "canopen_core" provides a separate development package or SDK, be sure it\n'}
+[0.277063] (tower_crane) StderrLine: {'line': b'  has been installed.\n'}
+[0.277080] (tower_crane) StderrLine: {'line': b'\n'}
+[0.277100] (tower_crane) StderrLine: {'line': b'\n'}
+[0.277118] (tower_crane) StdoutLine: {'line': b'-- Configuring incomplete, errors occurred!\n'}
+[0.277137] (tower_crane) StdoutLine: {'line': b'See also "/home/qiaoqiaochen/appdata/canros/src/tower_crane/build/tower_crane/CMakeFiles/CMakeOutput.log".\n'}
+[0.278764] (tower_crane) CommandEnded: {'returncode': 1}
+[0.286706] (tower_crane) JobEnded: {'identifier': 'tower_crane', 'rc': 1}
+[0.296892] (-) EventReactorShutdown: {}

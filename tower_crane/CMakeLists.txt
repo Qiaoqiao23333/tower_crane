@@ -17,7 +17,7 @@ find_package(canopen_proxy_driver REQUIRED)
 find_package(lely_core_libraries REQUIRED)
 
 
-cogen_dcf(robot_control)
+# cogen_dcf(robot_control)  # Temporarily commented out - master.dcf should be generated or provided manually
 
 
 install(DIRECTORY
