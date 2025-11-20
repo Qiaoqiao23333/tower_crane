@@ -13,6 +13,7 @@ from launch_ros.actions import Node
 from launch_ros.descriptions import ParameterValue
 
 _CANROS_PREFIX = "/home/qiaoqiaochen/appdata/canros/install/tower_crane/share/tower_crane"
+_BUS_PATH_PLACEHOLDER = "@BUS_CONFIG_PATH@"
 
 
 def _prepare_bus_config(share_dir: str) -> str:
@@ -20,13 +21,25 @@ def _prepare_bus_config(share_dir: str) -> str:
     with open(source_path, "r", encoding="utf-8") as infp:
         content = infp.read()
 
-    if _CANROS_PREFIX not in content:
+    config_dir = os.path.join(share_dir, "config", "robot_control")
+    replacements = [
+        (f"{_CANROS_PREFIX}/config/robot_control", config_dir),
+        (_BUS_PATH_PLACEHOLDER, config_dir),
+    ]
+
+    patched_content = content
+    replaced = False
+    for needle, target in replacements:
+        if needle in patched_content:
+            patched_content = patched_content.replace(needle, target)
+            replaced = True
+
+    if not replaced:
         raise RuntimeError(
-            "Expected CANopen path placeholder not found inside bus.yml; "
-            "please update _prepare_bus_config."
+            "Expected CANopen path placeholder not found inside bus.yml; please update "
+            "_prepare_bus_config."
         )
 
-    patched_content = content.replace(_CANROS_PREFIX, share_dir)
     fd, temp_path = tempfile.mkstemp(prefix="tower_crane_bus_", suffix=".yml")
     with os.fdopen(fd, "w", encoding="utf-8") as tmp:
         tmp.write(patched_content)
