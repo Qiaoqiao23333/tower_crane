@@ -1,113 +1,185 @@
-from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
-from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
-from launch_ros.actions import Node
-from launch_ros.substitutions import FindPackageShare
-from launch.actions import IncludeLaunchDescription
-from launch.launch_description_sources import PythonLaunchDescriptionSource
-from ament_index_python.packages import get_package_share_directory
 import os
+import tempfile
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import (
+    IncludeLaunchDescription,
+    OpaqueFunction,
+    RegisterEventHandler,
+)
+from launch.event_handlers import OnShutdown
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch_ros.actions import Node
+from launch_ros.descriptions import ParameterValue
+
+_CANROS_PREFIX = "/home/qiaoqiaochen/appdata/canros/install/tower_crane/share/tower_crane"
+
+
+def _prepare_bus_config(share_dir: str) -> str:
+    source_path = os.path.join(share_dir, "config", "robot_control", "bus.yml")
+    with open(source_path, "r", encoding="utf-8") as infp:
+        content = infp.read()
+
+    if _CANROS_PREFIX not in content:
+        raise RuntimeError(
+            "Expected CANopen path placeholder not found inside bus.yml; "
+            "please update _prepare_bus_config."
+        )
+
+    patched_content = content.replace(_CANROS_PREFIX, share_dir)
+    fd, temp_path = tempfile.mkstemp(prefix="tower_crane_bus_", suffix=".yml")
+    with os.fdopen(fd, "w", encoding="utf-8") as tmp:
+        tmp.write(patched_content)
+
+    return temp_path
+
+
+def _load_robot_description(
+    can_interface: str, bus_config_path: str, master_config_path: str
+) -> ParameterValue:
+    share_dir = get_package_share_directory("tower_crane")
+    urdf_file = os.path.join(share_dir, "urdf", "Tower_crane.urdf")
+    if not os.path.exists(urdf_file):
+        raise FileNotFoundError(f"URDF file not found: {urdf_file}")
+
+    with open(urdf_file, "r", encoding="utf-8") as infp:
+        content = infp.read()
+
+    replacements = {
+        f"{_CANROS_PREFIX}/config/robot_control/bus.yml": bus_config_path,
+        f"{_CANROS_PREFIX}/config/robot_control/master.dcf": master_config_path,
+        '<param name="can_interface_name">can0</param>': (
+            f'<param name="can_interface_name">{can_interface}</param>'
+        ),
+    }
+
+    for placeholder, resolved in replacements.items():
+        if placeholder not in content:
+            raise RuntimeError(
+                f"Expected placeholder '{placeholder}' not found in URDF. "
+                "Please update the file conversion logic."
+            )
+        content = content.replace(placeholder, resolved)
+
+    return ParameterValue(content, value_type=str)
 
 
 def generate_launch_description():
+    def launch_setup(context, *args, **kwargs):
+        share_dir = get_package_share_directory("tower_crane")
+        master_config = os.path.join(share_dir, "config", "robot_control", "master.dcf")
+        bus_config_path = _prepare_bus_config(share_dir)
+        robot_description = {
+            "robot_description": _load_robot_description(
+                "vcan0", bus_config_path, master_config
+            )
+        }
+        controller_config = os.path.join(
+            share_dir, "config", "tower_crane_ros2_control.yaml"
+        )
+        rviz_config_file = os.path.join(share_dir, "urdf.rviz")
+        slave_config = os.path.join(
+            share_dir, "config", "robot_control", "DSY-C.EDS"
+        )
+        slave_launch = os.path.join(
+            get_package_share_directory("canopen_fake_slaves"),
+            "launch",
+            "cia402_slave.launch.py",
+        )
 
-    pkg_path = get_package_share_directory('tower_crane')
+        control_node = Node(
+            package="controller_manager",
+            executable="ros2_control_node",
+            parameters=[robot_description, controller_config],
+            output="screen",
+        )
 
-    urdf_file = os.path.join(pkg_path, 'urdf', 'Tower_crane.urdf')
-    with open(urdf_file, 'r') as infp:
-        robot_description_content = infp.read()
-    robot_description = {"robot_description": robot_description_content}
-    robot_control_config = PathJoinSubstitution(
-        [pkg_path, "config", "tower_crane_ros2_control.yaml"]
-    )
+        joint_state_broadcaster_spawner = Node(
+            package="controller_manager",
+            executable="spawner",
+            arguments=[
+                "joint_state_broadcaster",
+                "--controller-manager",
+                "/controller_manager",
+            ],
+        )
 
-    rviz_config_file = os.path.join(pkg_path, 'urdf.rviz')
+        forward_position_controller_spawner = Node(
+            package="controller_manager",
+            executable="spawner",
+            arguments=[
+                "forward_position_controller",
+                "--controller-manager",
+                "/controller_manager",
+            ],
+        )
 
-    control_node = Node(
-        package="controller_manager",
-        executable="ros2_control_node",
-        parameters=[robot_description, robot_control_config],
-        output="screen",
-    )
+        robot_state_publisher_node = Node(
+            package="robot_state_publisher",
+            executable="robot_state_publisher",
+            output="both",
+            parameters=[robot_description],
+        )
 
-    joint_state_broadcaster_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=["joint_state_broadcaster", "--controller-manager", "/controller_manager"],
-    )
+        slave_node_1 = IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(slave_launch),
+            launch_arguments={
+                "node_id": "2",
+                "node_name": "slave_node_1",
+                "slave_config": slave_config,
+            }.items(),
+        )
 
-    forward_position_controller_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=["forward_position_controller", "--controller-manager", "/controller_manager"],
-    )
+        slave_node_2 = IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(slave_launch),
+            launch_arguments={
+                "node_id": "1",
+                "node_name": "slave_node_2",
+                "slave_config": slave_config,
+            }.items(),
+        )
 
-    robot_state_publisher_node = Node(
-        package="robot_state_publisher",
-        executable="robot_state_publisher",
-        output="both",
-        parameters=[robot_description],
-    )
+        slave_node_3 = IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(slave_launch),
+            launch_arguments={
+                "node_id": "3",
+                "node_name": "slave_node_3",
+                "slave_config": slave_config,
+            }.items(),
+        )
 
-    slave_config = PathJoinSubstitution(
-        [pkg_path, "config/robot_control", "DSY-C.EDS"]
-    )
+        node_rviz = Node(
+            package="rviz2",
+            executable="rviz2",
+            name="rviz2",
+            arguments=["-d", rviz_config_file],
+            output="screen",
+        )
 
-    slave_launch = PathJoinSubstitution(
-        [FindPackageShare("canopen_fake_slaves"), "launch", "cia402_slave.launch.py"]
-    )
-    slave_node_1 = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(slave_launch),
-        launch_arguments={
-            "node_id": "2",
-            "node_name": "slave_node_1",
-            "slave_config": slave_config,
-        }.items(),
-    )
+        node_joint_state_publisher_gui = Node(
+            package="joint_state_publisher_gui",
+            executable="joint_state_publisher_gui",
+            name="joint_state_publisher_gui",
+        )
 
-    slave_node_2 = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(slave_launch),
-        launch_arguments={
-            "node_id": "1",
-            "node_name": "slave_node_2",
-            "slave_config": slave_config,
-        }.items(),
-    )
+        cleanup_action = RegisterEventHandler(
+            OnShutdown(
+                on_shutdown=lambda *_, path=bus_config_path: os.path.exists(path)
+                and os.remove(path)
+            )
+        )
 
-    slave_node_3 = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(slave_launch),
-        launch_arguments={
-            "node_id": "3",
-            "node_name": "slave_node_3",
-            "slave_config": slave_config,
-        }.items(),
-    )
-    
-    node_rviz = Node(
-        package='rviz2',  # Note: The package name is 'rviz2' in ROS 2
-        executable='rviz2',
-        name='rviz2',
-        # The '-d' argument points to the config file
-        arguments=['-d', rviz_config_file],
-        output='screen'
-    )
+        return [
+            node_joint_state_publisher_gui,
+            control_node,
+            joint_state_broadcaster_spawner,
+            forward_position_controller_spawner,
+            robot_state_publisher_node,
+            slave_node_1,
+            slave_node_2,
+            slave_node_3,
+            node_rviz,
+            cleanup_action,
+        ]
 
-    node_joint_state_publisher_gui = Node(
-        package='joint_state_publisher_gui',
-        executable='joint_state_publisher_gui',
-        name='joint_state_publisher_gui'
-    )
-
-    nodes_to_start = [
-        node_joint_state_publisher_gui,
-        control_node,
-        joint_state_broadcaster_spawner,
-        forward_position_controller_spawner,
-        robot_state_publisher_node,
-        slave_node_1,
-        slave_node_2,
-        slave_node_3,
-        node_rviz
-    ]
-
-    return LaunchDescription(nodes_to_start)
+    return LaunchDescription([OpaqueFunction(function=launch_setup)])
