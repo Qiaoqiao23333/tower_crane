@@ -3,19 +3,16 @@ options:
   disable_bootstrap: true
 
 master:
-  node_id: 4
-  name: "master"
+  node_id: 1
   driver: "ros2_canopen::MasterDriver"
-  package: canopen_master_driver
-  namespace: "/master"
+  package: "canopen_master_driver"
   sync_period: 10000
-  boot_timeout: 10000
+  boot_time: 500
 
-slewing_motor:
-  node_id: 2
+defaults:
+  node_id: 0
   namespace: "/roscan"
-  package: "canopen_402_driver"
-  dcf: "DSY-C.EDS"
+  dcf: "dchcan.eds"
   driver: "ros2_canopen::Cia402Driver"
   period: 10
   position_mode: 1
@@ -64,8 +61,9 @@ trolley_motor:
   node_id: 1
   namespace: "/roscan"
   package: "canopen_402_driver"
-  dcf: "DSY-C.EDS"
-  driver: "ros2_canopen::Cia402Driver"
+  boot: true
+  enable_lazy_load: true
+  polling: false
   period: 10
   position_mode: 1
   revision_number: 0
