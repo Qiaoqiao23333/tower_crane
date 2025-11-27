@@ -97,13 +97,13 @@ struct CANDevice
 
 
 
-class ERobMasterNode : public rclcpp::Node 
+class CraneMasterNode : public rclcpp::Node 
 {
 public:
-    using SharedPtr = std::shared_ptr<ERobMasterNode>;
+    using SharedPtr = std::shared_ptr<CraneMasterNode>;
     
-    ERobMasterNode();
-    ~ERobMasterNode();
+    CraneMasterNode();
+    ~CraneMasterNode();
     void siginit_exit();
 private:
     // methods
@@ -151,7 +151,7 @@ private:
     // publishers
     rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr actual_velocity_pub_;
     rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr actual_position_pub_;
-    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr erob_status_pub_;
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr crane_status_pub_;
     // subscribers
     rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr target_velocity_sub_;
     rclcpp::Subscription<std_msgs::msg::Float32MultiArray>::SharedPtr target_position_sub_;
@@ -187,7 +187,7 @@ private:
     int sync_interval_ms_;
     int sync_count_;
     int can_socket_;
-    bool erob_state_;
+    bool crane_state_;
     // 添加测试函数声明
     void test_motor_motion();
     // 添加测试定时器声明

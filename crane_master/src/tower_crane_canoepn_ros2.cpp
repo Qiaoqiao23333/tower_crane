@@ -62,13 +62,13 @@
 class CANopenROS2 : public rclcpp::Node
 {
 public:
-    CANopenROS2() : Node("simple_erob_control")
+    CANopenROS2() : Node("simple_crane_control")
     {
         // 初始化参数
         can_interface_ = "can0";
         node_id_ = 2;
         
-        RCLCPP_INFO(this->get_logger(), "初始化Simple eRob Control，CAN接口=%s，节点ID=%d", 
+        RCLCPP_INFO(this->get_logger(), "初始化Simple crane Control，CAN接口=%s，节点ID=%d", 
                     can_interface_.c_str(), node_id_);
         
         // 初始化CAN套接字
@@ -87,32 +87,29 @@ public:
         qos_profile.durability(rclcpp::DurabilityPolicy::Volatile);
         
         // String消息需要更大的payload size
-        status_pub_ = this->create_publisher<std_msgs::msg::String>("erob_status", qos_profile);
-        position_pub_ = this->create_publisher<std_msgs::msg::Float32>("erob_position", 10);
-        velocity_pub_ = this->create_publisher<std_msgs::msg::Float32>("erob_velocity", 10);
+        status_pub_ = this->create_publisher<std_msgs::msg::String>("crane_status", qos_profile);
+        position_pub_ = this->create_publisher<std_msgs::msg::Float32>("crane_position", 10);
+        velocity_pub_ = this->create_publisher<std_msgs::msg::Float32>("crane_velocity", 10);
         
-        // 创建订阅器
+        // 创建订阅器（使用绝对路径确保在全局命名空间）
         position_sub_ = this->create_subscription<std_msgs::msg::Float32>(
-            "target_position", 10, std::bind(&CANopenROS2::position_callback, this, std::placeholders::_1));
+            "/target_position", 10, std::bind(&CANopenROS2::position_callback, this, std::placeholders::_1));
         velocity_sub_ = this->create_subscription<std_msgs::msg::Float32>(
-            "target_velocity", 10, std::bind(&CANopenROS2::velocity_callback, this, std::placeholders::_1));
+            "/target_velocity", 10, std::bind(&CANopenROS2::velocity_callback, this, std::placeholders::_1));
+        
+        RCLCPP_INFO(this->get_logger(), "订阅器已创建: /target_position, /target_velocity");
         
         // 创建服务
         start_service_ = this->create_service<std_srvs::srv::Trigger>(
-            "start_erob", std::bind(&CANopenROS2::handle_start, this, std::placeholders::_1, std::placeholders::_2));
+            "start_crane", std::bind(&CANopenROS2::handle_start, this, std::placeholders::_1, std::placeholders::_2));
         stop_service_ = this->create_service<std_srvs::srv::Trigger>(
-            "stop_erob", std::bind(&CANopenROS2::handle_stop, this, std::placeholders::_1, std::placeholders::_2));
+            "stop_crane", std::bind(&CANopenROS2::handle_stop, this, std::placeholders::_1, std::placeholders::_2));
         reset_service_ = this->create_service<std_srvs::srv::Trigger>(
-            "reset_erob", std::bind(&CANopenROS2::handle_reset, this, std::placeholders::_1, std::placeholders::_2));
+            "reset_crane", std::bind(&CANopenROS2::handle_reset, this, std::placeholders::_1, std::placeholders::_2));
         set_mode_service_ = this->create_service<std_srvs::srv::SetBool>(
-            "set_erob_mode", std::bind(&CANopenROS2::handle_set_mode, this, std::placeholders::_1, std::placeholders::_2));
+            "set_crane_mode", std::bind(&CANopenROS2::handle_set_mode, this, std::placeholders::_1, std::placeholders::_2));
         
-        // 创建定时器，用于接收CAN帧
-        timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(10),
-            std::bind(&CANopenROS2::receive_can_frames, this));
-        
-        // 初始化节点
+        // 初始化节点（在创建定时器之前，避免定时器回调在初始化期间运行）
         initialize_node();
         
         // 配置PDO映射
@@ -135,6 +132,11 @@ public:
         
         // 设置目标位置（例如，移动到90度）
         go_to_position(0.0);
+        
+        // 现在所有初始化完成，创建定时器用于接收CAN帧
+        timer_ = this->create_wall_timer(
+            std::chrono::milliseconds(10),
+            std::bind(&CANopenROS2::receive_can_frames, this));
         
         // 创建状态定时器
         status_timer_ = this->create_wall_timer(
@@ -952,10 +954,13 @@ private:
                     position_ = data;
                     float angle = position_to_angle(position_);
                     
-                    // 发布位置
-                    auto msg = std_msgs::msg::Float32();
-                    msg.data = angle;
-                    position_pub_->publish(msg);
+                    // 发布位置（检查发布器是否已初始化）
+                    if (position_pub_)
+                    {
+                        auto msg = std_msgs::msg::Float32();
+                        msg.data = angle;
+                        position_pub_->publish(msg);
+                    }
                 }
             }
         }
@@ -972,10 +977,13 @@ private:
                 
                 float angle = position_to_angle(position);
                 
-                // 发布位置
-                auto pos_msg = std_msgs::msg::Float32();
-                pos_msg.data = angle;
-                position_pub_->publish(pos_msg);
+                // 发布位置（检查发布器是否已初始化）
+                if (position_pub_)
+                {
+                    auto pos_msg = std_msgs::msg::Float32();
+                    pos_msg.data = angle;
+                    position_pub_->publish(pos_msg);
+                }
                 
                 // 检查目标到达位
                 if (status_word & 0x0400)
@@ -1064,7 +1072,7 @@ private:
         {
             initialize_motor();
             response->success = true;
-            response->message = "EROB电机已启动";
+            response->message = "crane电机已启动";
         }
         catch (const std::exception& e)
         {
@@ -1083,7 +1091,7 @@ private:
         {
             stop_motor();
             response->success = true;
-            response->message = "EROB电机已停止";
+            response->message = "crane电机已停止";
         }
         catch (const std::exception& e)
         {
@@ -1108,7 +1116,7 @@ private:
             initialize_motor();
             
             response->success = true;
-            response->message = "EROB电机已重置";
+            response->message = "crane电机已重置";
         }
         catch (const std::exception& e)
         {

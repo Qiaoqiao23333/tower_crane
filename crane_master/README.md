@@ -1,6 +1,6 @@
-# eRob Master - CANopen ROS 2 Controller
+# crane Master - CANopen ROS 2 Controller
 
-eRob Master is a ROS 2-based CANopen motor controller used to control motors that support the CANopen protocol via CAN bus. This controller supports position and velocity control, and provides a series of ROS 2 interfaces for motor monitoring and control.
+crane Master is a ROS 2-based CANopen motor controller used to control motors that support the CANopen protocol via CAN bus. This controller supports position and velocity control, and provides a series of ROS 2 interfaces for motor monitoring and control.
 
 ## Features
 
@@ -24,8 +24,8 @@ eRob Master is a ROS 2-based CANopen motor controller used to control motors tha
 1. Create workspace
 
    ```bash
-   mkdir -p ~/erob_ws/src
-   cd ~/erob_ws/src
+   mkdir -p ~/crane_ws/src
+   cd ~/crane_ws/src
    ```
 
 2. Clone repository
@@ -37,7 +37,7 @@ eRob Master is a ROS 2-based CANopen motor controller used to control motors tha
 3. Build
 
    ```bash
-   cd ~/erob_ws
+   cd ~/crane_ws
    colcon build --packages-select crane_master
    ```
 
@@ -124,19 +124,19 @@ ros2 topic pub /target_velocity std_msgs/msg/Float32 "data: -10.0" --once
 ### 1. Start Motor
 
 ```bash
-ros2 service call /start_erob std_srvs/srv/Trigger
+ros2 service call /start_crane std_srvs/srv/Trigger
 ```
 
 ### 2. Stop Motor
 
 ```bash
-ros2 service call /stop_erob std_srvs/srv/Trigger
+ros2 service call /stop_crane std_srvs/srv/Trigger
 ```
 
 ### 3. Reset Motor
 
 ```bash
-ros2 service call /reset_erob std_srvs/srv/Trigger
+ros2 service call /reset_crane std_srvs/srv/Trigger
 ```
 
 ## Setting Motor Mode
@@ -144,31 +144,31 @@ ros2 service call /reset_erob std_srvs/srv/Trigger
 - Set to position mode
 
 ```bash
-ros2 service call /set_erob_mode std_srvs/srv/SetBool "data: true"
+ros2 service call /set_crane_mode std_srvs/srv/SetBool "data: true"
 ```
 
 - Set to velocity mode
 
 ```bash
-ros2 service call /set_erob_mode std_srvs/srv/SetBool "data: false"
+ros2 service call /set_crane_mode std_srvs/srv/SetBool "data: false"
 ```
 
 ## Monitor Motor Status
 
 ```bash
-ros2 topic echo /erob_status
+ros2 topic echo /crane_status
 ```
 
 ## View Motor Position
 
 ```bash
-ros2 topic echo /erob_position
+ros2 topic echo /crane_position
 ```
 
 ## View Motor Velocity
 
 ```bash
-ros2 topic echo /erob_velocity
+ros2 topic echo /crane_velocity
 ```
 
 ## Topic List
@@ -177,18 +177,18 @@ ros2 topic echo /erob_velocity
 | ---------- | ------------ | ----------- |
 | /target_position | std_msgs/msg/Float32 | Set target position (degrees) |
 | /target_velocity | std_msgs/msg/Float32 | Set target velocity (degrees/second) |
-| /erob_status | std_msgs/msg/String | Motor status information |
-| /erob_position | std_msgs/msg/Float32 | Current position (degrees) |
-| /erob_velocity | std_msgs/msg/Float32 | Current velocity (degrees/second) |
+| /crane_status | std_msgs/msg/String | Motor status information |
+| /crane_position | std_msgs/msg/Float32 | Current position (degrees) |
+| /crane_velocity | std_msgs/msg/Float32 | Current velocity (degrees/second) |
 
 ## Service List
 
 | Service Name | Service Type | Description |
 | ------------ | ------------ | ----------- |
-| /start_erob | std_srvs/srv/Trigger | Start motor |
-| /stop_erob | std_srvs/srv/Trigger | Stop motor |
-| /reset_erob | std_srvs/srv/Trigger | Reset motor |
-| /set_erob_mode | std_srvs/srv/SetBool | Set motor mode (true: position mode, false: velocity mode) |
+| /start_crane | std_srvs/srv/Trigger | Start motor |
+| /stop_crane | std_srvs/srv/Trigger | Stop motor |
+| /reset_crane | std_srvs/srv/Trigger | Reset motor |
+| /set_crane_mode | std_srvs/srv/SetBool | Set motor mode (true: position mode, false: velocity mode) |
 
 ## Parameter List
 
@@ -214,7 +214,7 @@ ros2 topic echo /erob_velocity
 - Check if motor power is connected
 - Confirm node ID is correct
 - Monitor CAN bus communication using candump: candump can0
-- Check motor status: ros2 topic echo /erob_status
+- Check motor status: ros2 topic echo /crane_status
 
 ### Cannot Switch Operation Mode
 
