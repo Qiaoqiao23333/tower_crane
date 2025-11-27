@@ -13,214 +13,210 @@
 # limitations under the License.
 
 import os
+import tempfile
 from ament_index_python import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, TimerAction, IncludeLaunchDescription
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.actions import (
+    DeclareLaunchArgument,
+    TimerAction,
+    IncludeLaunchDescription,
+    OpaqueFunction,
+    RegisterEventHandler,
+)
+from launch.event_handlers import OnShutdown
+from launch.substitutions import LaunchConfiguration
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
-from launch_ros.substitutions import FindPackageShare
 from launch_ros.descriptions import ParameterValue
+
+_CANROS_PREFIX = "/home/qiaoqiaochen/appdata/canros/install/tower_crane/share/tower_crane"
+
+
+def _prepare_bus_config(share_dir: str) -> str:
+    source_path = os.path.join(share_dir, "config", "robot_control", "bus.yml")
+    with open(source_path, "r", encoding="utf-8") as infp:
+        content = infp.read()
+
+    if _CANROS_PREFIX not in content:
+        raise RuntimeError(
+            "Expected CANopen path placeholder not found inside bus.yml; "
+            "please update _prepare_bus_config."
+        )
+
+    patched_content = content.replace(_CANROS_PREFIX, share_dir)
+    fd, temp_path = tempfile.mkstemp(prefix="tower_crane_bus_", suffix=".yml")
+    with os.fdopen(fd, "w", encoding="utf-8") as tmp:
+        tmp.write(patched_content)
+
+    return temp_path
+
+
+def _load_robot_description(
+    can_interface: str, bus_config_path: str, master_config_path: str
+) -> ParameterValue:
+    share_dir = get_package_share_directory("tower_crane")
+    urdf_path = os.path.join(share_dir, "urdf", "Tower_crane.urdf")
+    if not os.path.exists(urdf_path):
+        raise FileNotFoundError(f"URDF file not found: {urdf_path}")
+
+    with open(urdf_path, "r", encoding="utf-8") as infp:
+        content = infp.read()
+
+    replacements = {
+        f"{_CANROS_PREFIX}/config/robot_control/bus.yml": bus_config_path,
+        f"{_CANROS_PREFIX}/config/robot_control/master.dcf": master_config_path,
+        '<param name="can_interface_name">can0</param>': (
+            f'<param name="can_interface_name">{can_interface}</param>'
+        ),
+    }
+
+    for placeholder, resolved in replacements.items():
+        if placeholder not in content:
+            raise RuntimeError(
+                f"Expected placeholder '{placeholder}' not found in URDF. "
+                "Please update the file conversion logic."
+            )
+        content = content.replace(placeholder, resolved)
+
+    return ParameterValue(content, value_type=str)
 
 
 def generate_launch_description():
-    # -------------------------------
-    # Launch arguments
-    # -------------------------------
-    declared_arguments = []
-
-    declared_arguments.append(
+    declared_arguments = [
         DeclareLaunchArgument(
             "description_package",
             description="Package where URDF file is stored.",
-            default_value="tower_crane"
-        )
-    )
-
-    declared_arguments.append(
+            default_value="tower_crane",
+        ),
         DeclareLaunchArgument(
             "can_interface_name",
             default_value="vcan0",
             description="CAN interface (e.g. vcan0 or can0)",
-        )
-    )
-
-    declared_arguments.append(
+        ),
         DeclareLaunchArgument(
             "use_ros2_control",
             default_value="true",
             description="Use ros2_control with CANopen",
-        )
-    )
-
-    # -------------------------------
-    # File paths
-    # -------------------------------
-    description_package = LaunchConfiguration("description_package")
-    can_interface_name = LaunchConfiguration("can_interface_name")
-
-    controller_config = PathJoinSubstitution([
-        FindPackageShare("tower_crane"),
-        "config",
-        "tower_crane_ros2_control.yaml"
-    ])
-
-    bus_config = PathJoinSubstitution([
-        FindPackageShare("tower_crane"),
-        "config",
-        'robot_control',
-        "bus.yml"
-    ])
-
-    master_config = PathJoinSubstitution([
-        FindPackageShare("tower_crane"),
-        "config",
-        "robot_control",
-        "master.dcf"
-    ])
-
-    master_bin_path = os.path.join(
-        get_package_share_directory("tower_crane"),
-        "config",
-        "master.bin",
-    )
-    if not os.path.exists(master_bin_path):
-        master_bin_path = ""
-
-    # -------------------------------
-    # Read URDF directly (not xacro)
-    # -------------------------------
-    urdf_path = os.path.join(
-        get_package_share_directory("tower_crane"),
-        "urdf",
-        "Tower_crane.urdf"
-    )
-
-    if not os.path.exists(urdf_path):
-        raise FileNotFoundError(f"URDF file not found: {urdf_path}")
-
-    with open(urdf_path, "r") as infp:
-        robot_description_content = infp.read()
-
-    robot_description = {
-        "robot_description": ParameterValue(robot_description_content, value_type=str)
-    }
-
-    # -------------------------------
-    # Fake CANopen slave devices for testing with vcan0
-    # These simulate the actual motors on the CAN bus
-    # -------------------------------
-    slave_config = PathJoinSubstitution([
-        FindPackageShare("tower_crane"),
-        "config",
-        "robot_control",
-        "DSY-C.EDS"
-    ])
-    
-    slave_launch = PathJoinSubstitution([
-        FindPackageShare("canopen_fake_slaves"),
-        "launch",
-        "cia402_slave.launch.py"
-    ])
-    
-    # Node ID 2: slewing_motor
-    slave_node_1 = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(slave_launch),
-        launch_arguments={
-            "node_id": "2",
-            "node_name": "slave_node_1",
-            "slave_config": slave_config,
-        }.items(),
-    )
-    
-    # Node ID 1: trolley_motor
-    slave_node_2 = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(slave_launch),
-        launch_arguments={
-            "node_id": "1",
-            "node_name": "slave_node_2",
-            "slave_config": slave_config,
-        }.items(),
-    )
-    
-    # Node ID 3: hoist_motor (hook_joint)
-    slave_node_3 = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(slave_launch),
-        launch_arguments={
-            "node_id": "3",
-            "node_name": "slave_node_3",
-            "slave_config": slave_config,
-        }.items(),
-    )
-
-    # -------------------------------
-    # Nodes
-    # -------------------------------
-    robot_state_publisher_node = Node(
-        package="robot_state_publisher",
-        executable="robot_state_publisher",
-        output="both",
-        parameters=[robot_description],
-    )
-
-    # The hardware plugin (canopen_ros2_control/RobotSystem) creates its own device container internally
-    # DO NOT launch a separate device_container_node - it will conflict with the hardware plugin's internal one
-    # Start controller_manager after fake slaves are fully ready and have sent boot-up frames
-    # Fake slaves send boot-up frames after ~1 second delay
-    # Need to wait longer to ensure:
-    # 1. Fake slaves have sent boot-up frames
-    # 2. CAN bus is stable
-    # 3. Master's CAN socket will be ready when it initializes
-    controller_manager_node = TimerAction(
-        period=6.0,
-        actions=[
-            Node(
-                package="controller_manager",
-                executable="ros2_control_node",
-                output="screen",
-                parameters=[robot_description, controller_config],
-                name="controller_manager",
-            )
-        ]
-    )
-
-    # Spawn controllers after controller_manager is ready
-    # Give time for the hardware plugin to boot devices and expose services
-    # Increased delays to allow device boot process to complete (controller_manager starts at 6.0s)
-    joint_state_broadcaster_spawner = TimerAction(
-        period=15.0,
-        actions=[
-            Node(
-                package="controller_manager",
-                executable="spawner",
-                arguments=["joint_state_broadcaster", "--controller-manager", "/controller_manager"],
-            )
-        ]
-    )
-
-    forward_position_controller_spawner = TimerAction(
-        period=16.0,
-        actions=[
-            Node(
-                package="controller_manager",
-                executable="spawner",
-                arguments=["forward_position_controller", "--controller-manager", "/controller_manager"],
-            )
-        ]
-    )
-
-    # -------------------------------
-    # Return all nodes
-    # -------------------------------
-    nodes_list = [
-        robot_state_publisher_node,
-        slave_node_1,  # Start fake slaves first so they're ready when master boots
-        slave_node_2,
-        slave_node_3,
-        controller_manager_node,  # Hardware plugin will create its own device container
-        joint_state_broadcaster_spawner,
-        forward_position_controller_spawner,
+        ),
     ]
 
-    return LaunchDescription(declared_arguments + nodes_list)
+    def launch_setup(context, *args, **kwargs):
+        can_interface_name = LaunchConfiguration("can_interface_name").perform(context)
+        share_dir = get_package_share_directory("tower_crane")
+        master_config = os.path.join(share_dir, "config", "robot_control", "master.dcf")
+        bus_config_path = _prepare_bus_config(share_dir)
+
+        robot_description = {
+            "robot_description": _load_robot_description(
+                can_interface_name, bus_config_path, master_config
+            )
+        }
+        controller_config = os.path.join(
+            share_dir, "config", "tower_crane_ros2_control.yaml"
+        )
+        slave_config = os.path.join(
+            share_dir, "config", "robot_control", "DSY-C.EDS"
+        )
+        slave_launch = os.path.join(
+            get_package_share_directory("canopen_fake_slaves"),
+            "launch",
+            "cia402_slave.launch.py",
+        )
+
+        robot_state_publisher_node = Node(
+            package="robot_state_publisher",
+            executable="robot_state_publisher",
+            output="both",
+            parameters=[robot_description],
+        )
+
+        slave_node_1 = IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(slave_launch),
+            launch_arguments={
+                "node_id": "2",
+                "node_name": "slave_node_1",
+                "slave_config": slave_config,
+            }.items(),
+        )
+
+        slave_node_2 = IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(slave_launch),
+            launch_arguments={
+                "node_id": "1",
+                "node_name": "slave_node_2",
+                "slave_config": slave_config,
+            }.items(),
+        )
+
+        slave_node_3 = IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(slave_launch),
+            launch_arguments={
+                "node_id": "3",
+                "node_name": "slave_node_3",
+                "slave_config": slave_config,
+            }.items(),
+        )
+
+        controller_manager_node = TimerAction(
+            period=6.0,
+            actions=[
+                Node(
+                    package="controller_manager",
+                    executable="ros2_control_node",
+                    output="screen",
+                    parameters=[robot_description, controller_config],
+                    name="controller_manager",
+                )
+            ],
+        )
+
+        joint_state_broadcaster_spawner = TimerAction(
+            period=15.0,
+            actions=[
+                Node(
+                    package="controller_manager",
+                    executable="spawner",
+                    arguments=[
+                        "joint_state_broadcaster",
+                        "--controller-manager",
+                        "/controller_manager",
+                    ],
+                )
+            ],
+        )
+
+        forward_position_controller_spawner = TimerAction(
+            period=16.0,
+            actions=[
+                Node(
+                    package="controller_manager",
+                    executable="spawner",
+                    arguments=[
+                        "forward_position_controller",
+                        "--controller-manager",
+                        "/controller_manager",
+                    ],
+                )
+            ],
+        )
+
+        cleanup_action = RegisterEventHandler(
+            OnShutdown(
+                on_shutdown=lambda *_, path=bus_config_path: os.path.exists(path)
+                and os.remove(path)
+            )
+        )
+
+        return [
+            robot_state_publisher_node,
+            slave_node_1,
+            slave_node_2,
+            slave_node_3,
+            controller_manager_node,
+            joint_state_broadcaster_spawner,
+            forward_position_controller_spawner,
+            cleanup_action,
+        ]
+
+    return LaunchDescription(declared_arguments + [OpaqueFunction(function=launch_setup)])
 
