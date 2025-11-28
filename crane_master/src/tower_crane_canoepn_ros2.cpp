@@ -62,14 +62,68 @@
 class CANopenROS2 : public rclcpp::Node
 {
 public:
-    CANopenROS2() : Node("simple_crane_control")
+    CANopenROS2() : Node("canopen_ros2")
     {
-        // 初始化参数
-        can_interface_ = "can0";
-        node_id_ = 2;
+        // 声明参数
+        this->declare_parameter<std::string>("can_interface", "can0");
+        this->declare_parameter<std::string>("node_id", "1");
         
-        RCLCPP_INFO(this->get_logger(), "初始化Simple crane Control，CAN接口=%s，节点ID=%d", 
-                    can_interface_.c_str(), node_id_);
+        // 读取参数
+        can_interface_ = this->get_parameter("can_interface").as_string();
+        std::string node_id_str = this->get_parameter("node_id").as_string();
+        
+        // 调试：打印读取到的原始参数值
+        RCLCPP_INFO(this->get_logger(), "[DEBUG] 节点名称: %s, 读取到的node_id参数值: '%s'", 
+                     this->get_name(), node_id_str.c_str());
+        
+        // 将node_id字符串转换为整数
+        try {
+            node_id_ = std::stoi(node_id_str);
+        } catch (const std::exception& e) {
+            RCLCPP_WARN(this->get_logger(), "无法解析node_id参数 '%s'，尝试从节点名称提取", node_id_str.c_str());
+            // 如果参数解析失败，尝试从节点名称提取（例如：canopen_ros2_node1 -> 1）
+            std::string node_name = this->get_name();
+            size_t node_pos = node_name.find("node");
+            if (node_pos != std::string::npos) {
+                size_t num_start = node_pos + 4; // "node" is 4 characters
+                if (num_start < node_name.length()) {
+                    try {
+                        node_id_ = std::stoi(node_name.substr(num_start));
+                        RCLCPP_INFO(this->get_logger(), "从节点名称 '%s' 提取到节点ID: %d", node_name.c_str(), node_id_);
+                    } catch (...) {
+                        node_id_ = 1;
+                        RCLCPP_WARN(this->get_logger(), "无法从节点名称提取节点ID，使用默认值1");
+                    }
+                } else {
+                    node_id_ = 1;
+                }
+            } else {
+                node_id_ = 1;
+            }
+        }
+        
+        // 如果从参数读取的值看起来不对（比如所有节点都读到2），尝试从节点名称提取
+        std::string node_name = this->get_name();
+        // 从节点名称提取节点ID（例如：canopen_ros2_node1 -> 1）
+        size_t node_pos = node_name.find("node");
+        if (node_pos != std::string::npos) {
+            size_t num_start = node_pos + 4; // "node" is 4 characters
+            if (num_start < node_name.length()) {
+                try {
+                    int extracted_id = std::stoi(node_name.substr(num_start));
+                    if (extracted_id >= 1 && extracted_id <= 3 && extracted_id != node_id_) {
+                        RCLCPP_WARN(this->get_logger(), "节点名称 '%s' 指示节点ID应为%d，但参数值为%d，使用节点名称的值", 
+                                   node_name.c_str(), extracted_id, node_id_);
+                        node_id_ = extracted_id;
+                    }
+                } catch (...) {
+                    // 忽略提取失败
+                }
+            }
+        }
+        
+        RCLCPP_INFO(this->get_logger(), "初始化Simple crane Control，节点名称=%s，CAN接口=%s，节点ID=%d (原始参数值: '%s')", 
+                    this->get_name(), can_interface_.c_str(), node_id_, node_id_str.c_str());
         
         // 初始化CAN套接字
         init_can_socket();

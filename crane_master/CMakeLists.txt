@@ -25,7 +25,14 @@ include_directories(
 
 
 # 添加tower_crane可执行文件
-add_executable(tower_crane src/tower_crane_canoepn_ros2.cpp)
+add_executable(tower_crane
+    src/main.cpp
+    src/canopen_ros2_node.cpp
+    src/canopen_can_communication.cpp
+    src/canopen_motor_control.cpp
+    src/canopen_ros2_interface.cpp
+    src/canopen_utils.cpp
+)
 ament_target_dependencies(tower_crane rclcpp std_msgs std_srvs geometry_msgs)
 
 # 安装可执行文件
