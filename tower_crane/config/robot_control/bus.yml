@@ -1,26 +1,33 @@
 options:
   dcf_path: "/home/qiaoqiaochen/appdata/canros/install/tower_crane/share/tower_crane/config/robot_control"
-  disable_bootstrap: true
+  disable_bootstrap: false
 
 master:
-  node_id: 1
+  node_id: 127
+  name: "master"
   driver: "ros2_canopen::MasterDriver"
-  package: "canopen_master_driver"
-  sync_period: 10000
-  boot_time: 500
-
-defaults:
-  node_id: 0
-  namespace: "/roscan"
-  dcf: "dchcan.eds"
+  package: canopen_master_driver
+  # namespace: "/master"
+  baud_rate: 500
+  heartbeat_consumer: false
+  heartbeat_producer: 2000
+  start_nodes: true
+  sync_period: 5000000 
+  
+slewing_motor:
+  node_id: 2
+  # namespace: "/roscan"
+  package: "canopen_402_driver"
+  dcf: "DSY-C.EDS"
   driver: "ros2_canopen::Cia402Driver"
   period: 10
   position_mode: 1
   revision_number: 0
   boot_timeout_ms: 20000
   sdo_timeout_ms: 10000
-  boot: false
-  reset_communication: false
+  polling: false
+  # boot: true
+  # reset_communication: true
   # fake: true
   sdo:
     - {index: 0x60C2, sub_index: 1, value: 50}
@@ -59,7 +66,7 @@ defaults:
 
 trolley_motor:
   node_id: 1
-  namespace: "/roscan"
+  # namespace: "/roscan"
   package: "canopen_402_driver"
   boot: true
   enable_lazy_load: true
@@ -69,8 +76,9 @@ trolley_motor:
   revision_number: 0
   boot_timeout_ms: 20000
   sdo_timeout_ms: 10000
-  boot: false
-  reset_communication: false
+  polling: false
+  # boot: true
+  # reset_communication: true
   sdo:
     - {index: 0x60C2, sub_index: 1, value: 50}
     - {index: 0x60C2, sub_index: 2, value: -3}
@@ -108,23 +116,24 @@ trolley_motor:
 
 hoist_motor:
   node_id: 3
-  namespace: "/roscan"
+  # namespace: "/roscan"
   package: "canopen_402_driver"
   dcf: "DSY-C.EDS"
   driver: "ros2_canopen::Cia402Driver"
   period: 10
   position_mode: 1
   revision_number: 0
-  boot_timeout_ms: 20000
+  polling: false
+  boot_timeout_ms: 30000
   sdo_timeout_ms: 10000
-  boot: false
-  reset_communication: false
-  sdo:
-    - {index: 0x60C2, sub_index: 1, value: 50}
-    - {index: 0x60C2, sub_index: 2, value: -3}
-    - {index: 0x6083, sub_index: 0, value: 2000}
-    - {index: 0x6084, sub_index: 0, value: 2000}
-    - {index: 0x6060, sub_index: 0, value: 10}
+  # boot: true
+  # reset_communication: true
+  # sdo:
+  #   - {index: 0x60C2, sub_index: 1, value: 50}
+  #   - {index: 0x60C2, sub_index: 2, value: -3}
+  #   - {index: 0x6083, sub_index: 0, value: 2000}
+  #   - {index: 0x6084, sub_index: 0, value: 2000}
+  #   - {index: 0x6060, sub_index: 0, value: 10}
   tpdo: # TPDO needed statusword, actual velocity, actual position, mode of operation
     1:
       enabled: true

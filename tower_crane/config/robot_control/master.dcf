@@ -1,5 +1,5 @@
 [DeviceComissioning]
-NodeID=1
+NodeID=127
 NodeName=
 NodeRefd=
 Baudrate=1000
