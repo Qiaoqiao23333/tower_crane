@@ -121,7 +121,7 @@ private:
     
     // Member variables
     std::string can_interface_;
-    int node_id_;
+    uint8_t node_id_;
     int can_socket_ = -1;
     uint16_t status_word_ = 0;
     int32_t position_ = 0;

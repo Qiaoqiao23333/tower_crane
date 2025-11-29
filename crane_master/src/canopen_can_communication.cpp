@@ -122,11 +122,11 @@ void CANopenROS2::write_sdo(uint16_t index, uint8_t subindex, int32_t data, uint
     
     if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
     {
-        RCLCPP_ERROR(this->get_logger(), "写入SDO失败: 索引=0x%04X, 子索引=0x%02X", index, subindex);
+        RCLCPP_ERROR(this->get_logger(), "写入SDO失败 [节点ID=%d]: 索引=0x%04X, 子索引=0x%02X", node_id_, index, subindex);
     }
     else
     {
-        RCLCPP_DEBUG(this->get_logger(), "SDO已写入: 索引=0x%04X, 子索引=0x%02X, 数据=0x%08X", index, subindex, data);
+        RCLCPP_DEBUG(this->get_logger(), "SDO已写入 [节点ID=%d]: 索引=0x%04X, 子索引=0x%02X, 数据=0x%08X", node_id_, index, subindex, data);
     }
 }
 
@@ -152,7 +152,7 @@ int32_t CANopenROS2::read_sdo(uint16_t index, uint8_t subindex)
     
     if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
     {
-        RCLCPP_ERROR(this->get_logger(), "读取SDO请求失败: 索引=0x%04X, 子索引=0x%02X", index, subindex);
+        RCLCPP_ERROR(this->get_logger(), "读取SDO请求失败 [节点ID=%d]: 索引=0x%04X, 子索引=0x%02X", node_id_, index, subindex);
         return -1;
     }
     
@@ -175,7 +175,7 @@ int32_t CANopenROS2::read_sdo(uint16_t index, uint8_t subindex)
     
     if (!sdo_response_received_)
     {
-        RCLCPP_WARN(this->get_logger(), "读取SDO超时: 索引=0x%04X, 子索引=0x%02X", index, subindex);
+        RCLCPP_WARN(this->get_logger(), "读取SDO超时 [节点ID=%d]: 索引=0x%04X, 子索引=0x%02X", node_id_, index, subindex);
         return 0;
     }
     
@@ -211,7 +211,7 @@ void CANopenROS2::receive_can_frames()
         frame.data[4], frame.data[5], frame.data[6], frame.data[7]);
     
     // 检测SDO响应 (COB-ID = 0x580 + node_id)
-    if (frame.can_id == (COB_TSDO + node_id_))
+    if (frame.can_id == static_cast<canid_t>(COB_TSDO + node_id_))
     {
         // 处理SDO响应
         uint8_t command = frame.data[0];
@@ -221,7 +221,7 @@ void CANopenROS2::receive_can_frames()
         if (command == 0x80)  // SDO中止
         {
             uint32_t abort_code = frame.data[4] | (frame.data[5] << 8) | (frame.data[6] << 16) | (frame.data[7] << 24);
-            RCLCPP_ERROR(this->get_logger(), "SDO中止: 索引=0x%04X, 子索引=0x%02X, 错误码=0x%08X", index, subindex, abort_code);
+            RCLCPP_ERROR(this->get_logger(), "SDO中止 [节点ID=%d]: 索引=0x%04X, 子索引=0x%02X, 错误码=0x%08X", node_id_, index, subindex, abort_code);
             
             // 如果是我们正在等待的SDO响应
             if (!sdo_response_received_ && index == expected_sdo_index_ && subindex == expected_sdo_subindex_)
