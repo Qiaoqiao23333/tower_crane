@@ -28,7 +28,7 @@ void CANopenROS2::initialize_node()
     RCLCPP_INFO(this->get_logger(), "使能后状态字: 0x%04X", status_word);
     
     // 现在尝试设置操作模式
-    write_sdo(OD_OPERATION_MODE, 0x00, MODE_PROFILE_POSITION, 1);
+    write_sdo(OD_OPERATION_MODE, 0x00, MODE_PROFILE_POSITION, 1); //default is position mode
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
     // 验证操作模式
@@ -75,11 +75,11 @@ void CANopenROS2::initialize_node()
     set_profile_deceleration(5);
     
     // 禁用同步生成器
-    write_sdo(OD_SYNC_MANAGER, 0x00, 0, 4);
+    write_sdo(OD_CYCLE_PERIOD, 0x00, 0, 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     // 设置通信周期为1000微秒
-    write_sdo(OD_SYNC_MANAGER, 0x00, 1000, 4);
+    write_sdo(OD_CYCLE_PERIOD, 0x00, 1000, 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     RCLCPP_INFO(this->get_logger(), "节点初始化完成");
@@ -159,6 +159,40 @@ void CANopenROS2::configure_pdo()
     write_sdo(0x1400, 0x02, 0xFF, 1);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     write_sdo(0x1400, 0x01, rxpdo1_cob_id, 4);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    // 配置RxPDO2 for Velocity Control
+    RCLCPP_INFO(this->get_logger(), "配置RxPDO2 for 速度控制");
+    
+    // 1. Disable RxPDO2 (COB-ID 0x300 + NodeID)
+    uint32_t rxpdo2_cob_id = 0x300 + node_id_;
+    write_sdo(0x1401, 0x01, rxpdo2_cob_id | 0x80000000, 4);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    // 2. Set transmission type
+    write_sdo(0x1401, 0x02, 0x01, 1);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    // 3. Clear Mapping
+    write_sdo(0x1601, 0x00, 0x00, 1);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    // 4. Map Control Word (0x6040)
+    write_sdo(0x1601, 0x01, 0x60400010, 4);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    // 5. Map Target Velocity (0x60FF) <-- This enables real-time velocity control
+    write_sdo(0x1601, 0x02, 0x60FF0020, 4);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    // 6. Set number of entries to 2
+    write_sdo(0x1601, 0x00, 0x02, 1);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    // 7. Set transmission type and Enable RxPDO2
+    write_sdo(0x1401, 0x02, 0xFF, 1);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    write_sdo(0x1401, 0x01, rxpdo2_cob_id, 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     RCLCPP_INFO(this->get_logger(), "PDO配置完成");
@@ -572,7 +606,7 @@ void CANopenROS2::set_velocity(float velocity_deg_per_sec)
     // 读取当前操作模式
     int32_t mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
     
-    if (mode != MODE_PROFILE_VELOCITY && mode != MODE_VELOCITY)
+    if (mode != MODE_PROFILE_VELOCITY)
     {
         RCLCPP_WARN(this->get_logger(), "当前不是速度模式，无法设置速度。当前模式: %d", mode);
         return;
@@ -600,18 +634,18 @@ void CANopenROS2::set_velocity_pdo(float velocity_deg_per_sec)
     RCLCPP_INFO(this->get_logger(), "当前操作模式: %d", mode);
     
     // 如果当前不是速度模式，需要先切换到速度模式
-    if (mode != MODE_VELOCITY && mode != MODE_PROFILE_VELOCITY)
+    if (mode != MODE_PROFILE_VELOCITY)
     {
         RCLCPP_INFO(this->get_logger(), "当前模式不是速度模式，正在切换到速度模式...");
         
-        // 尝试切换到速度模式 (MODE_VELOCITY = 2)
-        set_operation_mode(MODE_VELOCITY);
+        // 尝试切换到速度模式 (MODE_PROFILE_VELOCITY = 3)
+        set_operation_mode(MODE_PROFILE_VELOCITY);
         
         // 再次检查模式
         mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
         RCLCPP_INFO(this->get_logger(), "切换后操作模式: %d", mode);
         
-        if (mode != MODE_VELOCITY && mode != MODE_PROFILE_VELOCITY)
+        if (mode != MODE_PROFILE_VELOCITY)
         {
             RCLCPP_ERROR(this->get_logger(), "无法切换到速度模式，当前模式: %d。速度设置可能失败。", mode);
             // 继续尝试设置速度，但可能会失败
@@ -624,12 +658,10 @@ void CANopenROS2::set_velocity_pdo(float velocity_deg_per_sec)
     // 转换为电机内部单位
     int32_t velocity_pulse = velocity_to_pulse(velocity_deg_per_sec);
     
-    // 使用SDO设置目标速度
-    write_sdo(OD_TARGET_VELOCITY, 0x00, velocity_pulse, 4);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    
     // 确保电机处于操作使能状态
     int32_t status_word = read_sdo(OD_STATUS_WORD, 0x00);
+    uint16_t control_word = CONTROL_ENABLE_OPERATION;
+    
     if ((status_word & 0x006F) != 0x0027)  // 如果不是"操作已启用"状态
     {
         RCLCPP_INFO(this->get_logger(), "电机未处于操作状态，正在使能...");
@@ -641,11 +673,30 @@ void CANopenROS2::set_velocity_pdo(float velocity_deg_per_sec)
         write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_ENABLE_OPERATION, 2);
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
+    
+    // 使用RxPDO2发送控制字和目标速度（实时控制）
+    struct can_frame frame;
+    frame.can_id = COB_RPDO2 + node_id_;
+    frame.can_dlc = 6;  // 控制字(2字节) + 目标速度(4字节)
+    
+    // 控制字 (0x6040) - 2 bytes
+    frame.data[0] = control_word & 0xFF;  // 控制字低字节
+    frame.data[1] = (control_word >> 8) & 0xFF;  // 控制字高字节
+    
+    // 目标速度 (0x60FF) - 4 bytes (little-endian)
+    frame.data[2] = velocity_pulse & 0xFF;
+    frame.data[3] = (velocity_pulse >> 8) & 0xFF;
+    frame.data[4] = (velocity_pulse >> 16) & 0xFF;
+    frame.data[5] = (velocity_pulse >> 24) & 0xFF;
+    
+    if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
+    {
+        RCLCPP_ERROR(this->get_logger(), "发送速度PDO失败 [节点ID=%d]", node_id_);
+    }
     else
     {
-        // 如果已经在操作状态，只需发送使能操作命令
-        write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_ENABLE_OPERATION, 2);
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        RCLCPP_DEBUG(this->get_logger(), "速度PDO已发送 [节点ID=%d]: %.2f°/s (脉冲值: %d)", 
+                    node_id_, velocity_deg_per_sec, velocity_pulse);
     }
     
     RCLCPP_INFO(this->get_logger(), "速度命令已发送: %.2f°/s (脉冲值: %d)", velocity_deg_per_sec, velocity_pulse);

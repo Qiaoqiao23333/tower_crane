@@ -25,6 +25,7 @@
 #define COB_NMT      0x000
 #define COB_SYNC     0x080
 #define COB_RPDO1    0x200
+#define COB_RPDO2    0x300
 #define COB_RSDO     0x600
 #define COB_TSDO     0x580
 #define COB_TPDO1    0x180
@@ -45,11 +46,14 @@
 
 // CiA402操作模式
 #define MODE_PROFILE_POSITION    1
-#define MODE_VELOCITY            2
-#define MODE_PROFILE_VELOCITY    3
+// #define MODE_VELOCITY         2  <-- REMOVE THIS (Not supported by DSY-C.eds)
+#define MODE_PROFILE_VELOCITY    3  // <-- USE THIS for Speed Control
 #define MODE_PROFILE_TORQUE      4
+#define MODE_HOMING              6  // Supported by your EDS
+#define MODE_INTERPOLATED_POS    7  // Supported by your EDS
 
 // 对象字典索引
+#define OD_CYCLE_PERIOD          0x1006 // Renamed from SYNC_MANAGER for accuracy
 #define OD_CONTROL_WORD          0x6040
 #define OD_STATUS_WORD           0x6041
 #define OD_OPERATION_MODE        0x6060
@@ -60,7 +64,19 @@
 #define OD_PROFILE_VELOCITY      0x6081
 #define OD_PROFILE_ACCELERATION  0x6083
 #define OD_PROFILE_DECELERATION  0x6084
-#define OD_SYNC_MANAGER          0x1006
+
+// 1. Safety Limits (Defined in EDS)
+#define OD_MAX_MOTOR_SPEED       0x6080 // EDS Default: 5000 RPM
+#define OD_MAX_PROFILE_VELOCITY  0x607F // EDS Default: 600,000
+
+// 2. Electronic Gear Ratio (Crucial for correct speed/position units)
+// Many DSY motors need these set to 1:1 explicitly if not default
+#define OD_GEAR_RATIO            0x6091
+
+// 3. Save Parameters
+// If you change settings, you might need to save them to EEPROM
+#define OD_STORE_PARAMETERS      0x1010
+#define STORE_SIGNATURE          0x65766173 // ASCII for "save"
 
 // 编码器分辨率
 #define ENCODER_RESOLUTION       131072  // Matches DSY-C.EDS 0x608Fsub1 default
