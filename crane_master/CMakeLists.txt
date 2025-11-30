@@ -17,6 +17,10 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(rclcpp_action REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(control_msgs REQUIRED)
+find_package(trajectory_msgs REQUIRED)
 
 # 包含目录
 include_directories(
@@ -35,9 +39,21 @@ add_executable(tower_crane
 )
 ament_target_dependencies(tower_crane rclcpp std_msgs std_srvs geometry_msgs)
 
+# moveit_bridge node
+add_executable(moveit_bridge src/moveit_bridge.cpp)
+ament_target_dependencies(moveit_bridge 
+  rclcpp 
+  rclcpp_action 
+  sensor_msgs 
+  std_msgs 
+  control_msgs 
+  trajectory_msgs
+)
+
 # 安装可执行文件
 install(TARGETS
   tower_crane
+  moveit_bridge
   DESTINATION lib/${PROJECT_NAME}
 )
 
