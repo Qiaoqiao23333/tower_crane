@@ -1,4 +1,5 @@
 #include "crane_master/canopen_ros2_node.hpp"
+#include <cmath>
 
 void CANopenROS2::initialize_node()
 {
@@ -356,6 +357,45 @@ void CANopenROS2::initialize_motor()
     
     // 使能电机
     enable_motor();
+    
+    // 读取并记录编码器分辨率 (0x608F:01)
+    int32_t encoder_resolution = read_sdo(OD_POSITION_ENCODER_RESOLUTION, 0x01);
+    if (encoder_resolution > 0)
+    {
+        RCLCPP_INFO(this->get_logger(), "编码器分辨率 (0x608F:01): %d (预期值: %d)", 
+                   encoder_resolution, ENCODER_RESOLUTION);
+        if (encoder_resolution != ENCODER_RESOLUTION)
+        {
+            RCLCPP_WARN(this->get_logger(), "编码器分辨率与预期值不匹配！实际值: %d, 预期值: %d", 
+                       encoder_resolution, ENCODER_RESOLUTION);
+        }
+    }
+    else
+    {
+        RCLCPP_WARN(this->get_logger(), "无法读取编码器分辨率 (0x608F:01)，使用默认值: %d", ENCODER_RESOLUTION);
+    }
+    
+    // 读取并记录减速比 (0x6091:01 和 0x6091:02)
+    int32_t motor_revolutions = read_sdo(OD_GEAR_RATIO, 0x01);
+    int32_t shaft_revolutions = read_sdo(OD_GEAR_RATIO, 0x02);
+    
+    if (motor_revolutions > 0 && shaft_revolutions > 0)
+    {
+        float calculated_gear_ratio = static_cast<float>(motor_revolutions) / static_cast<float>(shaft_revolutions);
+        RCLCPP_INFO(this->get_logger(), "减速比 (0x6091): 电机转数=%d, 轴转数=%d, 计算值=%.2f (配置值=%.2f)", 
+                   motor_revolutions, shaft_revolutions, calculated_gear_ratio, gear_ratio_);
+        
+        // 检查计算值与配置值是否匹配（允许小的浮点误差）
+        if (std::abs(calculated_gear_ratio - gear_ratio_) > 0.1f)
+        {
+            RCLCPP_WARN(this->get_logger(), "减速比与配置值不匹配！计算值: %.2f, 配置值: %.2f", 
+                       calculated_gear_ratio, gear_ratio_);
+        }
+    }
+    else
+    {
+        RCLCPP_WARN(this->get_logger(), "无法读取减速比 (0x6091)，使用配置值: %.2f", gear_ratio_);
+    }
     
     RCLCPP_INFO(this->get_logger(), "电机初始化完成");
 }
