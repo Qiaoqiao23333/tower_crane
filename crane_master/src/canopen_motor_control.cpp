@@ -27,6 +27,23 @@ void CANopenROS2::initialize_node()
     int32_t status_word = read_sdo(OD_STATUS_WORD, 0x00);
     RCLCPP_INFO(this->get_logger(), "使能后状态字: 0x%04X", status_word);
     
+    // 读取编码器分辨率 (0x608F:01)
+    int32_t encoder_resolution = read_sdo(OD_POSITION_ENCODER_RESOLUTION, 0x01);
+    if (encoder_resolution > 0)
+    {
+        RCLCPP_INFO(this->get_logger(), "编码器分辨率 (0x608F:01): %d (预期值: %d)", 
+                   encoder_resolution, ENCODER_RESOLUTION);
+        if (encoder_resolution != ENCODER_RESOLUTION)
+        {
+            RCLCPP_WARN(this->get_logger(), "编码器分辨率与预期值不匹配！实际值: %d, 预期值: %d", 
+                       encoder_resolution, ENCODER_RESOLUTION);
+        }
+    }
+    else
+    {
+        RCLCPP_WARN(this->get_logger(), "无法读取编码器分辨率 (0x608F:01)，使用默认值: %d", ENCODER_RESOLUTION);
+    }
+    
     // 现在尝试设置操作模式
     write_sdo(OD_OPERATION_MODE, 0x00, MODE_PROFILE_POSITION, 1); //default is position mode
     std::this_thread::sleep_for(std::chrono::milliseconds(200));

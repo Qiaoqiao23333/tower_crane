@@ -79,6 +79,7 @@
 #define STORE_SIGNATURE          0x65766173 // ASCII for "save"
 
 // 编码器分辨率
+#define OD_POSITION_ENCODER_RESOLUTION 0x608F  // Position encoder resolution
 #define ENCODER_RESOLUTION       131072  // Matches DSY-C.EDS 0x608Fsub1 default
 
 class CANopenROS2 : public rclcpp::Node
