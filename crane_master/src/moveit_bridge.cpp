@@ -14,14 +14,29 @@
 #include "control_msgs/action/follow_joint_trajectory.hpp"
 #include "trajectory_msgs/msg/joint_trajectory_point.hpp"
 
-// 辅助函数：角度转弧度
+// 辅助函数：角度转弧度 (用于旋转关节)
 static double deg2rad(double deg) {
     return deg * M_PI / 180.0;
 }
 
-// 辅助函数：弧度转角度
+// 辅助函数：弧度转角度 (用于旋转关节)
 static double rad2deg(double rad) {
     return rad * 180.0 / M_PI;
+}
+
+// 辅助函数：角度转米 (用于移动关节: Hoist, Trolley)
+// TODO: 用户需要根据实际卷扬机/丝杠参数修改此转换系数
+// 假设: 电机转动 1 度对应的直线移动距离 (米)
+static const double METERS_PER_DEGREE_HOIST = 0.001; // 示例值
+static const double METERS_PER_DEGREE_TROLLEY = 0.001; // 示例值
+
+static double deg2meter(double deg, double ratio) {
+    return deg * ratio;
+}
+
+static double meter2deg(double meter, double ratio) {
+    if (std::abs(ratio) < 1e-9) return 0.0;
+    return meter / ratio;
 }
 
 class CraneMoveItBridge : public rclcpp::Node {
@@ -36,7 +51,7 @@ public:
         
         // 注意：这里的关节名称顺序必须与 ros2_controllers.yaml 中的配置保持一致
         // 同时也需要与 MoveIt 配置包 (tower_crane_moveit_config) 中的 SRDF/URDF 一致
-        joint_names_ = {"joint_hoist", "joint_trolley", "joint_slewing"};
+        joint_names_ = {"hook_joint", "trolley_joint", "slewing_joint"};
 
         // -----------------------------------------------------------------------
         // 2. 订阅底层电机反馈 (Subscribers - From CANopen Nodes)
@@ -44,15 +59,15 @@ public:
         // 输入单位：角度 (Degrees)
         sub_hoist_pos_ = this->create_subscription<std_msgs::msg::Float32>(
             "/hoist/crane_position", 10, 
-            [this](const std_msgs::msg::Float32::SharedPtr msg) { current_positions_deg_["joint_hoist"] = msg->data; });
+            [this](const std_msgs::msg::Float32::SharedPtr msg) { current_positions_deg_["hook_joint"] = msg->data; });
 
         sub_trolley_pos_ = this->create_subscription<std_msgs::msg::Float32>(
             "/trolley/crane_position", 10, 
-            [this](const std_msgs::msg::Float32::SharedPtr msg) { current_positions_deg_["joint_trolley"] = msg->data; });
+            [this](const std_msgs::msg::Float32::SharedPtr msg) { current_positions_deg_["trolley_joint"] = msg->data; });
 
         sub_slewing_pos_ = this->create_subscription<std_msgs::msg::Float32>(
             "/slewing/crane_position", 10, 
-            [this](const std_msgs::msg::Float32::SharedPtr msg) { current_positions_deg_["joint_slewing"] = msg->data; });
+            [this](const std_msgs::msg::Float32::SharedPtr msg) { current_positions_deg_["slewing_joint"] = msg->data; });
 
         // 初始化当前位置为 0
         for (const auto& name : joint_names_) {
@@ -90,7 +105,7 @@ public:
         // 则 Action Server 应为 /crane_arm_controller/follow_joint_trajectory
         action_server_ = rclcpp_action::create_server<FollowJointTrajectory>(
             this,
-            "/crane_arm_controller/follow_joint_trajectory",
+            "/forward_position_controller/follow_joint_trajectory",
             std::bind(&CraneMoveItBridge::handle_goal, this, std::placeholders::_1, std::placeholders::_2),
             std::bind(&CraneMoveItBridge::handle_cancel, this, std::placeholders::_1),
             std::bind(&CraneMoveItBridge::handle_accepted, this, std::placeholders::_1)
@@ -125,9 +140,23 @@ private:
         msg.header.stamp = this->now();
         msg.name = joint_names_;
 
-        // 将当前存储的角度转换为弧度发布
+        // 将当前存储的角度转换为 MoveIt 需要的单位 (弧度 或 米)
         for (const auto& name : joint_names_) {
-            msg.position.push_back(deg2rad(current_positions_deg_[name]));
+            double raw_deg = current_positions_deg_[name];
+            double val_converted = 0.0;
+
+            if (name == "slewing_joint") {
+                // 旋转关节: 角度 -> 弧度
+                val_converted = deg2rad(raw_deg);
+            } else if (name == "hook_joint") {
+                // 移动关节: 角度 -> 米
+                val_converted = deg2meter(raw_deg, METERS_PER_DEGREE_HOIST);
+            } else if (name == "trolley_joint") {
+                // 移动关节: 角度 -> 米
+                val_converted = deg2meter(raw_deg, METERS_PER_DEGREE_TROLLEY);
+            }
+            
+            msg.position.push_back(val_converted);
         }
 
         pub_joint_states_->publish(msg);
@@ -191,9 +220,9 @@ private:
         std::vector<int> map_traj_to_local(goal->trajectory.joint_names.size(), -1);
         for (size_t i = 0; i < goal->trajectory.joint_names.size(); ++i) {
             std::string name = goal->trajectory.joint_names[i];
-            if (name == "joint_hoist") map_traj_to_local[i] = 0; // 0 对应 hoist
-            else if (name == "joint_trolley") map_traj_to_local[i] = 1; // 1 对应 trolley
-            else if (name == "joint_slewing") map_traj_to_local[i] = 2; // 2 对应 slewing
+            if (name == "hook_joint") map_traj_to_local[i] = 0; // 0 对应 hoist
+            else if (name == "trolley_joint") map_traj_to_local[i] = 1; // 1 对应 trolley
+            else if (name == "slewing_joint") map_traj_to_local[i] = 2; // 2 对应 slewing
         }
 
         for (const auto & point : goal->trajectory.points) {
@@ -220,11 +249,22 @@ private:
             // 遍历轨迹点中的每个关节位置
             for (size_t i = 0; i < point.positions.size(); ++i) {
                 int type = map_traj_to_local[i];
-                double pos_rad = point.positions[i];
-                double pos_deg = rad2deg(pos_rad);
+                double target_val = point.positions[i]; // 弧度 (Revolute) 或 米 (Prismatic)
+                double cmd_deg = 0.0;
                 
+                if (type == 0) { // Hoist (Hook) - Prismatic
+                    // 米 -> 角度
+                    cmd_deg = meter2deg(target_val, METERS_PER_DEGREE_HOIST);
+                } else if (type == 1) { // Trolley - Prismatic
+                    // 米 -> 角度
+                    cmd_deg = meter2deg(target_val, METERS_PER_DEGREE_TROLLEY);
+                } else if (type == 2) { // Slewing - Revolute
+                    // 弧度 -> 角度
+                    cmd_deg = rad2deg(target_val);
+                }
+
                 std_msgs::msg::Float32 msg;
-                msg.data = static_cast<float>(pos_deg);
+                msg.data = static_cast<float>(cmd_deg);
 
                 if (type == 0) { // Hoist
                     pub_hoist_cmd_->publish(msg);
