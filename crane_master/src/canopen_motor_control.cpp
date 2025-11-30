@@ -257,10 +257,28 @@ void CANopenROS2::set_immediate_effect(bool immediate)
     RCLCPP_INFO(this->get_logger(), "控制字已更新为: 0x%04X", controlword);
 }
 
+void CANopenROS2::check_and_clear_error()
+{
+    // Check Error Register (0x1001)
+    int32_t error_register = read_sdo(0x1001, 0x00);
+    if (error_register > 0)
+    {
+        RCLCPP_ERROR(this->get_logger(), "Error Register (0x1001): 0x%02X", error_register);
+        
+        // Read Manufacturer Error Code (0x603F) if supported
+        int32_t manufacturer_error = read_sdo(0x603F, 0x00);
+        if (manufacturer_error > 0) {
+             RCLCPP_ERROR(this->get_logger(), "Manufacturer Error (0x603F): 0x%04X", manufacturer_error);
+        }
+    }
+}
+
 void CANopenROS2::clear_fault()
 {
     RCLCPP_INFO(this->get_logger(), "清除故障...");
     
+    check_and_clear_error();
+
     // 发送故障复位命令
     set_control_word(CONTROL_FAULT_RESET);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -280,24 +298,85 @@ void CANopenROS2::enable_motor()
     int32_t status_word = read_sdo(OD_STATUS_WORD, 0x00);
     RCLCPP_INFO(this->get_logger(), "当前状态字: 0x%04X", status_word);
     
-    // 先使用SDO设置控制字
-    // 关闭（Shutdown）
+    // 如果状态字读取失败，尝试多次
+    int retry_count = 0;
+    while (status_word < 0 && retry_count < 3)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        status_word = read_sdo(OD_STATUS_WORD, 0x00);
+        retry_count++;
+    }
+    
+    if (status_word < 0)
+    {
+        RCLCPP_WARN(this->get_logger(), "无法读取状态字，尝试继续使能流程");
+    }
+    else
+    {
+        status_word_ = static_cast<uint16_t>(status_word);
+    }
+    
+    // 检查是否有故障需要清除
+    if (status_word_ & 0x0008)  // 故障位
+    {
+        RCLCPP_WARN(this->get_logger(), "检测到故障，尝试清除...");
+        clear_fault();
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    } else if ((status_word_ & 0x004F) == 0x0040) // Operation Inhibit
+    {
+        RCLCPP_WARN(this->get_logger(), "检测到 Operation Inhibit (0x0040)，尝试复位...");
+        // Strict Reset Sequence: 0x0080 -> 0x0006 -> 0x0007 -> 0x000F
+        set_control_word(0x0080);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        set_control_word(0x0006);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        set_control_word(0x0007);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        set_control_word(0x000F);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        return; // Return early as we've done the sequence
+    }
+    
+    // 执行状态转换序列 - Strict sequence for robustness
+    // 1. Shutdown (0x06)
     write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_SHUTDOWN, 2);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
-    // 准备开启（Switch on）
+    // 2. Switch on (0x07)
     write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_SWITCH_ON, 2);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
-    // 使能操作（Enable operation）
+    // 3. Enable operation (0x0F)
     write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_ENABLE_OPERATION, 2);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
     
     // 再次读取状态字，确认电机已使能
     status_word = read_sdo(OD_STATUS_WORD, 0x00);
-    RCLCPP_INFO(this->get_logger(), "使能后状态字: 0x%04X", status_word);
+    if (status_word >= 0)
+    {
+        status_word_ = static_cast<uint16_t>(status_word);
+        RCLCPP_INFO(this->get_logger(), "使能后状态字: 0x%04X", status_word_);
+        
+        // 检查是否成功使能
+        if ((status_word_ & 0x006F) == 0x0027)
+        {
+            RCLCPP_INFO(this->get_logger(), "电机已成功使能 (操作已启用)");
+        }
+        else if ((status_word_ & 0x006F) == 0x0023)
+        {
+            RCLCPP_INFO(this->get_logger(), "电机已开启，但未进入操作模式");
+        }
+        else if ((status_word_ & 0x004F) == 0x0040)
+        {
+            RCLCPP_WARN(this->get_logger(), "电机仍处于禁止开启状态，可能需要检查硬件或配置");
+        }
+    }
+    else
+    {
+        RCLCPP_WARN(this->get_logger(), "无法读取使能后的状态字");
+    }
     
-    // 然后使用PDO发送控制字
+    // 使用PDO方式再次尝试使能（更可靠，周期性刷新）
     set_control_word(CONTROL_SHUTDOWN);  // 关机
     send_sync_frame();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -308,7 +387,7 @@ void CANopenROS2::enable_motor()
     
     set_control_word(CONTROL_ENABLE_OPERATION);  // 使能操作
     send_sync_frame();
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
     RCLCPP_INFO(this->get_logger(), "电机已使能");
 }
@@ -566,47 +645,40 @@ void CANopenROS2::go_to_position(float angle)
     int32_t position = angle_to_position(angle);
     RCLCPP_INFO(this->get_logger(), "目标位置脉冲值: %d", position);
     
-    // 先使用SDO设置目标位置
+    // 先使用SDO设置目标位置 (一次性设置)
     write_sdo(OD_TARGET_POSITION, 0x00, position, 4);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
     
-    // 使用SDO设置控制字，触发位置命令
-    write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_ENABLE_OPERATION | CONTROL_NEW_SET_POINT, 2);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    
-    // 重置控制字
-    write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_ENABLE_OPERATION, 2);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    
-    // 然后使用PDO发送目标位置
+    // 使用PDO进行控制字握手，避免与SDO混用导致状态机混乱
     struct can_frame frame;
     frame.can_id = COB_RPDO1 + node_id_;
-    frame.can_dlc = 6;  // 控制字(2字节) + 目标位置(4字节)
-    frame.data[0] = CONTROL_ENABLE_OPERATION & 0xFF;  // 控制字低字节
-    frame.data[1] = (CONTROL_ENABLE_OPERATION >> 8) & 0xFF;  // 控制字高字节
-    frame.data[2] = position & 0xFF;  // 目标位置低字节
+    frame.can_dlc = 6;  // 2 bytes control, 4 bytes position
+    
+    // 1. 发送 Enable Operation (0x000F) + 目标位置
+    // 确保位置数据始终在PDO中，防止数据不一致
+    frame.data[0] = CONTROL_ENABLE_OPERATION & 0xFF;
+    frame.data[1] = (CONTROL_ENABLE_OPERATION >> 8) & 0xFF;
+    frame.data[2] = position & 0xFF;
     frame.data[3] = (position >> 8) & 0xFF;
     frame.data[4] = (position >> 16) & 0xFF;
-    frame.data[5] = (position >> 24) & 0xFF;  // 目标位置高字节
+    frame.data[5] = (position >> 24) & 0xFF;
     
-    if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
-    {
-        RCLCPP_ERROR(this->get_logger(), "发送目标位置失败");
-        return;
-    }
+    write(can_socket_, &frame, sizeof(struct can_frame));
+    send_sync_frame();
+    std::this_thread::sleep_for(std::chrono::milliseconds(20)); // 短暂等待
     
+    // 2. 发送 Enable Operation + New Setpoint (0x001F) + 目标位置 (上升沿触发)
+    frame.data[0] = (CONTROL_ENABLE_OPERATION | CONTROL_NEW_SET_POINT) & 0xFF;
+    write(can_socket_, &frame, sizeof(struct can_frame));
+    send_sync_frame();
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    
+    // 3. 恢复 Enable Operation (0x000F) + 目标位置 (完成握手)
+    frame.data[0] = CONTROL_ENABLE_OPERATION & 0xFF;
+    write(can_socket_, &frame, sizeof(struct can_frame));
     send_sync_frame();
     
-    // 先重置命令触发位（位4）
-    set_control_word(CONTROL_ENABLE_OPERATION);
-    send_sync_frame();
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    
-    // 设置命令触发位，创建上升沿
-    set_control_word(CONTROL_ENABLE_OPERATION | CONTROL_NEW_SET_POINT);
-    send_sync_frame();
-    
-    RCLCPP_INFO(this->get_logger(), "位置命令已发送");
+    RCLCPP_INFO(this->get_logger(), "位置命令已通过PDO握手发送");
     
     // 如果目标位置就是当前位置，不需要等待
     int32_t current_pos = read_sdo(OD_ACTUAL_POSITION, 0x00);
@@ -627,6 +699,15 @@ void CANopenROS2::go_to_position(float angle)
         // 读取状态字
         int32_t status_word = read_sdo(OD_STATUS_WORD, 0x00);
         
+        // 检查是否发生故障
+        if (status_word & 0x0008 || (status_word & 0x004F) == 0x0040)
+        {
+             RCLCPP_ERROR(this->get_logger(), "移动过程中检测到故障或禁止开启状态 (0x%04X)", status_word);
+             check_and_clear_error(); // 诊断错误
+             // 尝试重新使能? 或者直接退出
+             break;
+        }
+
         // 读取实际位置
         int32_t actual_pos = read_sdo(OD_ACTUAL_POSITION, 0x00);
         int32_t current_diff = (position > actual_pos) ? (position - actual_pos) : (actual_pos - position);
@@ -758,4 +839,3 @@ void CANopenROS2::set_velocity_pdo(float velocity_deg_per_sec)
     
     RCLCPP_INFO(this->get_logger(), "速度命令已发送: %.2f°/s (脉冲值: %d)", velocity_deg_per_sec, velocity_pulse);
 }
-

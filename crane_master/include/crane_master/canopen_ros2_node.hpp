@@ -136,6 +136,9 @@ private:
     int32_t velocity_to_pulse(float velocity_deg_per_sec);
     int32_t acceleration_to_pulse(float acceleration_deg_per_sec2);
     
+    // Error handling
+    void check_and_clear_error();
+
     // Member variables
     std::string can_interface_;
     uint8_t node_id_;
