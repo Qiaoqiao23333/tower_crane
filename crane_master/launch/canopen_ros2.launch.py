@@ -45,67 +45,85 @@ def launch_nodes(context):
     
     nodes_to_launch = []
     
-    # 根据node_id决定启动哪些节点
-    if node_id_value == 'all':
-        # 启动所有节点 - 为每个节点创建独立的参数字典
-        node1_params = {
+    # 定义各节点配置（与bus.yml中的映射一致）
+    # Node 1 (起升/Hoist): namespace=hoist, gear_ratio=20.0
+    node1_config = {
+        'package': 'crane_master',
+        'executable': 'tower_crane',
+        'name': 'canopen_ros2_node1',
+        'namespace': 'hoist',
+        'parameters': [{
             'can_interface': can_interface_value,
             'node_id': '1',
+            'gear_ratio': 20.0,
             'auto_start': auto_start_value
-        }
-        node2_params = {
+        }]
+    }
+
+    # Node 2 (小车/Trolley): namespace=trolley, gear_ratio=10.0
+    node2_config = {
+        'package': 'crane_master',
+        'executable': 'tower_crane',
+        'name': 'canopen_ros2_node2',
+        'namespace': 'trolley',
+        'parameters': [{
             'can_interface': can_interface_value,
             'node_id': '2',
+            'gear_ratio': 10.0,
             'auto_start': auto_start_value
-        }
-        node3_params = {
+        }]
+    }
+
+    # Node 3 (回转/Slewing): namespace=slewing, gear_ratio=10.0
+    node3_config = {
+        'package': 'crane_master',
+        'executable': 'tower_crane',
+        'name': 'canopen_ros2_node3',
+        'namespace': 'slewing',
+        'parameters': [{
             'can_interface': can_interface_value,
             'node_id': '3',
+            'gear_ratio': 10.0,
             'auto_start': auto_start_value
-        }
-        
-        nodes_to_launch = [
-            Node(
-                package='crane_master',
-                executable='tower_crane',
-                name='canopen_ros2_node1',
-                output='screen',
-                emulate_tty=True,
-                parameters=[node1_params]
-            ),
-            Node(
-                package='crane_master',
-                executable='tower_crane',
-                name='canopen_ros2_node2',
-                output='screen',
-                emulate_tty=True,
-                parameters=[node2_params]
-            ),
-            Node(
-                package='crane_master',
-                executable='tower_crane',
-                name='canopen_ros2_node3',
-                output='screen',
-                emulate_tty=True,
-                parameters=[node3_params]
+        }]
+    }
+    
+    all_configs = {
+        '1': node1_config,
+        '2': node2_config,
+        '3': node3_config
+    }
+
+    # 根据node_id决定启动哪些节点
+    if node_id_value == 'all':
+        # 启动所有节点
+        for nid in ['1', '2', '3']:
+            cfg = all_configs[nid]
+            nodes_to_launch.append(
+                Node(
+                    package=cfg['package'],
+                    executable=cfg['executable'],
+                    name=cfg['name'],
+                    namespace=cfg['namespace'],
+                    output='screen',
+                    emulate_tty=True,
+                    parameters=cfg['parameters']
+                )
             )
-        ]
     elif node_id_value in ['1', '2', '3']:
         # 只启动指定的节点
-        nodes_to_launch = [
+        cfg = all_configs[node_id_value]
+        nodes_to_launch.append(
             Node(
-                package='crane_master',
-                executable='tower_crane',
-                name=f'canopen_ros2_node{node_id_value}',
+                package=cfg['package'],
+                executable=cfg['executable'],
+                name=cfg['name'],
+                namespace=cfg['namespace'],
                 output='screen',
                 emulate_tty=True,
-                parameters=[{
-                    'can_interface': can_interface_value,
-                    'node_id': node_id_value,
-                    'auto_start': auto_start_value
-                }]
+                parameters=cfg['parameters']
             )
-        ]
+        )
     else:
         raise ValueError(f"Invalid node_id: {node_id_value}. Must be 'all', '1', '2', or '3'")
     
@@ -114,4 +132,4 @@ def launch_nodes(context):
         check_can,
         *nodes_to_launch,
         list_info
-    ] 
+    ]

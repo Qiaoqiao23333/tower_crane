@@ -138,6 +138,7 @@ private:
     // Member variables
     std::string can_interface_;
     uint8_t node_id_;
+    float gear_ratio_ = 1.0;
     int can_socket_ = -1;
     uint16_t status_word_ = 0;
     int32_t position_ = 0;

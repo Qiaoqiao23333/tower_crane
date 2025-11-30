@@ -6,14 +6,16 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     // 声明参数
     this->declare_parameter<std::string>("can_interface", "can0");
     this->declare_parameter<std::string>("node_id", "1");
+    this->declare_parameter<float>("gear_ratio", 1.0);
     
     // 读取参数
     can_interface_ = this->get_parameter("can_interface").as_string();
     std::string node_id_str = this->get_parameter("node_id").as_string();
+    gear_ratio_ = this->get_parameter("gear_ratio").as_double();
     
     // 调试：打印读取到的原始参数值
-    RCLCPP_INFO(this->get_logger(), "[DEBUG] 节点名称: %s, 读取到的node_id参数值: '%s'", 
-                 this->get_name(), node_id_str.c_str());
+    RCLCPP_INFO(this->get_logger(), "[DEBUG] 节点名称: %s, 读取到的node_id参数值: '%s', 减速比: %.2f", 
+                 this->get_name(), node_id_str.c_str(), gear_ratio_);
     
     // 将node_id字符串转换为整数
     try {
@@ -61,8 +63,8 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
         }
     }
     
-    RCLCPP_INFO(this->get_logger(), "初始化Simple crane Control，节点名称=%s，CAN接口=%s，节点ID=%d (原始参数值: '%s')", 
-                this->get_name(), can_interface_.c_str(), node_id_, node_id_str.c_str());
+    RCLCPP_INFO(this->get_logger(), "初始化Simple crane Control，节点名称=%s，CAN接口=%s，节点ID=%d (原始参数值: '%s')，减速比=%.2f", 
+                this->get_name(), can_interface_.c_str(), node_id_, node_id_str.c_str(), gear_ratio_);
     
     // 初始化CAN套接字
     init_can_socket();
@@ -84,13 +86,13 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     position_pub_ = this->create_publisher<std_msgs::msg::Float32>("crane_position", 10);
     velocity_pub_ = this->create_publisher<std_msgs::msg::Float32>("crane_velocity", 10);
     
-    // 创建订阅器（使用绝对路径确保在全局命名空间）
+    // 创建订阅器（使用相对路径，支持命名空间）
     position_sub_ = this->create_subscription<std_msgs::msg::Float32>(
-        "/target_position", 10, std::bind(&CANopenROS2::position_callback, this, std::placeholders::_1));
+        "target_position", 10, std::bind(&CANopenROS2::position_callback, this, std::placeholders::_1));
     velocity_sub_ = this->create_subscription<std_msgs::msg::Float32>(
-        "/target_velocity", 10, std::bind(&CANopenROS2::velocity_callback, this, std::placeholders::_1));
+        "target_velocity", 10, std::bind(&CANopenROS2::velocity_callback, this, std::placeholders::_1));
     
-    RCLCPP_INFO(this->get_logger(), "订阅器已创建: /target_position, /target_velocity");
+    RCLCPP_INFO(this->get_logger(), "订阅器已创建: target_position, target_velocity");
     
     // 创建服务
     start_service_ = this->create_service<std_srvs::srv::Trigger>(
