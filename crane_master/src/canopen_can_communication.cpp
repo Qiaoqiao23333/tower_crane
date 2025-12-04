@@ -144,11 +144,14 @@ int32_t CANopenROS2::read_sdo(uint16_t index, uint8_t subindex)
     frame.data[6] = 0;
     frame.data[7] = 0;
     
-    // 重置标志和期望的索引
-    sdo_response_received_ = false;
-    expected_sdo_index_ = index;
-    expected_sdo_subindex_ = subindex;
-    sdo_read_value_ = 0;
+    // 使用互斥锁保护共享变量，重置标志和期望的索引
+    {
+        std::lock_guard<std::mutex> lock(sdo_mutex_);
+        sdo_response_received_ = false;
+        expected_sdo_index_ = index;
+        expected_sdo_subindex_ = subindex;
+        sdo_read_value_ = 0;
+    }
     
     if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
     {
@@ -156,15 +159,37 @@ int32_t CANopenROS2::read_sdo(uint16_t index, uint8_t subindex)
         return -1;
     }
     
-    // 等待响应，最多等待200ms
+    RCLCPP_DEBUG(this->get_logger(), "发送SDO读取请求 [节点ID=%d]: 索引=0x%04X, 子索引=0x%02X, 等待响应COB-ID=0x%03X", 
+                 node_id_, index, subindex, COB_TSDO + node_id_);
+    
+    // 等待响应，最多等待500ms（增加超时时间）
     int retry = 0;
-    const int max_retries = 20;  // 20 * 10ms = 200ms
-    while (retry < max_retries && !sdo_response_received_)
+    const int max_retries = 50;  // 50 * 10ms = 500ms
+    bool response_received = false;
+    
+    while (retry < max_retries)
     {
-        // 在等待期间，需要处理接收到的CAN帧
-        receive_can_frames();
+        // 在每次循环中多次尝试读取，提高响应捕获概率
+        for (int i = 0; i < 20; i++)
+        {
+            receive_can_frames();
+            
+            // 检查响应是否已收到（使用互斥锁保护）
+            {
+                std::lock_guard<std::mutex> lock(sdo_mutex_);
+                if (sdo_response_received_)
+                {
+                    response_received = true;
+                    break;
+                }
+            }
+            
+            // 如果已经收到响应，退出内层循环
+            if (response_received)
+                break;
+        }
         
-        if (sdo_response_received_)
+        if (response_received)
         {
             break;
         }
@@ -173,13 +198,24 @@ int32_t CANopenROS2::read_sdo(uint16_t index, uint8_t subindex)
         retry++;
     }
     
-    if (!sdo_response_received_)
+    if (!response_received)
     {
-        RCLCPP_WARN(this->get_logger(), "读取SDO超时 [节点ID=%d]: 索引=0x%04X, 子索引=0x%02X", node_id_, index, subindex);
+        RCLCPP_WARN(this->get_logger(), "读取SDO超时 [节点ID=%d]: 索引=0x%04X, 子索引=0x%02X (等待了%d次，共%dms)", 
+                   node_id_, index, subindex, retry, retry * 10);
         return 0;
     }
     
-    return sdo_read_value_;
+    // 使用互斥锁读取最终值
+    int32_t result;
+    {
+        std::lock_guard<std::mutex> lock(sdo_mutex_);
+        result = sdo_read_value_;
+    }
+    
+    RCLCPP_DEBUG(this->get_logger(), "SDO读取成功 [节点ID=%d]: 索引=0x%04X, 子索引=0x%02X, 值=0x%08X (%d)", 
+                 node_id_, index, subindex, result, result);
+    
+    return result;
 }
 
 void CANopenROS2::receive_can_frames()
@@ -218,6 +254,12 @@ void CANopenROS2::receive_can_frames()
         uint16_t index = frame.data[1] | (frame.data[2] << 8);
         uint8_t subindex = frame.data[3];
         
+        RCLCPP_DEBUG(this->get_logger(), "收到SDO响应 [节点ID=%d]: COB-ID=0x%03X, 命令=0x%02X, 索引=0x%04X, 子索引=0x%02X", 
+                     node_id_, frame.can_id, command, index, subindex);
+        
+        // 使用互斥锁保护共享变量
+        std::lock_guard<std::mutex> lock(sdo_mutex_);
+        
         if (command == 0x80)  // SDO中止
         {
             uint32_t abort_code = frame.data[4] | (frame.data[5] << 8) | (frame.data[6] << 16) | (frame.data[7] << 24);
@@ -228,6 +270,7 @@ void CANopenROS2::receive_can_frames()
             {
                 sdo_read_value_ = 0;  // 错误时返回0
                 sdo_response_received_ = true;
+                RCLCPP_DEBUG(this->get_logger(), "SDO中止响应已匹配，设置标志");
             }
         }
         else 
@@ -240,6 +283,7 @@ void CANopenROS2::receive_can_frames()
             {
                 sdo_read_value_ = data;
                 sdo_response_received_ = true;
+                RCLCPP_DEBUG(this->get_logger(), "SDO响应已匹配，设置标志和数据: 0x%08X (%d)", data, data);
             }
             
             // 同时也处理特定的SDO更新（用于状态监控）

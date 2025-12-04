@@ -161,6 +161,7 @@ private:
     rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr set_mode_service_;
     
     // SDO waiting mechanism
+    std::mutex sdo_mutex_;  // 保护SDO响应变量的互斥锁
     volatile bool sdo_response_received_ = false;
     uint16_t expected_sdo_index_ = 0;
     uint8_t expected_sdo_subindex_ = 0;
