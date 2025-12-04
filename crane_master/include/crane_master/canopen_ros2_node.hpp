@@ -20,6 +20,7 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <utility>  // For std::pair
 
 // CANopen COB-ID基础值
 #define COB_NMT      0x000
@@ -78,9 +79,6 @@
 #define OD_STORE_PARAMETERS      0x1010
 #define STORE_SIGNATURE          0x65766173 // ASCII for "save"
 
-// 编码器分辨率
-#define OD_POSITION_ENCODER_RESOLUTION 0x608F  // Position encoder resolution
-#define ENCODER_RESOLUTION       131072  // Matches DSY-C.EDS 0x608Fsub1 default
 
 class CANopenROS2 : public rclcpp::Node
 {
@@ -112,7 +110,7 @@ private:
     void set_profile_deceleration(float deceleration_deg_per_sec2);
     void set_profile_parameters(float velocity_deg_per_sec, float acceleration_deg_per_sec2, float deceleration_deg_per_sec2);
     void set_control_word(uint16_t control_word);
-    void set_target_velocity(int32_t velocity_pulse_per_sec);
+    void set_target_velocity(int32_t velocity_units_per_sec);
     void go_to_position(float angle);
     void set_velocity(float velocity_deg_per_sec);
     void set_velocity_pdo(float velocity_deg_per_sec);
@@ -133,8 +131,12 @@ private:
     // Utility functions
     int32_t angle_to_position(float angle);
     float position_to_angle(int32_t position);
-    int32_t velocity_to_pulse(float velocity_deg_per_sec);
-    int32_t acceleration_to_pulse(float acceleration_deg_per_sec2);
+    int32_t velocity_to_units(float velocity_deg_per_sec);
+    int32_t acceleration_to_units(float acceleration_deg_per_sec2);
+    
+    // Electronic Gear Ratio Calculation
+    // Returns {Numerator, Denominator} pair for 0x6091:01 and 0x6091:02
+    std::pair<uint32_t, uint32_t> calculate_gear_ratio_params(float gear_ratio, int32_t target_units_per_rev);
     
     // Error handling
     void check_and_clear_error();
@@ -143,6 +145,9 @@ private:
     std::string can_interface_;
     uint8_t node_id_;
     float gear_ratio_ = 1.0;
+    int32_t target_units_per_rev_ = 10000;  // Default: 10,000 units per output shaft revolution
+    float units_per_degree_ = 0.0;  // Cached: gear_ratio_ / target_units_per_rev_ / 360.0
+    float degrees_per_unit_ = 0.0;  // Cached: target_units_per_rev_ / gear_ratio_ * 360.0
     int can_socket_ = -1;
     uint16_t status_word_ = 0;
     int32_t position_ = 0;

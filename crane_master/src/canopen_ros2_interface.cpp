@@ -141,7 +141,7 @@ void CANopenROS2::handle_set_mode(const std::shared_ptr<std_srvs::srv::SetBool::
         if (request->data)
         {
             // 设置位置模式参数
-            set_profile_parameters(5, 5, 5);
+            set_profile_parameters(30, 30, 30);  // 速度、加速度、减速度：30°/s, 30°/s², 30°/s²
             
             // 设置目标位置为当前位置，防止电机立即运动
             int32_t current_position = read_sdo(OD_ACTUAL_POSITION, 0x00);
@@ -153,7 +153,7 @@ void CANopenROS2::handle_set_mode(const std::shared_ptr<std_srvs::srv::SetBool::
         else
         {
             // 设置速度模式参数
-            set_profile_velocity(5);  // 默认速度
+            set_profile_velocity(30);  // 默认速度：30°/s
             
             // 设置目标速度为0，防止电机立即运动
             write_sdo(0x60FF, 0x00, 0, 4);  // 0x60FF是目标速度对象

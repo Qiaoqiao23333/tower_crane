@@ -28,23 +28,6 @@ void CANopenROS2::initialize_node()
     int32_t status_word = read_sdo(OD_STATUS_WORD, 0x00);
     RCLCPP_INFO(this->get_logger(), "使能后状态字: 0x%04X", status_word);
     
-    // 读取编码器分辨率 (0x608F:01)
-    int32_t encoder_resolution = read_sdo(OD_POSITION_ENCODER_RESOLUTION, 0x01);
-    if (encoder_resolution > 0)
-    {
-        RCLCPP_INFO(this->get_logger(), "编码器分辨率 (0x608F:01): %d (预期值: %d)", 
-                   encoder_resolution, ENCODER_RESOLUTION);
-        if (encoder_resolution != ENCODER_RESOLUTION)
-        {
-            RCLCPP_WARN(this->get_logger(), "编码器分辨率与预期值不匹配！实际值: %d, 预期值: %d", 
-                       encoder_resolution, ENCODER_RESOLUTION);
-        }
-    }
-    else
-    {
-        RCLCPP_WARN(this->get_logger(), "无法读取编码器分辨率 (0x608F:01)，使用默认值: %d", ENCODER_RESOLUTION);
-    }
-    
     // 现在尝试设置操作模式
     write_sdo(OD_OPERATION_MODE, 0x00, MODE_PROFILE_POSITION, 1); //default is position mode
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
@@ -84,13 +67,13 @@ void CANopenROS2::initialize_node()
     }
     
     // 设置轮廓速度
-    set_profile_velocity(5);
+    set_profile_velocity(30);  // 默认速度：30°/s
     
     // 设置轮廓加速度
-    set_profile_acceleration(5);
+    set_profile_acceleration(30);  // 默认加速度：30°/s²
     
     // 设置轮廓减速度
-    set_profile_deceleration(5);
+    set_profile_deceleration(30);
     
     // 禁用同步生成器
     write_sdo(OD_CYCLE_PERIOD, 0x00, 0, 4);
@@ -437,43 +420,19 @@ void CANopenROS2::initialize_motor()
     // 使能电机
     enable_motor();
     
-    // 读取并记录编码器分辨率 (0x608F:01)
-    int32_t encoder_resolution = read_sdo(OD_POSITION_ENCODER_RESOLUTION, 0x01);
-    if (encoder_resolution > 0)
-    {
-        RCLCPP_INFO(this->get_logger(), "编码器分辨率 (0x608F:01): %d (预期值: %d)", 
-                   encoder_resolution, ENCODER_RESOLUTION);
-        if (encoder_resolution != ENCODER_RESOLUTION)
-        {
-            RCLCPP_WARN(this->get_logger(), "编码器分辨率与预期值不匹配！实际值: %d, 预期值: %d", 
-                       encoder_resolution, ENCODER_RESOLUTION);
-        }
-    }
-    else
-    {
-        RCLCPP_WARN(this->get_logger(), "无法读取编码器分辨率 (0x608F:01)，使用默认值: %d", ENCODER_RESOLUTION);
-    }
-    
-    // 读取并记录减速比 (0x6091:01 和 0x6091:02)
+    // 读取并记录减速比 (0x6091:01 和 0x6091:02) - 仅读取供参考，不修改
     int32_t motor_revolutions = read_sdo(OD_GEAR_RATIO, 0x01);
     int32_t shaft_revolutions = read_sdo(OD_GEAR_RATIO, 0x02);
     
     if (motor_revolutions > 0 && shaft_revolutions > 0)
     {
         float calculated_gear_ratio = static_cast<float>(motor_revolutions) / static_cast<float>(shaft_revolutions);
-        RCLCPP_INFO(this->get_logger(), "减速比 (0x6091): 电机转数=%d, 轴转数=%d, 计算值=%.2f (配置值=%.2f)", 
+        RCLCPP_INFO(this->get_logger(), "当前减速比 (0x6091): 电机转数=%d, 轴转数=%d, 计算值=%.2f (配置值=%.2f)", 
                    motor_revolutions, shaft_revolutions, calculated_gear_ratio, gear_ratio_);
-        
-        // 检查计算值与配置值是否匹配（允许小的浮点误差）
-        if (std::abs(calculated_gear_ratio - gear_ratio_) > 0.1f)
-        {
-            RCLCPP_WARN(this->get_logger(), "减速比与配置值不匹配！计算值: %.2f, 配置值: %.2f", 
-                       calculated_gear_ratio, gear_ratio_);
-        }
     }
     else
     {
-        RCLCPP_WARN(this->get_logger(), "无法读取减速比 (0x6091)，使用配置值: %.2f", gear_ratio_);
+        RCLCPP_INFO(this->get_logger(), "无法读取或无效的减速比 (0x6091)，使用配置值: %.2f", gear_ratio_);
     }
     
     RCLCPP_INFO(this->get_logger(), "电机初始化完成");
@@ -584,22 +543,22 @@ void CANopenROS2::set_operation_mode(uint8_t mode)
 
 void CANopenROS2::set_profile_velocity(float velocity_deg_per_sec)
 {
-    int32_t velocity_pulse = velocity_to_pulse(velocity_deg_per_sec);
-    write_sdo(OD_PROFILE_VELOCITY, 0x00, velocity_pulse, 4);
+    int32_t velocity_units = velocity_to_units(velocity_deg_per_sec);
+    write_sdo(OD_PROFILE_VELOCITY, 0x00, velocity_units, 4);
     RCLCPP_INFO(this->get_logger(), "轮廓速度已设置: %.2f°/s", velocity_deg_per_sec);
 }
 
 void CANopenROS2::set_profile_acceleration(float acceleration_deg_per_sec2)
 {
-    int32_t acceleration_pulse = acceleration_to_pulse(acceleration_deg_per_sec2);
-    write_sdo(OD_PROFILE_ACCELERATION, 0x00, acceleration_pulse, 4);
+    int32_t acceleration_units = acceleration_to_units(acceleration_deg_per_sec2);
+    write_sdo(OD_PROFILE_ACCELERATION, 0x00, acceleration_units, 4);
     RCLCPP_INFO(this->get_logger(), "轮廓加速度已设置: %.2f°/s²", acceleration_deg_per_sec2);
 }
 
 void CANopenROS2::set_profile_deceleration(float deceleration_deg_per_sec2)
 {
-    int32_t deceleration_pulse = acceleration_to_pulse(deceleration_deg_per_sec2);
-    write_sdo(OD_PROFILE_DECELERATION, 0x00, deceleration_pulse, 4);
+    int32_t deceleration_units = acceleration_to_units(deceleration_deg_per_sec2);
+    write_sdo(OD_PROFILE_DECELERATION, 0x00, deceleration_units, 4);
     RCLCPP_INFO(this->get_logger(), "轮廓减速度已设置: %.2f°/s²", deceleration_deg_per_sec2);
 }
 
@@ -631,11 +590,11 @@ void CANopenROS2::set_control_word(uint16_t control_word)
     }
 }
 
-void CANopenROS2::set_target_velocity(int32_t velocity_pulse_per_sec)
+void CANopenROS2::set_target_velocity(int32_t velocity_units_per_sec)
 {
     // DSY-C.EDS specifies target velocity at 0x60FF
-    write_sdo(OD_TARGET_VELOCITY, 0x00, velocity_pulse_per_sec, 4);
-    RCLCPP_INFO(this->get_logger(), "目标速度已设置(脉冲): %d", velocity_pulse_per_sec);
+    write_sdo(OD_TARGET_VELOCITY, 0x00, velocity_units_per_sec, 4);
+    RCLCPP_INFO(this->get_logger(), "目标速度已设置(命令单位): %d", velocity_units_per_sec);
 }
 
 void CANopenROS2::go_to_position(float angle)
@@ -643,7 +602,7 @@ void CANopenROS2::go_to_position(float angle)
     RCLCPP_INFO(this->get_logger(), "移动到位置: %.2f°", angle);
     
     int32_t position = angle_to_position(angle);
-    RCLCPP_INFO(this->get_logger(), "目标位置脉冲值: %d", position);
+    RCLCPP_INFO(this->get_logger(), "目标位置命令单位: %d", position);
     
     // 先使用SDO设置目标位置 (一次性设置)
     write_sdo(OD_TARGET_POSITION, 0x00, position, 4);
@@ -683,7 +642,7 @@ void CANopenROS2::go_to_position(float angle)
     // 如果目标位置就是当前位置，不需要等待
     int32_t current_pos = read_sdo(OD_ACTUAL_POSITION, 0x00);
     int32_t position_diff = (position > current_pos) ? (position - current_pos) : (current_pos - position);
-    if (position_diff < 100)  // 如果位置差小于100个脉冲（约0.27度），认为已到达
+    if (position_diff < 100)  // 如果位置差小于100个命令单位，认为已到达
     {
         RCLCPP_INFO(this->get_logger(), "目标位置与当前位置接近，无需移动");
         return;
@@ -732,7 +691,7 @@ void CANopenROS2::go_to_position(float angle)
     {
         int32_t final_pos = read_sdo(OD_ACTUAL_POSITION, 0x00);
         int32_t final_diff = (position > final_pos) ? (position - final_pos) : (final_pos - position);
-        RCLCPP_WARN(this->get_logger(), "等待目标位置到达超时 (最终位置差: %d 脉冲, 约 %.2f°)", 
+        RCLCPP_WARN(this->get_logger(), "等待目标位置到达超时 (最终位置差: %d 命令单位, 约 %.2f°)", 
                    final_diff, position_to_angle(final_diff));
     }
 }
@@ -750,17 +709,17 @@ void CANopenROS2::set_velocity(float velocity_deg_per_sec)
         return;
     }
     
-    // 转换为电机内部单位
-    int32_t velocity_pulse = velocity_to_pulse(velocity_deg_per_sec);
+    // 转换为命令单位
+    int32_t velocity_units = velocity_to_units(velocity_deg_per_sec);
     
     // 设置目标速度
-    write_sdo(0x60FF, 0x00, velocity_pulse, 4);  // 0x60FF是目标速度对象
+    write_sdo(0x60FF, 0x00, velocity_units, 4);  // 0x60FF是目标速度对象
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     // 使能操作
     write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_ENABLE_OPERATION, 2);
     
-    RCLCPP_INFO(this->get_logger(), "速度已设置: %.2f°/s (脉冲值: %d)", velocity_deg_per_sec, velocity_pulse);
+    RCLCPP_INFO(this->get_logger(), "速度已设置: %.2f°/s (命令单位: %d)", velocity_deg_per_sec, velocity_units);
 }
 
 void CANopenROS2::set_velocity_pdo(float velocity_deg_per_sec)
@@ -793,8 +752,8 @@ void CANopenROS2::set_velocity_pdo(float velocity_deg_per_sec)
     // 设置轮廓速度参数（用于速度模式）
     set_profile_velocity(velocity_deg_per_sec);
     
-    // 转换为电机内部单位
-    int32_t velocity_pulse = velocity_to_pulse(velocity_deg_per_sec);
+    // 转换为命令单位
+    int32_t velocity_units = velocity_to_units(velocity_deg_per_sec);
     
     // 确保电机处于操作使能状态
     int32_t status_word = read_sdo(OD_STATUS_WORD, 0x00);
@@ -822,10 +781,10 @@ void CANopenROS2::set_velocity_pdo(float velocity_deg_per_sec)
     frame.data[1] = (control_word >> 8) & 0xFF;  // 控制字高字节
     
     // 目标速度 (0x60FF) - 4 bytes (little-endian)
-    frame.data[2] = velocity_pulse & 0xFF;
-    frame.data[3] = (velocity_pulse >> 8) & 0xFF;
-    frame.data[4] = (velocity_pulse >> 16) & 0xFF;
-    frame.data[5] = (velocity_pulse >> 24) & 0xFF;
+    frame.data[2] = velocity_units & 0xFF;
+    frame.data[3] = (velocity_units >> 8) & 0xFF;
+    frame.data[4] = (velocity_units >> 16) & 0xFF;
+    frame.data[5] = (velocity_units >> 24) & 0xFF;
     
     if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
     {
@@ -833,9 +792,9 @@ void CANopenROS2::set_velocity_pdo(float velocity_deg_per_sec)
     }
     else
     {
-        RCLCPP_DEBUG(this->get_logger(), "速度PDO已发送 [节点ID=%d]: %.2f°/s (脉冲值: %d)", 
-                    node_id_, velocity_deg_per_sec, velocity_pulse);
+        RCLCPP_DEBUG(this->get_logger(), "速度PDO已发送 [节点ID=%d]: %.2f°/s (命令单位: %d)", 
+                    node_id_, velocity_deg_per_sec, velocity_units);
     }
     
-    RCLCPP_INFO(this->get_logger(), "速度命令已发送: %.2f°/s (脉冲值: %d)", velocity_deg_per_sec, velocity_pulse);
+    RCLCPP_INFO(this->get_logger(), "速度命令已发送: %.2f°/s (命令单位: %d)", velocity_deg_per_sec, velocity_units);
 }

@@ -8,11 +8,24 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     this->declare_parameter<std::string>("can_interface", "can0");
     this->declare_parameter<std::string>("node_id", "1");
     this->declare_parameter<float>("gear_ratio", 1.0);
+    this->declare_parameter<int>("target_units_per_rev", 10000);
     
     // 读取参数
     can_interface_ = this->get_parameter("can_interface").as_string();
     std::string node_id_str = this->get_parameter("node_id").as_string();
     gear_ratio_ = this->get_parameter("gear_ratio").as_double();
+    target_units_per_rev_ = this->get_parameter("target_units_per_rev").as_int();
+    
+    // 计算并缓存转换比例
+    // Formula: (angle / 360°) × (target_units_per_rev_ / gear_ratio_) = command units
+    // Example: 90度 → (90/360) × (10000/10) = 0.25 × 1000 = 250 units
+    units_per_degree_ = (static_cast<float>(target_units_per_rev_) / gear_ratio_) / 360.0f;
+    degrees_per_unit_ = (gear_ratio_ / static_cast<float>(target_units_per_rev_)) * 360.0f;
+    
+    // Log the calculated values for debugging
+    std::pair<uint32_t, uint32_t> gear_params = calculate_gear_ratio_params(gear_ratio_, target_units_per_rev_);
+    RCLCPP_INFO(this->get_logger(), "物理减速比: %.2f, 目标单位/转: %d, 电子齿轮比参数: (%u, %u), 单位/度: %.6f", 
+               gear_ratio_, target_units_per_rev_, gear_params.first, gear_params.second, units_per_degree_);
     
     // 调试：打印读取到的原始参数值
     RCLCPP_INFO(this->get_logger(), "[DEBUG] 节点名称: %s, 读取到的node_id参数值: '%s', 减速比: %.2f", 
@@ -126,43 +139,19 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     // 使能电机
     enable_motor();
     
-    // 读取并记录编码器分辨率 (0x608F:01)
-    int32_t encoder_resolution = read_sdo(OD_POSITION_ENCODER_RESOLUTION, 0x01);
-    if (encoder_resolution > 0)
-    {
-        RCLCPP_INFO(this->get_logger(), "编码器分辨率 (0x608F:01): %d (预期值: %d)", 
-                   encoder_resolution, ENCODER_RESOLUTION);
-        if (encoder_resolution != ENCODER_RESOLUTION)
-        {
-            RCLCPP_WARN(this->get_logger(), "编码器分辨率与预期值不匹配！实际值: %d, 预期值: %d", 
-                       encoder_resolution, ENCODER_RESOLUTION);
-        }
-    }
-    else
-    {
-        RCLCPP_WARN(this->get_logger(), "无法读取编码器分辨率 (0x608F:01)，使用默认值: %d", ENCODER_RESOLUTION);
-    }
-    
-    // 读取并记录减速比 (0x6091:01 和 0x6091:02)
+    // 读取并记录减速比 (0x6091:01 和 0x6091:02) - 仅读取供参考，不修改
     int32_t motor_revolutions = read_sdo(OD_GEAR_RATIO, 0x01);
     int32_t shaft_revolutions = read_sdo(OD_GEAR_RATIO, 0x02);
     
     if (motor_revolutions > 0 && shaft_revolutions > 0)
     {
         float calculated_gear_ratio = static_cast<float>(motor_revolutions) / static_cast<float>(shaft_revolutions);
-        RCLCPP_INFO(this->get_logger(), "减速比 (0x6091): 电机转数=%d, 轴转数=%d, 计算值=%.2f (配置值=%.2f)", 
+        RCLCPP_INFO(this->get_logger(), "当前减速比 (0x6091): 电机转数=%d, 轴转数=%d, 计算值=%.2f (配置值=%.2f)", 
                    motor_revolutions, shaft_revolutions, calculated_gear_ratio, gear_ratio_);
-        
-        // 检查计算值与配置值是否匹配（允许小的浮点误差）
-        if (std::abs(calculated_gear_ratio - gear_ratio_) > 0.1f)
-        {
-            RCLCPP_WARN(this->get_logger(), "减速比与配置值不匹配！计算值: %.2f, 配置值: %.2f", 
-                       calculated_gear_ratio, gear_ratio_);
-        }
     }
     else
     {
-        RCLCPP_WARN(this->get_logger(), "无法读取减速比 (0x6091)，使用配置值: %.2f", gear_ratio_);
+        RCLCPP_INFO(this->get_logger(), "无法读取或无效的减速比 (0x6091)，使用配置值: %.2f", gear_ratio_);
     }
     
     // 设置目标位置（例如，移动到90度）

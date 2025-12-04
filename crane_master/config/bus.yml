@@ -17,19 +17,7 @@ defaults:
 nodes:
   hoist_motor:
     node_id: 1
-    scale_pos_to_dev: 417253.0    # (ENCODER_RESOLUTION * G) / (2 * pi) = (131072 * 20) / (2 * pi)
-    scale_pos_from_dev: 0.000002397    # (2 * pi) / (ENCODER_RESOLUTION * G) = (2 * pi) / (131072 * 20)
-    scale_vel_to_dev: 417253.0    # probably equals to scale_pos_to_dev
-    scale_vel_from_dev: 0.000002397    # 1/scale_vel_to_dev
   trolley_motor:
     node_id: 2
-    scale_pos_to_dev: 208626.5    # (ENCODER_RESOLUTION * G) / (2 * pi) = (131072 * 10) / (2 * pi)
-    scale_pos_from_dev: 0.000004794    # (2 * pi) / (ENCODER_RESOLUTION * G) = (2 * pi) / (131072 * 10)
-    scale_vel_to_dev: 208626.5    # probably equals to scale_pos_to_dev
-    scale_vel_from_dev: 0.000004794    # 1/scale_vel_to_dev
   slewing_motor:
     node_id: 3
-    scale_pos_to_dev: 208626.5    # (ENCODER_RESOLUTION * G) / (2 * pi) = (131072 * 10) / (2 * pi)
-    scale_pos_from_dev: 0.000004794    # (2 * pi) / (ENCODER_RESOLUTION * G) = (2 * pi) / (131072 * 10)
-    scale_vel_to_dev: 208626.5    # probably equals to scale_pos_to_dev
-    scale_vel_from_dev: 0.000004794    # 1/scale_vel_to_dev

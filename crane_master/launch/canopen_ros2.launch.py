@@ -55,7 +55,7 @@ def launch_nodes(context):
         'parameters': [{
             'can_interface': can_interface_value,
             'node_id': '1',
-            'gear_ratio': 20.0,
+            'gear_ratio': 0.05,
             'auto_start': auto_start_value
         }]
     }
@@ -69,7 +69,7 @@ def launch_nodes(context):
         'parameters': [{
             'can_interface': can_interface_value,
             'node_id': '2',
-            'gear_ratio': 10.0,
+            'gear_ratio': 0.1,
             'auto_start': auto_start_value
         }]
     }
@@ -83,7 +83,7 @@ def launch_nodes(context):
         'parameters': [{
             'can_interface': can_interface_value,
             'node_id': '3',
-            'gear_ratio': 10.0,
+            'gear_ratio': 0.1,
             'auto_start': auto_start_value
         }]
     }
