@@ -26,7 +26,7 @@ void CANopenROS2::initialize_node()
     
     // 读取状态字，确认电机已使能
     int32_t status_word = read_sdo(OD_STATUS_WORD, 0x00);
-    RCLCPP_INFO(this->get_logger(), "使能后状态字: 0x%04X", status_word);
+    RCLCPP_INFO(this->get_logger(), "使能后状态字: 0x%04X\nStatus word after enable: 0x%04X", status_word, status_word);
     
     // 现在尝试设置操作模式
     write_sdo(OD_OPERATION_MODE, 0x00, MODE_PROFILE_POSITION, 1); //default is position mode
@@ -34,12 +34,12 @@ void CANopenROS2::initialize_node()
     
     // 验证操作模式
     int32_t mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
-    RCLCPP_INFO(this->get_logger(), "当前操作模式: %d", mode);
+    RCLCPP_INFO(this->get_logger(), "当前操作模式: %d\nCurrent operation mode: %d", mode, mode);
     
     // 如果操作模式仍然不是位置模式，尝试使用PDO设置
     if (mode != MODE_PROFILE_POSITION)
     {
-        RCLCPP_WARN(this->get_logger(), "使用SDO设置操作模式失败，尝试使用PDO");
+        RCLCPP_WARN(this->get_logger(), "使用SDO设置操作模式失败，尝试使用PDO\nFailed to set operation mode using SDO, trying PDO");
         
         // 使用PDO设置操作模式
         struct can_frame frame;
@@ -51,11 +51,11 @@ void CANopenROS2::initialize_node()
         
         if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
         {
-            RCLCPP_ERROR(this->get_logger(), "发送PDO操作模式失败");
+            RCLCPP_ERROR(this->get_logger(), "发送PDO操作模式失败\nFailed to send PDO operation mode");
         }
         else
         {
-            RCLCPP_INFO(this->get_logger(), "PDO操作模式已发送");
+            RCLCPP_INFO(this->get_logger(), "PDO操作模式已发送\nPDO operation mode sent");
         }
         
         send_sync_frame();
@@ -63,7 +63,7 @@ void CANopenROS2::initialize_node()
         
         // 再次验证操作模式
         mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
-        RCLCPP_INFO(this->get_logger(), "PDO设置后操作模式: %d", mode);
+        RCLCPP_INFO(this->get_logger(), "PDO设置后操作模式: %d\nOperation mode after PDO setting: %d", mode, mode);
     }
     
     // 设置轮廓速度
@@ -83,19 +83,19 @@ void CANopenROS2::initialize_node()
     write_sdo(OD_CYCLE_PERIOD, 0x00, 1000, 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
-    RCLCPP_INFO(this->get_logger(), "节点初始化完成");
+    RCLCPP_INFO(this->get_logger(), "节点初始化完成\nNode initialization completed");
 }
 
 void CANopenROS2::configure_pdo()
 {
-    RCLCPP_INFO(this->get_logger(), "配置PDO映射...");
+    RCLCPP_INFO(this->get_logger(), "配置PDO映射...\nConfiguring PDO mapping...");
     
     // 进入预操作状态
     send_nmt_command(NMT_STOP_REMOTE_NODE);
-    RCLCPP_INFO(this->get_logger(), "已进入预操作状态");
+    RCLCPP_INFO(this->get_logger(), "已进入预操作状态\nEntered pre-operational state");
     
     // 配置TxPDO1
-    RCLCPP_INFO(this->get_logger(), "开始配置TxPDO1");
+    RCLCPP_INFO(this->get_logger(), "开始配置TxPDO1\nStarting to configure TxPDO1");
     
     // 1. 禁用TxPDO1
     uint32_t txpdo1_cob_id = COB_TPDO1 + node_id_;
@@ -129,7 +129,7 @@ void CANopenROS2::configure_pdo()
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     // 配置RxPDO1
-    RCLCPP_INFO(this->get_logger(), "开始配置RxPDO1");
+    RCLCPP_INFO(this->get_logger(), "开始配置RxPDO1\nStarting to configure RxPDO1");
     
     // 1. 禁用RxPDO1
     uint32_t rxpdo1_cob_id = COB_RPDO1 + node_id_;
@@ -163,7 +163,7 @@ void CANopenROS2::configure_pdo()
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     // 配置RxPDO2 for Velocity Control
-    RCLCPP_INFO(this->get_logger(), "配置RxPDO2 for 速度控制");
+    RCLCPP_INFO(this->get_logger(), "配置RxPDO2 for 速度控制\nConfiguring RxPDO2 for velocity control");
     
     // 1. Disable RxPDO2 (COB-ID 0x300 + NodeID)
     uint32_t rxpdo2_cob_id = 0x300 + node_id_;
@@ -196,12 +196,12 @@ void CANopenROS2::configure_pdo()
     write_sdo(0x1401, 0x01, rxpdo2_cob_id, 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
-    RCLCPP_INFO(this->get_logger(), "PDO配置完成");
+    RCLCPP_INFO(this->get_logger(), "PDO配置完成\nPDO configuration completed");
 }
 
 void CANopenROS2::start_node()
 {
-    RCLCPP_INFO(this->get_logger(), "启动节点...");
+    RCLCPP_INFO(this->get_logger(), "启动节点...\nStarting node...");
     
     // 发送NMT启动命令
     send_nmt_command(NMT_START_REMOTE_NODE);
@@ -210,17 +210,17 @@ void CANopenROS2::start_node()
     // 获取实际位置
     int32_t actual_position = read_sdo(OD_ACTUAL_POSITION, 0x00);
     float actual_angle = position_to_angle(actual_position);
-    RCLCPP_INFO(this->get_logger(), "实际位置: %.2f°", actual_angle);
+    RCLCPP_INFO(this->get_logger(), "实际位置: %.2f°\nActual position: %.2f°", actual_angle, actual_angle);
     
     // 发送同步帧
     send_sync_frame();
     
-    RCLCPP_INFO(this->get_logger(), "节点启动完成");
+    RCLCPP_INFO(this->get_logger(), "节点启动完成\nNode startup completed");
 }
 
 void CANopenROS2::set_immediate_effect(bool immediate)
 {
-    RCLCPP_INFO(this->get_logger(), "设置%s效果", immediate ? "立即" : "非立即");
+    RCLCPP_INFO(this->get_logger(), "设置%s效果\nSetting %s effect", immediate ? "立即" : "非立即", immediate ? "immediate" : "non-immediate");
     
     // 读取当前控制字
     int32_t controlword = read_sdo(OD_CONTROL_WORD, 0x00);
@@ -237,7 +237,7 @@ void CANopenROS2::set_immediate_effect(bool immediate)
     // 写入新的控制字
     write_sdo(OD_CONTROL_WORD, 0x00, controlword, 2);
     
-    RCLCPP_INFO(this->get_logger(), "控制字已更新为: 0x%04X", controlword);
+    RCLCPP_INFO(this->get_logger(), "控制字已更新为: 0x%04X\nControl word updated to: 0x%04X", controlword, controlword);
 }
 
 void CANopenROS2::check_and_clear_error()
@@ -258,7 +258,7 @@ void CANopenROS2::check_and_clear_error()
 
 void CANopenROS2::clear_fault()
 {
-    RCLCPP_INFO(this->get_logger(), "清除故障...");
+    RCLCPP_INFO(this->get_logger(), "清除故障...\nClearing fault...");
     
     check_and_clear_error();
 
@@ -270,16 +270,16 @@ void CANopenROS2::clear_fault()
     set_control_word(CONTROL_SHUTDOWN);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
-    RCLCPP_INFO(this->get_logger(), "故障已清除");
+    RCLCPP_INFO(this->get_logger(), "故障已清除\nFault cleared");
 }
 
 void CANopenROS2::enable_motor()
 {
-    RCLCPP_INFO(this->get_logger(), "使能电机...");
+    RCLCPP_INFO(this->get_logger(), "使能电机...\nEnabling motor...");
     
     // 读取当前状态字
     int32_t status_word = read_sdo(OD_STATUS_WORD, 0x00);
-    RCLCPP_INFO(this->get_logger(), "当前状态字: 0x%04X", status_word);
+    RCLCPP_INFO(this->get_logger(), "当前状态字: 0x%04X\nCurrent status word: 0x%04X", status_word, status_word);
     
     // 如果状态字读取失败，尝试多次
     int retry_count = 0;
@@ -292,7 +292,7 @@ void CANopenROS2::enable_motor()
     
     if (status_word < 0)
     {
-        RCLCPP_WARN(this->get_logger(), "无法读取状态字，尝试继续使能流程");
+        RCLCPP_WARN(this->get_logger(), "无法读取状态字，尝试继续使能流程\nUnable to read status word, attempting to continue enable process");
     }
     else
     {
@@ -302,12 +302,12 @@ void CANopenROS2::enable_motor()
     // 检查是否有故障需要清除
     if (status_word_ & 0x0008)  // 故障位
     {
-        RCLCPP_WARN(this->get_logger(), "检测到故障，尝试清除...");
+        RCLCPP_WARN(this->get_logger(), "检测到故障，尝试清除...\nFault detected, attempting to clear...");
         clear_fault();
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     } else if ((status_word_ & 0x004F) == 0x0040) // Operation Inhibit
     {
-        RCLCPP_WARN(this->get_logger(), "检测到 Operation Inhibit (0x0040)，尝试复位...");
+        RCLCPP_WARN(this->get_logger(), "检测到 Operation Inhibit (0x0040)，尝试复位...\nOperation Inhibit (0x0040) detected, attempting reset...");
         // Strict Reset Sequence: 0x0080 -> 0x0006 -> 0x0007 -> 0x000F
         set_control_word(0x0080);
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -338,25 +338,25 @@ void CANopenROS2::enable_motor()
     if (status_word >= 0)
     {
         status_word_ = static_cast<uint16_t>(status_word);
-        RCLCPP_INFO(this->get_logger(), "使能后状态字: 0x%04X", status_word_);
+        RCLCPP_INFO(this->get_logger(), "使能后状态字: 0x%04X\nStatus word after enable: 0x%04X", status_word_, status_word_);
         
         // 检查是否成功使能
         if ((status_word_ & 0x006F) == 0x0027)
         {
-            RCLCPP_INFO(this->get_logger(), "电机已成功使能 (操作已启用)");
+            RCLCPP_INFO(this->get_logger(), "电机已成功使能 (操作已启用)\nMotor successfully enabled (Operation enabled)");
         }
         else if ((status_word_ & 0x006F) == 0x0023)
         {
-            RCLCPP_INFO(this->get_logger(), "电机已开启，但未进入操作模式");
+            RCLCPP_INFO(this->get_logger(), "电机已开启，但未进入操作模式\nMotor switched on but not in operation mode");
         }
         else if ((status_word_ & 0x004F) == 0x0040)
         {
-            RCLCPP_WARN(this->get_logger(), "电机仍处于禁止开启状态，可能需要检查硬件或配置");
+            RCLCPP_WARN(this->get_logger(), "电机仍处于禁止开启状态，可能需要检查硬件或配置\nMotor still in operation inhibit state, may need to check hardware or configuration");
         }
     }
     else
     {
-        RCLCPP_WARN(this->get_logger(), "无法读取使能后的状态字");
+        RCLCPP_WARN(this->get_logger(), "无法读取使能后的状态字\nUnable to read status word after enable");
     }
     
     // 使用PDO方式再次尝试使能（更可靠，周期性刷新）
@@ -372,12 +372,12 @@ void CANopenROS2::enable_motor()
     send_sync_frame();
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
-    RCLCPP_INFO(this->get_logger(), "电机已使能");
+    RCLCPP_INFO(this->get_logger(), "电机已使能\nMotor enabled");
 }
 
 void CANopenROS2::stop_motor()
 {
-    RCLCPP_INFO(this->get_logger(), "停止电机...");
+    RCLCPP_INFO(this->get_logger(), "停止电机...\nStopping motor...");
     
     // 设置目标速度为0
     set_target_velocity(0);
@@ -394,7 +394,7 @@ void CANopenROS2::stop_motor()
     // 禁用电压
     set_control_word(CONTROL_DISABLE_VOLTAGE);
     
-    RCLCPP_INFO(this->get_logger(), "电机已停止");
+    RCLCPP_INFO(this->get_logger(), "电机已停止\nMotor stopped");
 }
 
 void CANopenROS2::initialize_motor()
@@ -427,30 +427,31 @@ void CANopenROS2::initialize_motor()
     if (motor_revolutions > 0 && shaft_revolutions > 0)
     {
         float calculated_gear_ratio = static_cast<float>(motor_revolutions) / static_cast<float>(shaft_revolutions);
-        RCLCPP_INFO(this->get_logger(), "当前减速比 (0x6091): 电机转数=%d, 轴转数=%d, 计算值=%.2f (配置值=%.2f)", 
+        RCLCPP_INFO(this->get_logger(), "当前减速比 (0x6091): 电机转数=%d, 轴转数=%d, 计算值=%.2f (配置值=%.2f)\nCurrent gear ratio (0x6091): Motor revolutions=%d, Shaft revolutions=%d, Calculated value=%.2f (Configured value=%.2f)", 
+                   motor_revolutions, shaft_revolutions, calculated_gear_ratio, gear_ratio_,
                    motor_revolutions, shaft_revolutions, calculated_gear_ratio, gear_ratio_);
     }
     else
     {
-        RCLCPP_INFO(this->get_logger(), "无法读取或无效的减速比 (0x6091)，使用配置值: %.2f", gear_ratio_);
+        RCLCPP_INFO(this->get_logger(), "无法读取或无效的减速比 (0x6091)，使用配置值: %.2f\nUnable to read or invalid gear ratio (0x6091), using configured value: %.2f", gear_ratio_, gear_ratio_);
     }
     
-    RCLCPP_INFO(this->get_logger(), "电机初始化完成");
+    RCLCPP_INFO(this->get_logger(), "电机初始化完成\nMotor initialization completed");
 }
 
 void CANopenROS2::set_operation_mode(uint8_t mode)
 {
-    RCLCPP_INFO(this->get_logger(), "开始切换操作模式到: %d", mode);
+    RCLCPP_INFO(this->get_logger(), "开始切换操作模式到: %d\nStarting to switch operation mode to: %d", mode, mode);
     
     // 步骤1: 先读取当前状态字和模式
     int32_t status_word = read_sdo(OD_STATUS_WORD, 0x00);
     int32_t current_mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
-    RCLCPP_INFO(this->get_logger(), "当前状态字: 0x%04X, 当前模式: %d", status_word, current_mode);
+    RCLCPP_INFO(this->get_logger(), "当前状态字: 0x%04X, 当前模式: %d\nCurrent status word: 0x%04X, Current mode: %d", status_word, current_mode, status_word, current_mode);
     
     // 如果已经是目标模式，直接返回
     if (current_mode == mode)
     {
-        RCLCPP_INFO(this->get_logger(), "已经是目标模式: %d", mode);
+        RCLCPP_INFO(this->get_logger(), "已经是目标模式: %d\nAlready in target mode: %d", mode, mode);
         return;
     }
     
@@ -458,7 +459,7 @@ void CANopenROS2::set_operation_mode(uint8_t mode)
     // 这是切换操作模式所需的状态
     if ((status_word & 0x006F) != 0x0021 && (status_word & 0x006F) != 0x0023)
     {
-        RCLCPP_INFO(this->get_logger(), "电机不在允许切换模式的状态，正在转换状态...");
+        RCLCPP_INFO(this->get_logger(), "电机不在允许切换模式的状态，正在转换状态...\nMotor not in state allowing mode switch, transitioning state...");
         
         // 先禁用操作
         write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_SHUTDOWN, 2);
@@ -470,22 +471,22 @@ void CANopenROS2::set_operation_mode(uint8_t mode)
         
         // 检查状态
         status_word = read_sdo(OD_STATUS_WORD, 0x00);
-        RCLCPP_INFO(this->get_logger(), "状态转换后状态字: 0x%04X", status_word);
+        RCLCPP_INFO(this->get_logger(), "状态转换后状态字: 0x%04X\nStatus word after state transition: 0x%04X", status_word, status_word);
     }
     
     // 步骤3: 设置操作模式 (必须在"Ready to switch on"或"Switched on"状态下)
-    RCLCPP_INFO(this->get_logger(), "设置操作模式到: %d", mode);
+    RCLCPP_INFO(this->get_logger(), "设置操作模式到: %d\nSetting operation mode to: %d", mode, mode);
     write_sdo(OD_OPERATION_MODE, 0x00, mode, 1);
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
     
     // 检查操作模式是否设置成功
     current_mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
-    RCLCPP_INFO(this->get_logger(), "设置后的操作模式: %d", current_mode);
+    RCLCPP_INFO(this->get_logger(), "设置后的操作模式: %d\nOperation mode after setting: %d", current_mode, current_mode);
     
     // 如果SDO设置失败，尝试使用PDO
     if (current_mode != mode)
     {
-        RCLCPP_WARN(this->get_logger(), "SDO设置模式失败，尝试使用PDO");
+        RCLCPP_WARN(this->get_logger(), "SDO设置模式失败，尝试使用PDO\nFailed to set mode using SDO, trying PDO");
         
         // 使用PDO发送操作模式（通过RPDO1，如果映射了操作模式）
         // 注意：这需要RPDO1映射包含操作模式对象
@@ -498,11 +499,11 @@ void CANopenROS2::set_operation_mode(uint8_t mode)
         
         if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
         {
-            RCLCPP_ERROR(this->get_logger(), "发送PDO操作模式失败");
+            RCLCPP_ERROR(this->get_logger(), "发送PDO操作模式失败\nFailed to send PDO operation mode");
         }
         else
         {
-            RCLCPP_INFO(this->get_logger(), "PDO操作模式已发送: %d", mode);
+            RCLCPP_INFO(this->get_logger(), "PDO操作模式已发送: %d\nPDO operation mode sent: %d", mode, mode);
         }
         
         send_sync_frame();
@@ -510,13 +511,13 @@ void CANopenROS2::set_operation_mode(uint8_t mode)
         
         // 再次检查操作模式
         current_mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
-        RCLCPP_INFO(this->get_logger(), "PDO设置后的操作模式: %d", current_mode);
+        RCLCPP_INFO(this->get_logger(), "PDO设置后的操作模式: %d\nOperation mode after PDO setting: %d", current_mode, current_mode);
     }
     
     // 步骤4: 如果模式设置成功，重新使能电机到操作状态
     if (current_mode == mode)
     {
-        RCLCPP_INFO(this->get_logger(), "操作模式设置成功，重新使能电机");
+        RCLCPP_INFO(this->get_logger(), "操作模式设置成功，重新使能电机\nOperation mode set successfully, re-enabling motor");
         
         // 状态机转换: Shutdown -> Switch on -> Enable operation
         write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_SHUTDOWN, 2);
@@ -530,14 +531,14 @@ void CANopenROS2::set_operation_mode(uint8_t mode)
         
         // 最终确认
         status_word = read_sdo(OD_STATUS_WORD, 0x00);
-        RCLCPP_INFO(this->get_logger(), "最终状态字: 0x%04X", status_word);
-        RCLCPP_INFO(this->get_logger(), "操作模式切换成功: %d", mode);
+        RCLCPP_INFO(this->get_logger(), "最终状态字: 0x%04X\nFinal status word: 0x%04X", status_word, status_word);
+        RCLCPP_INFO(this->get_logger(), "操作模式切换成功: %d\nOperation mode switch successful: %d", mode, mode);
     }
     else
     {
-        RCLCPP_ERROR(this->get_logger(), "操作模式切换失败，当前模式: %d, 期望模式: %d", 
-                    current_mode, mode);
-        RCLCPP_ERROR(this->get_logger(), "请检查电机是否支持模式 %d，或查看电机文档", mode);
+        RCLCPP_ERROR(this->get_logger(), "操作模式切换失败，当前模式: %d, 期望模式: %d\nOperation mode switch failed, current mode: %d, expected mode: %d", 
+                    current_mode, mode, current_mode, mode);
+        RCLCPP_ERROR(this->get_logger(), "请检查电机是否支持模式 %d，或查看电机文档\nPlease check if motor supports mode %d, or refer to motor documentation", mode, mode);
     }
 }
 
@@ -545,21 +546,21 @@ void CANopenROS2::set_profile_velocity(float velocity_deg_per_sec)
 {
     int32_t velocity_units = velocity_to_units(velocity_deg_per_sec);
     write_sdo(OD_PROFILE_VELOCITY, 0x00, velocity_units, 4);
-    RCLCPP_INFO(this->get_logger(), "轮廓速度已设置: %.2f°/s", velocity_deg_per_sec);
+    RCLCPP_INFO(this->get_logger(), "轮廓速度已设置: %.2f°/s\nProfile velocity set: %.2f°/s", velocity_deg_per_sec, velocity_deg_per_sec);
 }
 
 void CANopenROS2::set_profile_acceleration(float acceleration_deg_per_sec2)
 {
     int32_t acceleration_units = acceleration_to_units(acceleration_deg_per_sec2);
     write_sdo(OD_PROFILE_ACCELERATION, 0x00, acceleration_units, 4);
-    RCLCPP_INFO(this->get_logger(), "轮廓加速度已设置: %.2f°/s²", acceleration_deg_per_sec2);
+    RCLCPP_INFO(this->get_logger(), "轮廓加速度已设置: %.2f°/s²\nProfile acceleration set: %.2f°/s²", acceleration_deg_per_sec2, acceleration_deg_per_sec2);
 }
 
 void CANopenROS2::set_profile_deceleration(float deceleration_deg_per_sec2)
 {
     int32_t deceleration_units = acceleration_to_units(deceleration_deg_per_sec2);
     write_sdo(OD_PROFILE_DECELERATION, 0x00, deceleration_units, 4);
-    RCLCPP_INFO(this->get_logger(), "轮廓减速度已设置: %.2f°/s²", deceleration_deg_per_sec2);
+    RCLCPP_INFO(this->get_logger(), "轮廓减速度已设置: %.2f°/s²\nProfile deceleration set: %.2f°/s²", deceleration_deg_per_sec2, deceleration_deg_per_sec2);
 }
 
 void CANopenROS2::set_profile_parameters(float velocity_deg_per_sec, float acceleration_deg_per_sec2, float deceleration_deg_per_sec2)
@@ -567,7 +568,8 @@ void CANopenROS2::set_profile_parameters(float velocity_deg_per_sec, float accel
     set_profile_velocity(velocity_deg_per_sec);
     set_profile_acceleration(acceleration_deg_per_sec2);
     set_profile_deceleration(deceleration_deg_per_sec2);
-    RCLCPP_INFO(this->get_logger(), "轮廓参数设置完成 - 速度: %.2f°/s, 加速度: %.2f°/s², 减速度: %.2f°/s²", 
+    RCLCPP_INFO(this->get_logger(), "轮廓参数设置完成 - 速度: %.2f°/s, 加速度: %.2f°/s², 减速度: %.2f°/s²\nProfile parameters set - Velocity: %.2f°/s, Acceleration: %.2f°/s², Deceleration: %.2f°/s²", 
+               velocity_deg_per_sec, acceleration_deg_per_sec2, deceleration_deg_per_sec2,
                velocity_deg_per_sec, acceleration_deg_per_sec2, deceleration_deg_per_sec2);
 }
 
@@ -582,11 +584,11 @@ void CANopenROS2::set_control_word(uint16_t control_word)
     
     if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
     {
-        RCLCPP_ERROR(this->get_logger(), "发送控制字失败");
+        RCLCPP_ERROR(this->get_logger(), "发送控制字失败\nFailed to send control word");
     }
     else
     {
-        RCLCPP_INFO(this->get_logger(), "控制字已发送: 0x%04X", control_word);
+        RCLCPP_INFO(this->get_logger(), "控制字已发送: 0x%04X\nControl word sent: 0x%04X", control_word, control_word);
     }
 }
 
@@ -594,15 +596,15 @@ void CANopenROS2::set_target_velocity(int32_t velocity_units_per_sec)
 {
     // DSY-C.EDS specifies target velocity at 0x60FF
     write_sdo(OD_TARGET_VELOCITY, 0x00, velocity_units_per_sec, 4);
-    RCLCPP_INFO(this->get_logger(), "目标速度已设置(命令单位): %d", velocity_units_per_sec);
+    RCLCPP_INFO(this->get_logger(), "目标速度已设置(命令单位): %d\nTarget velocity set (command units): %d", velocity_units_per_sec, velocity_units_per_sec);
 }
 
 void CANopenROS2::go_to_position(float angle)
 {
-    RCLCPP_INFO(this->get_logger(), "移动到位置: %.2f°", angle);
+    RCLCPP_INFO(this->get_logger(), "移动到位置: %.2f°\nMoving to position: %.2f°", angle, angle);
     
     int32_t position = angle_to_position(angle);
-    RCLCPP_INFO(this->get_logger(), "目标位置命令单位: %d", position);
+    RCLCPP_INFO(this->get_logger(), "目标位置命令单位: %d\nTarget position command units: %d", position, position);
     
     // 先使用SDO设置目标位置 (一次性设置)
     write_sdo(OD_TARGET_POSITION, 0x00, position, 4);
@@ -637,14 +639,14 @@ void CANopenROS2::go_to_position(float angle)
     write(can_socket_, &frame, sizeof(struct can_frame));
     send_sync_frame();
     
-    RCLCPP_INFO(this->get_logger(), "位置命令已通过PDO握手发送");
+    RCLCPP_INFO(this->get_logger(), "位置命令已通过PDO握手发送\nPosition command sent via PDO handshake");
     
     // 如果目标位置就是当前位置，不需要等待
     int32_t current_pos = read_sdo(OD_ACTUAL_POSITION, 0x00);
     int32_t position_diff = (position > current_pos) ? (position - current_pos) : (current_pos - position);
     if (position_diff < 100)  // 如果位置差小于100个命令单位，认为已到达
     {
-        RCLCPP_INFO(this->get_logger(), "目标位置与当前位置接近，无需移动");
+        RCLCPP_INFO(this->get_logger(), "目标位置与当前位置接近，无需移动\nTarget position close to current position, no movement needed");
         return;
     }
     
@@ -661,7 +663,7 @@ void CANopenROS2::go_to_position(float angle)
         // 检查是否发生故障
         if (status_word & 0x0008 || (status_word & 0x004F) == 0x0040)
         {
-             RCLCPP_ERROR(this->get_logger(), "移动过程中检测到故障或禁止开启状态 (0x%04X)", status_word);
+             RCLCPP_ERROR(this->get_logger(), "移动过程中检测到故障或禁止开启状态 (0x%04X)\nFault or operation inhibit state detected during movement (0x%04X)", status_word, status_word);
              check_and_clear_error(); // 诊断错误
              // 尝试重新使能? 或者直接退出
              break;
@@ -674,14 +676,14 @@ void CANopenROS2::go_to_position(float angle)
         // 检查目标到达位（位10）或位置误差足够小
         if ((status_word & 0x0400) || current_diff < 100)
         {
-            RCLCPP_INFO(this->get_logger(), "目标位置已到达 (状态字: 0x%04X, 位置差: %d)", status_word, current_diff);
+            RCLCPP_INFO(this->get_logger(), "目标位置已到达 (状态字: 0x%04X, 位置差: %d)\nTarget position reached (Status word: 0x%04X, Position difference: %d)", status_word, current_diff, status_word, current_diff);
             break;
         }
         
         // 每5次重试输出一次进度
         if (retry % 5 == 0)
         {
-            RCLCPP_DEBUG(this->get_logger(), "等待目标到达... (重试 %d/%d, 位置差: %d)", retry, max_retries, current_diff);
+            RCLCPP_DEBUG(this->get_logger(), "等待目标到达... (重试 %d/%d, 位置差: %d)\nWaiting for target to reach... (Retry %d/%d, Position difference: %d)", retry, max_retries, current_diff, retry, max_retries, current_diff);
         }
         
         retry++;
@@ -691,21 +693,21 @@ void CANopenROS2::go_to_position(float angle)
     {
         int32_t final_pos = read_sdo(OD_ACTUAL_POSITION, 0x00);
         int32_t final_diff = (position > final_pos) ? (position - final_pos) : (final_pos - position);
-        RCLCPP_WARN(this->get_logger(), "等待目标位置到达超时 (最终位置差: %d 命令单位, 约 %.2f°)", 
-                   final_diff, position_to_angle(final_diff));
+        RCLCPP_WARN(this->get_logger(), "等待目标位置到达超时 (最终位置差: %d 命令单位, 约 %.2f°)\nTimeout waiting for target position to reach (Final position difference: %d command units, approximately %.2f°)", 
+                   final_diff, position_to_angle(final_diff), final_diff, position_to_angle(final_diff));
     }
 }
 
 void CANopenROS2::set_velocity(float velocity_deg_per_sec)
 {
-    RCLCPP_INFO(this->get_logger(), "设置速度: %.2f°/s", velocity_deg_per_sec);
+    RCLCPP_INFO(this->get_logger(), "设置速度: %.2f°/s\nSetting velocity: %.2f°/s", velocity_deg_per_sec, velocity_deg_per_sec);
     
     // 读取当前操作模式
     int32_t mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
     
     if (mode != MODE_PROFILE_VELOCITY)
     {
-        RCLCPP_WARN(this->get_logger(), "当前不是速度模式，无法设置速度。当前模式: %d", mode);
+        RCLCPP_WARN(this->get_logger(), "当前不是速度模式，无法设置速度。当前模式: %d\nNot in velocity mode, cannot set velocity. Current mode: %d", mode, mode);
         return;
     }
     
@@ -719,32 +721,32 @@ void CANopenROS2::set_velocity(float velocity_deg_per_sec)
     // 使能操作
     write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_ENABLE_OPERATION, 2);
     
-    RCLCPP_INFO(this->get_logger(), "速度已设置: %.2f°/s (命令单位: %d)", velocity_deg_per_sec, velocity_units);
+    RCLCPP_INFO(this->get_logger(), "速度已设置: %.2f°/s (命令单位: %d)\nVelocity set: %.2f°/s (Command units: %d)", velocity_deg_per_sec, velocity_units, velocity_deg_per_sec, velocity_units);
 }
 
 void CANopenROS2::set_velocity_pdo(float velocity_deg_per_sec)
 {
-    RCLCPP_INFO(this->get_logger(), "使用PDO设置速度: %.2f°/s", velocity_deg_per_sec);
+    RCLCPP_INFO(this->get_logger(), "使用PDO设置速度: %.2f°/s\nSetting velocity using PDO: %.2f°/s", velocity_deg_per_sec, velocity_deg_per_sec);
     
     // 读取当前操作模式
     int32_t mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
-    RCLCPP_INFO(this->get_logger(), "当前操作模式: %d", mode);
+    RCLCPP_INFO(this->get_logger(), "当前操作模式: %d\nCurrent operation mode: %d", mode, mode);
     
     // 如果当前不是速度模式，需要先切换到速度模式
     if (mode != MODE_PROFILE_VELOCITY)
     {
-        RCLCPP_INFO(this->get_logger(), "当前模式不是速度模式，正在切换到速度模式...");
+        RCLCPP_INFO(this->get_logger(), "当前模式不是速度模式，正在切换到速度模式...\nCurrent mode is not velocity mode, switching to velocity mode...");
         
         // 尝试切换到速度模式 (MODE_PROFILE_VELOCITY = 3)
         set_operation_mode(MODE_PROFILE_VELOCITY);
         
         // 再次检查模式
         mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
-        RCLCPP_INFO(this->get_logger(), "切换后操作模式: %d", mode);
+        RCLCPP_INFO(this->get_logger(), "切换后操作模式: %d\nOperation mode after switch: %d", mode, mode);
         
         if (mode != MODE_PROFILE_VELOCITY)
         {
-            RCLCPP_ERROR(this->get_logger(), "无法切换到速度模式，当前模式: %d。速度设置可能失败。", mode);
+            RCLCPP_ERROR(this->get_logger(), "无法切换到速度模式，当前模式: %d。速度设置可能失败。\nUnable to switch to velocity mode, current mode: %d. Velocity setting may fail.", mode, mode);
             // 继续尝试设置速度，但可能会失败
         }
     }
@@ -761,7 +763,7 @@ void CANopenROS2::set_velocity_pdo(float velocity_deg_per_sec)
     
     if ((status_word & 0x006F) != 0x0027)  // 如果不是"操作已启用"状态
     {
-        RCLCPP_INFO(this->get_logger(), "电机未处于操作状态，正在使能...");
+        RCLCPP_INFO(this->get_logger(), "电机未处于操作状态，正在使能...\nMotor not in operation state, enabling...");
         // 状态机转换
         write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_SHUTDOWN, 2);
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -788,13 +790,14 @@ void CANopenROS2::set_velocity_pdo(float velocity_deg_per_sec)
     
     if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
     {
-        RCLCPP_ERROR(this->get_logger(), "发送速度PDO失败 [节点ID=%d]", node_id_);
+        RCLCPP_ERROR(this->get_logger(), "发送速度PDO失败 [节点ID=%d]\nFailed to send velocity PDO [Node ID=%d]", node_id_, node_id_);
     }
     else
     {
-        RCLCPP_DEBUG(this->get_logger(), "速度PDO已发送 [节点ID=%d]: %.2f°/s (命令单位: %d)", 
+        RCLCPP_DEBUG(this->get_logger(), "速度PDO已发送 [节点ID=%d]: %.2f°/s (命令单位: %d)\nVelocity PDO sent [Node ID=%d]: %.2f°/s (Command units: %d)", 
+                    node_id_, velocity_deg_per_sec, velocity_units,
                     node_id_, velocity_deg_per_sec, velocity_units);
     }
     
-    RCLCPP_INFO(this->get_logger(), "速度命令已发送: %.2f°/s (命令单位: %d)", velocity_deg_per_sec, velocity_units);
+    RCLCPP_INFO(this->get_logger(), "速度命令已发送: %.2f°/s (命令单位: %d)\nVelocity command sent: %.2f°/s (Command units: %d)", velocity_deg_per_sec, velocity_units, velocity_deg_per_sec, velocity_units);
 }

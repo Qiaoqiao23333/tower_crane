@@ -7,7 +7,7 @@ void CANopenROS2::init_can_socket()
     can_socket_ = socket(PF_CAN, SOCK_RAW, CAN_RAW);
     if (can_socket_ < 0)
     {
-        RCLCPP_ERROR(this->get_logger(), "无法创建CAN套接字");
+        RCLCPP_ERROR(this->get_logger(), "无法创建CAN套接字\nFailed to create CAN socket");
         return;
     }
     
@@ -16,7 +16,7 @@ void CANopenROS2::init_can_socket()
     strcpy(ifr.ifr_name, can_interface_.c_str());
     if (ioctl(can_socket_, SIOCGIFINDEX, &ifr) < 0)
     {
-        RCLCPP_ERROR(this->get_logger(), "无法获取CAN接口索引");
+        RCLCPP_ERROR(this->get_logger(), "无法获取CAN接口索引\nFailed to get CAN interface index");
         close(can_socket_);
         can_socket_ = -1;
         return;
@@ -28,7 +28,7 @@ void CANopenROS2::init_can_socket()
     addr.can_ifindex = ifr.ifr_ifindex;
     if (bind(can_socket_, (struct sockaddr *)&addr, sizeof(addr)) < 0)
     {
-        RCLCPP_ERROR(this->get_logger(), "无法绑定CAN套接字");
+        RCLCPP_ERROR(this->get_logger(), "无法绑定CAN套接字\nFailed to bind CAN socket");
         close(can_socket_);
         can_socket_ = -1;
         return;
@@ -38,7 +38,7 @@ void CANopenROS2::init_can_socket()
     int flags = fcntl(can_socket_, F_GETFL, 0);
     if (flags < 0)
     {
-        RCLCPP_ERROR(this->get_logger(), "无法获取套接字标志");
+        RCLCPP_ERROR(this->get_logger(), "无法获取套接字标志\nFailed to get socket flags");
         close(can_socket_);
         can_socket_ = -1;
         return;
@@ -47,13 +47,13 @@ void CANopenROS2::init_can_socket()
     flags |= O_NONBLOCK;
     if (fcntl(can_socket_, F_SETFL, flags) < 0)
     {
-        RCLCPP_ERROR(this->get_logger(), "无法设置非阻塞模式");
+        RCLCPP_ERROR(this->get_logger(), "无法设置非阻塞模式\nFailed to set non-blocking mode");
         close(can_socket_);
         can_socket_ = -1;
         return;
     }
     
-    RCLCPP_INFO(this->get_logger(), "CAN套接字初始化成功");
+    RCLCPP_INFO(this->get_logger(), "CAN套接字初始化成功\nCAN socket initialized successfully");
 }
 
 void CANopenROS2::send_nmt_command(uint8_t command)
@@ -66,11 +66,11 @@ void CANopenROS2::send_nmt_command(uint8_t command)
     
     if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
     {
-        RCLCPP_ERROR(this->get_logger(), "发送NMT命令失败");
+        RCLCPP_ERROR(this->get_logger(), "发送NMT命令失败\nFailed to send NMT command");
     }
     else
     {
-        RCLCPP_INFO(this->get_logger(), "NMT命令已发送: 0x%02X", command);
+        RCLCPP_INFO(this->get_logger(), "NMT命令已发送: 0x%02X\nNMT command sent: 0x%02X", command, command);
     }
 }
 
@@ -82,11 +82,11 @@ void CANopenROS2::send_sync_frame()
     
     if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
     {
-        RCLCPP_ERROR(this->get_logger(), "发送同步帧失败");
+        RCLCPP_ERROR(this->get_logger(), "发送同步帧失败\nFailed to send sync frame");
     }
     else
     {
-        RCLCPP_DEBUG(this->get_logger(), "同步帧已发送");
+        RCLCPP_DEBUG(this->get_logger(), "同步帧已发送\nSync frame sent");
     }
 }
 
@@ -122,11 +122,11 @@ void CANopenROS2::write_sdo(uint16_t index, uint8_t subindex, int32_t data, uint
     
     if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
     {
-        RCLCPP_ERROR(this->get_logger(), "写入SDO失败 [节点ID=%d]: 索引=0x%04X, 子索引=0x%02X", node_id_, index, subindex);
+        RCLCPP_ERROR(this->get_logger(), "写入SDO失败 [节点ID=%d]: 索引=0x%04X, 子索引=0x%02X\nFailed to write SDO [Node ID=%d]: Index=0x%04X, Subindex=0x%02X", node_id_, index, subindex, node_id_, index, subindex);
     }
     else
     {
-        RCLCPP_DEBUG(this->get_logger(), "SDO已写入 [节点ID=%d]: 索引=0x%04X, 子索引=0x%02X, 数据=0x%08X", node_id_, index, subindex, data);
+        RCLCPP_DEBUG(this->get_logger(), "SDO已写入 [节点ID=%d]: 索引=0x%04X, 子索引=0x%02X, 数据=0x%08X\nSDO written [Node ID=%d]: Index=0x%04X, Subindex=0x%02X, Data=0x%08X", node_id_, index, subindex, data, node_id_, index, subindex, data);
     }
 }
 
@@ -155,11 +155,12 @@ int32_t CANopenROS2::read_sdo(uint16_t index, uint8_t subindex)
     
     if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
     {
-        RCLCPP_ERROR(this->get_logger(), "读取SDO请求失败 [节点ID=%d]: 索引=0x%04X, 子索引=0x%02X", node_id_, index, subindex);
+        RCLCPP_ERROR(this->get_logger(), "读取SDO请求失败 [节点ID=%d]: 索引=0x%04X, 子索引=0x%02X\nFailed to send SDO read request [Node ID=%d]: Index=0x%04X, Subindex=0x%02X", node_id_, index, subindex, node_id_, index, subindex);
         return -1;
     }
     
-    RCLCPP_DEBUG(this->get_logger(), "发送SDO读取请求 [节点ID=%d]: 索引=0x%04X, 子索引=0x%02X, 等待响应COB-ID=0x%03X", 
+    RCLCPP_DEBUG(this->get_logger(), "发送SDO读取请求 [节点ID=%d]: 索引=0x%04X, 子索引=0x%02X, 等待响应COB-ID=0x%03X\nSent SDO read request [Node ID=%d]: Index=0x%04X, Subindex=0x%02X, Waiting for response COB-ID=0x%03X", 
+                 node_id_, index, subindex, COB_TSDO + node_id_,
                  node_id_, index, subindex, COB_TSDO + node_id_);
     
     // 等待响应，最多等待500ms（增加超时时间）
@@ -200,7 +201,8 @@ int32_t CANopenROS2::read_sdo(uint16_t index, uint8_t subindex)
     
     if (!response_received)
     {
-        RCLCPP_WARN(this->get_logger(), "读取SDO超时 [节点ID=%d]: 索引=0x%04X, 子索引=0x%02X (等待了%d次，共%dms)", 
+        RCLCPP_WARN(this->get_logger(), "读取SDO超时 [节点ID=%d]: 索引=0x%04X, 子索引=0x%02X (等待了%d次，共%dms)\nSDO read timeout [Node ID=%d]: Index=0x%04X, Subindex=0x%02X (Waited %d times, total %dms)", 
+                   node_id_, index, subindex, retry, retry * 10,
                    node_id_, index, subindex, retry, retry * 10);
         return 0;
     }
@@ -212,7 +214,8 @@ int32_t CANopenROS2::read_sdo(uint16_t index, uint8_t subindex)
         result = sdo_read_value_;
     }
     
-    RCLCPP_DEBUG(this->get_logger(), "SDO读取成功 [节点ID=%d]: 索引=0x%04X, 子索引=0x%02X, 值=0x%08X (%d)", 
+    RCLCPP_DEBUG(this->get_logger(), "SDO读取成功 [节点ID=%d]: 索引=0x%04X, 子索引=0x%02X, 值=0x%08X (%d)\nSDO read successful [Node ID=%d]: Index=0x%04X, Subindex=0x%02X, Value=0x%08X (%d)", 
+                 node_id_, index, subindex, result, result,
                  node_id_, index, subindex, result, result);
     
     return result;
@@ -227,7 +230,7 @@ void CANopenROS2::receive_can_frames()
     {
         if (errno != EAGAIN && errno != EWOULDBLOCK)
         {
-            RCLCPP_ERROR(this->get_logger(), "接收CAN帧失败: %s", strerror(errno));
+            RCLCPP_ERROR(this->get_logger(), "接收CAN帧失败: %s\nFailed to receive CAN frame: %s", strerror(errno), strerror(errno));
         }
         return;
     }
@@ -241,7 +244,10 @@ void CANopenROS2::receive_can_frames()
         return;  // 不是我们关心的节点
     }
     
-    RCLCPP_DEBUG(this->get_logger(), "接收到CAN帧: ID=0x%03X, DLC=%d, Data=0x%02X%02X%02X%02X%02X%02X%02X%02X",
+    RCLCPP_DEBUG(this->get_logger(), "接收到CAN帧: ID=0x%03X, DLC=%d, Data=0x%02X%02X%02X%02X%02X%02X%02X%02X\nReceived CAN frame: ID=0x%03X, DLC=%d, Data=0x%02X%02X%02X%02X%02X%02X%02X%02X",
+        frame.can_id, frame.can_dlc,
+        frame.data[0], frame.data[1], frame.data[2], frame.data[3],
+        frame.data[4], frame.data[5], frame.data[6], frame.data[7],
         frame.can_id, frame.can_dlc,
         frame.data[0], frame.data[1], frame.data[2], frame.data[3],
         frame.data[4], frame.data[5], frame.data[6], frame.data[7]);
@@ -254,7 +260,8 @@ void CANopenROS2::receive_can_frames()
         uint16_t index = frame.data[1] | (frame.data[2] << 8);
         uint8_t subindex = frame.data[3];
         
-        RCLCPP_DEBUG(this->get_logger(), "收到SDO响应 [节点ID=%d]: COB-ID=0x%03X, 命令=0x%02X, 索引=0x%04X, 子索引=0x%02X", 
+        RCLCPP_DEBUG(this->get_logger(), "收到SDO响应 [节点ID=%d]: COB-ID=0x%03X, 命令=0x%02X, 索引=0x%04X, 子索引=0x%02X\nReceived SDO response [Node ID=%d]: COB-ID=0x%03X, Command=0x%02X, Index=0x%04X, Subindex=0x%02X", 
+                     node_id_, frame.can_id, command, index, subindex,
                      node_id_, frame.can_id, command, index, subindex);
         
         // 使用互斥锁保护共享变量
@@ -263,14 +270,14 @@ void CANopenROS2::receive_can_frames()
         if (command == 0x80)  // SDO中止
         {
             uint32_t abort_code = frame.data[4] | (frame.data[5] << 8) | (frame.data[6] << 16) | (frame.data[7] << 24);
-            RCLCPP_ERROR(this->get_logger(), "SDO中止 [节点ID=%d]: 索引=0x%04X, 子索引=0x%02X, 错误码=0x%08X", node_id_, index, subindex, abort_code);
+            RCLCPP_ERROR(this->get_logger(), "SDO中止 [节点ID=%d]: 索引=0x%04X, 子索引=0x%02X, 错误码=0x%08X\nSDO abort [Node ID=%d]: Index=0x%04X, Subindex=0x%02X, Error code=0x%08X", node_id_, index, subindex, abort_code, node_id_, index, subindex, abort_code);
             
             // 如果是我们正在等待的SDO响应
             if (!sdo_response_received_ && index == expected_sdo_index_ && subindex == expected_sdo_subindex_)
             {
                 sdo_read_value_ = 0;  // 错误时返回0
                 sdo_response_received_ = true;
-                RCLCPP_DEBUG(this->get_logger(), "SDO中止响应已匹配，设置标志");
+                RCLCPP_DEBUG(this->get_logger(), "SDO中止响应已匹配，设置标志\nSDO abort response matched, setting flag");
             }
         }
         else 
@@ -283,7 +290,7 @@ void CANopenROS2::receive_can_frames()
             {
                 sdo_read_value_ = data;
                 sdo_response_received_ = true;
-                RCLCPP_DEBUG(this->get_logger(), "SDO响应已匹配，设置标志和数据: 0x%08X (%d)", data, data);
+                RCLCPP_DEBUG(this->get_logger(), "SDO响应已匹配，设置标志和数据: 0x%08X (%d)\nSDO response matched, setting flag and data: 0x%08X (%d)", data, data, data, data);
             }
             
             // 同时也处理特定的SDO更新（用于状态监控）
@@ -295,7 +302,7 @@ void CANopenROS2::receive_can_frames()
                 // 检查目标到达位
                 if (status_word & 0x0400)
                 {
-                    RCLCPP_INFO(this->get_logger(), "目标位置已到达");
+                    RCLCPP_INFO(this->get_logger(), "目标位置已到达\nTarget position reached");
                 }
             }
             else if (index == OD_ACTUAL_POSITION && subindex == 0x00)  // 实际位置
@@ -337,7 +344,7 @@ void CANopenROS2::receive_can_frames()
             // 检查目标到达位
             if (status_word & 0x0400)
             {
-                RCLCPP_INFO(this->get_logger(), "目标位置已到达");
+                RCLCPP_INFO(this->get_logger(), "目标位置已到达\nTarget position reached");
             }
         }
     }

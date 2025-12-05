@@ -40,15 +40,15 @@ void CANopenROS2::publish_status()
 void CANopenROS2::position_callback(const std_msgs::msg::Float32::SharedPtr msg)
 {
     float angle = msg->data;
-    RCLCPP_INFO(this->get_logger(), "收到目标位置: %.2f°", angle);
+    RCLCPP_INFO(this->get_logger(), "收到目标位置: %.2f°\nReceived target position: %.2f°", angle, angle);
     
     // 添加更多调试信息
-    RCLCPP_INFO(this->get_logger(), "当前CAN套接字: %d", can_socket_);
-    RCLCPP_INFO(this->get_logger(), "当前节点ID: %d", node_id_);
+    RCLCPP_INFO(this->get_logger(), "当前CAN套接字: %d\nCurrent CAN socket: %d", can_socket_, can_socket_);
+    RCLCPP_INFO(this->get_logger(), "当前节点ID: %d\nCurrent node ID: %d", node_id_, node_id_);
     
     // 读取当前状态字
     int32_t status_word = read_sdo(OD_STATUS_WORD, 0x00);
-    RCLCPP_INFO(this->get_logger(), "当前状态字: 0x%04X", status_word);
+    RCLCPP_INFO(this->get_logger(), "当前状态字: 0x%04X\nCurrent status word: 0x%04X", status_word, status_word);
     
     // 读取当前操作模式
     int32_t mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
@@ -60,7 +60,7 @@ void CANopenROS2::position_callback(const std_msgs::msg::Float32::SharedPtr msg)
 void CANopenROS2::velocity_callback(const std_msgs::msg::Float32::SharedPtr msg)
 {
     float velocity = msg->data;
-    RCLCPP_INFO(this->get_logger(), "收到目标速度: %.2f°/s", velocity);
+    RCLCPP_INFO(this->get_logger(), "收到目标速度: %.2f°/s\nReceived target velocity: %.2f°/s", velocity, velocity);
     
     // 尝试使用PDO设置速度
     set_velocity_pdo(velocity);
@@ -69,7 +69,7 @@ void CANopenROS2::velocity_callback(const std_msgs::msg::Float32::SharedPtr msg)
 void CANopenROS2::handle_start(const std::shared_ptr<std_srvs::srv::Trigger::Request>,
                  std::shared_ptr<std_srvs::srv::Trigger::Response> response)
 {
-    RCLCPP_INFO(this->get_logger(), "收到启动请求");
+    RCLCPP_INFO(this->get_logger(), "收到启动请求\nReceived start request");
     
     try
     {
@@ -87,7 +87,7 @@ void CANopenROS2::handle_start(const std::shared_ptr<std_srvs::srv::Trigger::Req
 void CANopenROS2::handle_stop(const std::shared_ptr<std_srvs::srv::Trigger::Request>,
                 std::shared_ptr<std_srvs::srv::Trigger::Response> response)
 {
-    RCLCPP_INFO(this->get_logger(), "收到停止请求");
+    RCLCPP_INFO(this->get_logger(), "收到停止请求\nReceived stop request");
     
     try
     {
@@ -105,7 +105,7 @@ void CANopenROS2::handle_stop(const std::shared_ptr<std_srvs::srv::Trigger::Requ
 void CANopenROS2::handle_reset(const std::shared_ptr<std_srvs::srv::Trigger::Request>,
                  std::shared_ptr<std_srvs::srv::Trigger::Response> response)
 {
-    RCLCPP_INFO(this->get_logger(), "收到重置请求");
+    RCLCPP_INFO(this->get_logger(), "收到重置请求\nReceived reset request");
     
     try
     {
@@ -129,13 +129,13 @@ void CANopenROS2::handle_reset(const std::shared_ptr<std_srvs::srv::Trigger::Req
 void CANopenROS2::handle_set_mode(const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
                     std::shared_ptr<std_srvs::srv::SetBool::Response> response)
 {
-    RCLCPP_INFO(this->get_logger(), "收到设置模式请求: %s", request->data ? "位置模式" : "速度模式");
+    RCLCPP_INFO(this->get_logger(), "收到设置模式请求: %s\nReceived set mode request: %s", request->data ? "位置模式" : "速度模式", request->data ? "Position mode" : "Velocity mode");
     
     try
     {
         // 读取当前操作模式
         int32_t mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
-        RCLCPP_INFO(this->get_logger(), "当前操作模式: %d", mode);
+        RCLCPP_INFO(this->get_logger(), "当前操作模式: %d\nCurrent operation mode: %d", mode, mode);
         
         // 无论当前模式如何，都设置相应的参数
         if (request->data)

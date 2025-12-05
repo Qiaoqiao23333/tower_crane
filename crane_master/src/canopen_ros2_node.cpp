@@ -24,18 +24,20 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     
     // Log the calculated values for debugging
     std::pair<uint32_t, uint32_t> gear_params = calculate_gear_ratio_params(gear_ratio_, target_units_per_rev_);
-    RCLCPP_INFO(this->get_logger(), "物理减速比: %.2f, 目标单位/转: %d, 电子齿轮比参数: (%u, %u), 单位/度: %.6f", 
+    RCLCPP_INFO(this->get_logger(), "物理减速比: %.2f, 目标单位/转: %d, 电子齿轮比参数: (%u, %u), 单位/度: %.6f\nPhysical gear ratio: %.2f, Target units/rev: %d, Electronic gear ratio params: (%u, %u), Units/degree: %.6f", 
+               gear_ratio_, target_units_per_rev_, gear_params.first, gear_params.second, units_per_degree_,
                gear_ratio_, target_units_per_rev_, gear_params.first, gear_params.second, units_per_degree_);
     
     // 调试：打印读取到的原始参数值
-    RCLCPP_INFO(this->get_logger(), "[DEBUG] 节点名称: %s, 读取到的node_id参数值: '%s', 减速比: %.2f", 
+    RCLCPP_INFO(this->get_logger(), "[DEBUG] 节点名称: %s, 读取到的node_id参数值: '%s', 减速比: %.2f\n[DEBUG] Node name: %s, Read node_id parameter value: '%s', Gear ratio: %.2f", 
+                 this->get_name(), node_id_str.c_str(), gear_ratio_,
                  this->get_name(), node_id_str.c_str(), gear_ratio_);
     
     // 将node_id字符串转换为整数
     try {
         node_id_ = std::stoi(node_id_str);
     } catch (const std::exception& e) {
-        RCLCPP_WARN(this->get_logger(), "无法解析node_id参数 '%s'，尝试从节点名称提取", node_id_str.c_str());
+        RCLCPP_WARN(this->get_logger(), "无法解析node_id参数 '%s'，尝试从节点名称提取\nFailed to parse node_id parameter '%s', attempting to extract from node name", node_id_str.c_str(), node_id_str.c_str());
         // 如果参数解析失败，尝试从节点名称提取（例如：canopen_ros2_node1 -> 1）
         std::string node_name = this->get_name();
         size_t node_pos = node_name.find("node");
@@ -44,10 +46,10 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
             if (num_start < node_name.length()) {
                 try {
                     node_id_ = std::stoi(node_name.substr(num_start));
-                    RCLCPP_INFO(this->get_logger(), "从节点名称 '%s' 提取到节点ID: %d", node_name.c_str(), node_id_);
+                    RCLCPP_INFO(this->get_logger(), "从节点名称 '%s' 提取到节点ID: %d\nExtracted node ID: %d from node name '%s'", node_name.c_str(), node_id_, node_id_, node_name.c_str());
                 } catch (...) {
                     node_id_ = 1;
-                    RCLCPP_WARN(this->get_logger(), "无法从节点名称提取节点ID，使用默认值1");
+                    RCLCPP_WARN(this->get_logger(), "无法从节点名称提取节点ID，使用默认值1\nFailed to extract node ID from node name, using default value 1");
                 }
             } else {
                 node_id_ = 1;
@@ -67,7 +69,8 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
             try {
                 int extracted_id = std::stoi(node_name.substr(num_start));
                 if (extracted_id >= 1 && extracted_id <= 3 && extracted_id != node_id_) {
-                    RCLCPP_WARN(this->get_logger(), "节点名称 '%s' 指示节点ID应为%d，但参数值为%d，使用节点名称的值", 
+                    RCLCPP_WARN(this->get_logger(), "节点名称 '%s' 指示节点ID应为%d，但参数值为%d，使用节点名称的值\nNode name '%s' indicates node ID should be %d, but parameter value is %d, using node name value", 
+                               node_name.c_str(), extracted_id, node_id_,
                                node_name.c_str(), extracted_id, node_id_);
                     node_id_ = extracted_id;
                 }
@@ -77,7 +80,8 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
         }
     }
     
-    RCLCPP_INFO(this->get_logger(), "初始化Simple crane Control，节点名称=%s，CAN接口=%s，节点ID=%d (原始参数值: '%s')，减速比=%.2f", 
+    RCLCPP_INFO(this->get_logger(), "初始化Simple crane Control，节点名称=%s，CAN接口=%s，节点ID=%d (原始参数值: '%s')，减速比=%.2f\nInitializing Simple crane Control, node name=%s, CAN interface=%s, node ID=%d (original parameter value: '%s'), gear ratio=%.2f", 
+                this->get_name(), can_interface_.c_str(), node_id_, node_id_str.c_str(), gear_ratio_,
                 this->get_name(), can_interface_.c_str(), node_id_, node_id_str.c_str(), gear_ratio_);
     
     // 初始化CAN套接字
@@ -85,7 +89,7 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     
     if (can_socket_ < 0)
     {
-        RCLCPP_ERROR(this->get_logger(), "CAN套接字初始化失败，无法继续");
+        RCLCPP_ERROR(this->get_logger(), "CAN套接字初始化失败，无法继续\nCAN socket initialization failed, cannot continue");
         return;
     }
     
@@ -106,7 +110,7 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     velocity_sub_ = this->create_subscription<std_msgs::msg::Float32>(
         "target_velocity", 10, std::bind(&CANopenROS2::velocity_callback, this, std::placeholders::_1));
     
-    RCLCPP_INFO(this->get_logger(), "订阅器已创建: target_position, target_velocity");
+    RCLCPP_INFO(this->get_logger(), "订阅器已创建: target_position, target_velocity\nSubscribers created: target_position, target_velocity");
     
     // 创建服务
     start_service_ = this->create_service<std_srvs::srv::Trigger>(
@@ -146,12 +150,13 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     if (motor_revolutions > 0 && shaft_revolutions > 0)
     {
         float calculated_gear_ratio = static_cast<float>(motor_revolutions) / static_cast<float>(shaft_revolutions);
-        RCLCPP_INFO(this->get_logger(), "当前减速比 (0x6091): 电机转数=%d, 轴转数=%d, 计算值=%.2f (配置值=%.2f)", 
+        RCLCPP_INFO(this->get_logger(), "当前减速比 (0x6091): 电机转数=%d, 轴转数=%d, 计算值=%.2f (配置值=%.2f)\nCurrent gear ratio (0x6091): Motor revolutions=%d, Shaft revolutions=%d, Calculated value=%.2f (Configured value=%.2f)", 
+                   motor_revolutions, shaft_revolutions, calculated_gear_ratio, gear_ratio_,
                    motor_revolutions, shaft_revolutions, calculated_gear_ratio, gear_ratio_);
     }
     else
     {
-        RCLCPP_INFO(this->get_logger(), "无法读取或无效的减速比 (0x6091)，使用配置值: %.2f", gear_ratio_);
+        RCLCPP_INFO(this->get_logger(), "无法读取或无效的减速比 (0x6091)，使用配置值: %.2f\nUnable to read or invalid gear ratio (0x6091), using configured value: %.2f", gear_ratio_, gear_ratio_);
     }
     
     // 设置目标位置（例如，移动到90度）
