@@ -188,6 +188,64 @@ def generate_launch_description():
             period=1.0,
             actions=[node_rviz],
         )
+
+        # Add crane_master nodes to control the motors
+        # Using nodes from crane_master package instead of tower_crane package
+        
+        # Node for hook_joint (node_id: 1)
+        crane_master_node_1 = Node(
+            package="crane_master",
+            executable="tower_crane",
+            name="crane_master_hook",
+            namespace="hoist",
+            parameters=[{
+                "can_interface": "vcan0",
+                "node_id": "1",
+                "gear_ratio": 0.05,
+                "auto_start": "true"
+            }],
+            output="screen",
+        )
+
+        # Node for trolley_joint (node_id: 2)
+        crane_master_node_2 = Node(
+            package="crane_master",
+            executable="tower_crane",
+            name="crane_master_trolley",
+            namespace="trolley",
+            parameters=[{
+                "can_interface": "vcan0",
+                "node_id": "2",
+                "gear_ratio": 0.1,
+                "auto_start": "true"
+            }],
+            output="screen",
+        )
+
+        # Node for slewing_joint (node_id: 3)
+        crane_master_node_3 = Node(
+            package="crane_master",
+            executable="tower_crane",
+            name="crane_master_slewing",
+            namespace="slewing",
+            parameters=[{
+                "can_interface": "vcan0",
+                "node_id": "3",
+                "gear_ratio": 0.1,
+                "auto_start": "true"
+            }],
+            output="screen",
+        )
+
+        # Delay crane_master nodes startup by 5 seconds to ensure CANopen devices are initialized
+        delayed_crane_master_nodes = TimerAction(
+            period=5.0,
+            actions=[
+                crane_master_node_1,
+                crane_master_node_2,
+                crane_master_node_3,
+            ],
+        )
         
         try:
             get_package_share_directory("joint_state_publisher_gui")
@@ -204,6 +262,7 @@ def generate_launch_description():
             delayed_control_node,
             delayed_spawners,
             delayed_rviz,
+            delayed_crane_master_nodes,
         ])
         return nodes_to_launch
 

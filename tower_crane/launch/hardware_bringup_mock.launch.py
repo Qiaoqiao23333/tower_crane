@@ -14,7 +14,8 @@
 
 import os
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, TimerAction
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from ament_index_python import get_package_share_directory
@@ -22,6 +23,15 @@ from ament_index_python import get_package_share_directory
 
 def generate_launch_description():
     ld = LaunchDescription()
+
+    can_interface_arg = DeclareLaunchArgument(
+        "can_interface_name",
+        default_value="vcan0",
+        description="CAN interface (e.g. vcan0 for mock simulation)",
+    )
+    ld.add_action(can_interface_arg)
+
+    can_interface = LaunchConfiguration("can_interface_name")
 
     share_dir = get_package_share_directory("tower_crane")
     master_config = os.path.join(
@@ -107,8 +117,8 @@ def generate_launch_description():
             "master_config": master_config,
             "master_bin": master_bin if os.path.exists(master_bin) else "",
             "bus_config": bus_config,
-            "can_interface_name": "vcan0",
-            "master.can_interface_name": "vcan0",
+            "can_interface_name": can_interface,
+            "master.can_interface_name": can_interface,
         }.items(),
     )
     
@@ -120,5 +130,10 @@ def generate_launch_description():
     
     ld.add_action(delayed_device_container)
 
+    # NOTE: position_tick_motor_node (a legacy test client that calls /<joint>/{init,cyclic_position_mode,target}
+    # services from canopen_ros2_control) is no longer auto-launched here. The canonical way to command the
+    # three CANopen motors in both real and mock setups is via ros2_control controllers (e.g. through MoveIt
+    # using the forward_position_controller FollowJointTrajectory action), so we keep the node only as an
+    # optional test tool that can be run manually if needed.
 
     return ld

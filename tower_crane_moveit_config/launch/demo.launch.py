@@ -17,9 +17,10 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "can_interface_name",
             default_value="vcan0",
-            description="Interface name for can",
+            description="Interface name for CAN (e.g. vcan0 for simulation, can0 for hardware)",
         )
     )
+
 
     # Include moveit_planning_execution which already includes hardware bringup
     # This includes: hardware bringup, move_group, rviz, and static virtual joint tfs

@@ -19,32 +19,26 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "can_interface_name",
             default_value="can0",
-            description="Interface name for can (e.g. can0 for real hardware, vcan0 for testing)",
+            description="Interface name for CAN (e.g. can0 for real hardware, vcan0 for testing)",
         )
     )
 
-    # Note: To use mock hardware for testing, manually change "hardware_bringup_real.launch.py" 
-    # to "hardware_bringup_mock.launch.py" in the hardware_launch_file below
+    can_interface_name = LaunchConfiguration("can_interface_name")
 
-    # Use real hardware by default (hardware_bringup_real.launch.py)
-    # Users can override by setting use_mock_hardware:=true
-    # For now, we'll default to real hardware - users can manually change the launch file if needed
-    hardware_launch_file = PathJoinSubstitution([
-        FindPackageShare("tower_crane"),
-        "launch",
-        "hardware_bringup_real.launch.py"
-    ])
-
-    robot_hw_node = IncludeLaunchDescription(
+    # Hardware bringup (real hardware only; mock handled by separate launch if needed)
+    hardware_real = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            [hardware_launch_file]
+            PathJoinSubstitution(
+                [FindPackageShare("tower_crane"), "launch", "hardware_bringup_real.launch.py"]
+            )
         ),
         launch_arguments={
-            "can_interface_name": LaunchConfiguration("can_interface_name"),
+            "can_interface_name": can_interface_name,
         }.items(),
     )
 
 
+    # Static virtual joint TFs for MoveIt
     virtual_joints = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             str(
@@ -67,7 +61,7 @@ def generate_launch_description():
 
 
     node_list = [
-        robot_hw_node,
+        hardware_real,
         virtual_joints,
         move_group,
         rviz,

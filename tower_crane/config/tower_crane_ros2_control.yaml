@@ -27,10 +27,14 @@ forward_position_controller:
       - hook_joint
     command_interfaces:
       - position
+    # Use only the position state interface for trajectory control. Velocity
+    # is still provided by the hardware but is not required for configuration
+    # of the joint_trajectory_controller.
     state_interfaces:
       - position
-      - velocity
     allow_partial_joints_goal: false
+    # Allow non-zero initial joint positions when the controller starts.
+    allow_nonzero_initial_positions: true
     constraints:
       goal_time: 2.0
       stopped_velocity_tolerance: 0.01

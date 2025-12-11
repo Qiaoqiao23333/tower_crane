@@ -32,22 +32,32 @@ _BUS_CONFIG_PATH_PLACEHOLDER = "@BUS_CONFIG_PATH@"
 
 
 def _prepare_bus_config(share_dir: str) -> str:
+    """Return a bus.yml path usable by canopen_core.
+
+    Historically this function patched hard-coded path placeholders from an
+    external canros install tree. In this refactored workspace the checked-in
+    bus.yml already points at the correct dcf_path inside the installed
+    tower_crane package, so we treat it as ready-to-use unless we explicitly
+    detect a placeholder.
+    """
     source_path = os.path.join(share_dir, "config", "robot_control", "bus.yml")
     with open(source_path, "r", encoding="utf-8") as infp:
         content = infp.read()
 
-    # Handle new placeholder format @BUS_CONFIG_PATH@
+    # New-style placeholder: replace @BUS_CONFIG_PATH@ with the expected
+    # config directory under this package, and write to a temporary file.
     if _BUS_CONFIG_PATH_PLACEHOLDER in content:
         expected_config_path = os.path.join(share_dir, "config", "robot_control")
         patched_content = content.replace(_BUS_CONFIG_PATH_PLACEHOLDER, expected_config_path)
-    # Handle old placeholder format for backward compatibility
+    # Old-style placeholder from a previous install tree: patch to current
+    # share_dir and write to a temporary file.
     elif _CANROS_PREFIX in content:
         patched_content = content.replace(_CANROS_PREFIX, share_dir)
     else:
-        raise RuntimeError(
-            "Expected CANopen path placeholder not found inside bus.yml; "
-            "please update _prepare_bus_config. Expected either '@BUS_CONFIG_PATH@' or old path."
-        )
+        # No placeholder at all: assume bus.yml already contains valid paths
+        # (as in this workspace, where dcf_path is absolute). In that case
+        # we can use the file in-place without creating a temp copy.
+        return source_path
 
     fd, temp_path = tempfile.mkstemp(prefix="tower_crane_bus_", suffix=".yml")
     with os.fdopen(fd, "w", encoding="utf-8") as tmp:
@@ -59,6 +69,17 @@ def _prepare_bus_config(share_dir: str) -> str:
 def _load_robot_description(
     can_interface: str, bus_config_path: str, master_config_path: str
 ) -> ParameterValue:
+    """Load the installed Tower_crane.urdf as-is for robot_description.
+
+    The previous implementation tried to patch hard-coded absolute paths and
+    CANopen configuration placeholders from an older canros environment.
+    The current URDF in this workspace no longer contains those placeholders,
+    and MoveIt already handles ros2_control integration via its own xacro.
+
+    For real hardware bringup we simply provide the URDF model to
+    robot_state_publisher and ros2_control_node; CANopen configuration is
+    handled separately via tower_crane_ros2_control.yaml and bus.yml.
+    """
     share_dir = get_package_share_directory("tower_crane")
     urdf_path = os.path.join(share_dir, "urdf", "Tower_crane.urdf")
     if not os.path.exists(urdf_path):
@@ -67,22 +88,10 @@ def _load_robot_description(
     with open(urdf_path, "r", encoding="utf-8") as infp:
         content = infp.read()
 
-    replacements = {
-        f"{_CANROS_PREFIX}/config/robot_control/bus.yml": bus_config_path,
-        f"{_CANROS_PREFIX}/config/robot_control/master.dcf": master_config_path,
-        '<param name="can_interface_name">can0</param>': (
-            f'<param name="can_interface_name">{can_interface}</param>'
-        ),
-    }
-
-    for placeholder, resolved in replacements.items():
-        if placeholder not in content:
-            raise RuntimeError(
-                f"Expected placeholder '{placeholder}' not found in URDF. "
-                "Please update the file conversion logic."
-            )
-        content = content.replace(placeholder, resolved)
-
+    # We intentionally ignore can_interface, bus_config_path and
+    # master_config_path here; those are used by CANopen-specific
+    # components (e.g. bus.yml, master.dcf) and not embedded into the
+    # URDF itself in this refactored workspace.
     return ParameterValue(content, value_type=str)
 
 

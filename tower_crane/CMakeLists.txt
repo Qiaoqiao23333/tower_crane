@@ -21,26 +21,15 @@ find_package(lely_core_libraries REQUIRED)
 
 # cogen_dcf(robot_control)  # Temporarily commented out - master.dcf should be generated or provided manually
 
-# Add executable for position tick motor node
-add_executable(position_tick_motor_node src/position_tick_motor_node.cpp)
-ament_target_dependencies(position_tick_motor_node
-  rclcpp
-  std_srvs
-  canopen_interfaces
-)
-
-# Install executable
-install(TARGETS
-  position_tick_motor_node
-  DESTINATION lib/${PROJECT_NAME}
-)
-
+# Install package resources (URDF, meshes, config, launch)
 install(DIRECTORY
-launch urdf meshes config
-DESTINATION share/${PROJECT_NAME})
+  launch urdf meshes config
+  DESTINATION share/${PROJECT_NAME}
+)
 
 install(FILES config/tower_crane_ros2_control.yaml
-DESTINATION share/${PROJECT_NAME}/config)
+  DESTINATION share/${PROJECT_NAME}/config
+)
 
 
 if(BUILD_TESTING)
@@ -59,35 +48,6 @@ endif()
 # It makes sure that launch files, models, etc., are placed
 # in the 'install/tower_crane/share/tower_crane' directory
 # so ROS 2 tools can find them.
-
-# Check if the directories exist before trying to install them
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/config")
-  install(
-    DIRECTORY config/
-    DESTINATION share/${PROJECT_NAME}/config
-  )
-endif()
-
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/launch")
-  install(
-    DIRECTORY launch/
-    DESTINATION share/${PROJECT_NAME}/launch
-  )
-endif()
-
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/meshes")
-  install(
-    DIRECTORY meshes/
-    DESTINATION share/${PROJECT_NAME}/meshes
-  )
-endif()
-
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/urdf")
-  install(
-    DIRECTORY urdf/
-    DESTINATION share/${PROJECT_NAME}/urdf
-  )
-endif()
 
 # This registers the package with the ament index. It must be at the end.
 ament_package()

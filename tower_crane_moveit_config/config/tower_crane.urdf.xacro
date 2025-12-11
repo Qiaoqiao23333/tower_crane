@@ -2,7 +2,8 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="tower_crane">
     <xacro:arg name="initial_positions_file" default="initial_positions.yaml" />
 
-    <!-- Import tower_crane urdf file -->
+    <!-- Import tower_crane URDF file -->
+    <!-- Note: xacro supports $(find package_name) via its own 'find' substitution command. -->
     <xacro:include filename="$(find tower_crane)/urdf/Tower_crane.urdf" />
 
     <!-- Import control_xacro -->

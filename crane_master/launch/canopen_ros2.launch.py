@@ -7,7 +7,7 @@ def generate_launch_description():
         # 声明参数
         DeclareLaunchArgument(
             'can_interface',
-            default_value='can0',
+            default_value='vcan0',
             description='CAN接口名称'
         ),
         DeclareLaunchArgument(

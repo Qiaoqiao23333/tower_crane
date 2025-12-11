@@ -9,7 +9,9 @@
 #include "std_srvs/srv/trigger.hpp"
 
 // Motor names matching bus.yml configuration
-const std::vector<std::string> MOTOR_NAMES = {"hoist_motor", "trolley_motor", "slewing_motor"};
+// Note: These should match the device names in bus.yml
+// Current bus.yml uses: hook_joint (node_id: 1), trolley_joint (node_id: 2), slewing_joint (node_id: 3)
+const std::vector<std::string> MOTOR_NAMES = {"hook_joint", "trolley_joint", "slewing_joint"};
 
 void control_motor(
   rclcpp::Node::SharedPtr node,

@@ -15,9 +15,9 @@ defaults:
   heartbeat_consumer: 2000
 
 nodes:
-  hoist_motor:
+  hoist_joint:
     node_id: 1
-  trolley_motor:
+  trolley_joint:
     node_id: 2
-  slewing_motor:
+  slewing_joint:
     node_id: 3
