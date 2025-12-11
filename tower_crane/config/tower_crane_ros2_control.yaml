@@ -6,7 +6,7 @@ controller_manager:
       type: joint_state_broadcaster/JointStateBroadcaster
 
     forward_position_controller:
-      type: forward_position_controller/JointTrajectoryController
+      type: joint_trajectory_controller/JointTrajectoryController
 
 # Configuration for the joint state broadcaster
 joint_state_broadcaster:

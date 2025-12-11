@@ -10,6 +10,8 @@ endif()
 
 # Find the ament_cmake build system
 find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(std_srvs REQUIRED)
 find_package(canopen_core REQUIRED)
 find_package(canopen_interfaces REQUIRED)
 find_package(canopen_base_driver REQUIRED)
@@ -19,6 +21,19 @@ find_package(lely_core_libraries REQUIRED)
 
 # cogen_dcf(robot_control)  # Temporarily commented out - master.dcf should be generated or provided manually
 
+# Add executable for position tick motor node
+add_executable(position_tick_motor_node src/position_tick_motor_node.cpp)
+ament_target_dependencies(position_tick_motor_node
+  rclcpp
+  std_srvs
+  canopen_interfaces
+)
+
+# Install executable
+install(TARGETS
+  position_tick_motor_node
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 install(DIRECTORY
 launch urdf meshes config

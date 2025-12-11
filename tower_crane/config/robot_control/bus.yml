@@ -1,166 +1,87 @@
 options:
-  dcf_path: "/home/qiaoqiaochen/appdata/canros/install/tower_crane/share/tower_crane/config/robot_control"
-  disable_bootstrap: false
+  dcf_path: "/home/labcrane/appdata/ws_tower_crane/install/tower_crane/share/tower_crane/config/robot_control"
 
 master:
   node_id: 127
   name: "master"
   driver: "ros2_canopen::MasterDriver"
   package: canopen_master_driver
-  # namespace: "/master"
-  baud_rate: 500
-  heartbeat_consumer: false
-  heartbeat_producer: 2000
-  start_nodes: true
-  sync_period: 5000000 
-  
-slewing_motor:
+  sync_period: 10000
+
+slewing_joint:
   node_id: 3
-  # namespace: "/roscan"
-  package: "canopen_402_driver"
+  driver: "ros2_canopen::ProxyDriver"
+  package: "canopen_proxy_driver"
   dcf: "DSY-C.EDS"
-  driver: "ros2_canopen::Cia402Driver"
   period: 10
-  position_mode: 1
-  revision_number: 0
-  boot_timeout_ms: 20000
-  sdo_timeout_ms: 10000
-  polling: false
-  boot: true
-  enable_lazy_load: true
-  # reset_communication: true
-  # fake: true
+  heartbeat_producer: 1000
   sdo:
-    - {index: 0x60C2, sub_index: 1, value: 50}
-    - {index: 0x60C2, sub_index: 2, value: -3}
-    - {index: 0x6083, sub_index: 0, value: 2000}
-    - {index: 0x6084, sub_index: 0, value: 2000}
-    - {index: 0x6060, sub_index: 0, value: 10}
-  tpdo: # TPDO needed statusword, actual velocity, actual position, mode of operation
+    - {index: 0x6060, sub_index: 0, value: 1}
+    - {index: 0x6040, sub_index: 0, value: 0x0F}
+  tpdo:
     1:
       enabled: true
       cob_id: "auto"
       transmission: 0x01
       mapping:
-       - {index: 0x6041, sub_index: 0} # status word
-       - {index: 0x6061, sub_index: 0} # mode of operation display
-    2:
+        - {index: 0x6064, sub_index: 0}
+        - {index: 0x606C, sub_index: 0}
+  rpdo:
+    1:
       enabled: true
       cob_id: "auto"
       transmission: 0x01
       mapping:
-       - {index: 0x6069, sub_index: 0} # position actual value
-       - {index: 0x6064, sub_index: 0} # velocity actual pvalue
-  rpdo: # RPDO needed controlword, target position, target velocity, mode of operation
-    1:
-      enabled: true
-      cob_id: "auto"
-      mapping:
-      - {index: 0x6040, sub_index: 0} # controlword
-      - {index: 0x6060, sub_index: 0} # mode of operation
-    2:
-      enabled: true
-      cob_id: "auto"
-      mapping:
-      - {index: 0x6040, sub_index: 0} # Controlword
-      - {index: 0x60FF, sub_index: 0} # Target velocity
+        - {index: 0x607A, sub_index: 0}
 
-trolley_motor:
+trolley_joint:
   node_id: 2
-  # namespace: "/roscan"
-  package: "canopen_402_driver"
+  driver: "ros2_canopen::ProxyDriver"
+  package: "canopen_proxy_driver"
   dcf: "DSY-C.EDS"
-  driver: "ros2_canopen::Cia402Driver"
   period: 10
-  position_mode: 1
-  revision_number: 0
-  boot_timeout_ms: 20000
-  sdo_timeout_ms: 10000
-  polling: false
-  boot: true
-  enable_lazy_load: true
-  # reset_communication: true
+  heartbeat_producer: 1000
   sdo:
-    - {index: 0x60C2, sub_index: 1, value: 50}
-    - {index: 0x60C2, sub_index: 2, value: -3}
-    - {index: 0x6083, sub_index: 0, value: 2000}
-    - {index: 0x6084, sub_index: 0, value: 2000}
-    - {index: 0x6060, sub_index: 0, value: 10}
-  tpdo: # TPDO needed statusword, actual velocity, actual position, mode of operation
+    - {index: 0x6060, sub_index: 0, value: 1}
+    - {index: 0x6040, sub_index: 0, value: 0x0F}
+  tpdo:
     1:
       enabled: true
       cob_id: "auto"
       transmission: 0x01
       mapping:
-       - {index: 0x6041, sub_index: 0} # status word
-       - {index: 0x6061, sub_index: 0} # mode of operation display
-    2:
+        - {index: 0x6064, sub_index: 0}
+        - {index: 0x606C, sub_index: 0}
+  rpdo:
+    1:
       enabled: true
       cob_id: "auto"
       transmission: 0x01
       mapping:
-       - {index: 0x6069, sub_index: 0} # position actual value
-       - {index: 0x6064, sub_index: 0} # velocity actual pvalue
-  rpdo: # RPDO needed controlword, target position, target velocity, mode of operation
-    1:
-      enabled: true
-      cob_id: "auto"
-      mapping:
-      - {index: 0x6040, sub_index: 0} # controlword
-      - {index: 0x6060, sub_index: 0} # mode of operation
-    2:
-      enabled: true
-      cob_id: "auto"
-      mapping:
-      - {index: 0x6040, sub_index: 0} # Controlword
-      - {index: 0x60FF, sub_index: 0} # Target velocity
+        - {index: 0x607A, sub_index: 0}
 
-hoist_motor:
+hook_joint:
   node_id: 1
-  # namespace: "/roscan"
-  package: "canopen_402_driver"
+  driver: "ros2_canopen::ProxyDriver"
+  package: "canopen_proxy_driver"
   dcf: "DSY-C.EDS"
-  driver: "ros2_canopen::Cia402Driver"
   period: 10
-  position_mode: 1
-  revision_number: 0
-  polling: false
-  boot_timeout_ms: 30000
-  sdo_timeout_ms: 10000
-  boot: true
-  enable_lazy_load: true
-  # reset_communication: true
+  heartbeat_producer: 1000
   sdo:
-    - {index: 0x60C2, sub_index: 1, value: 50}
-    - {index: 0x60C2, sub_index: 2, value: -3}
-    - {index: 0x6083, sub_index: 0, value: 2000}
-    - {index: 0x6084, sub_index: 0, value: 2000}
-    - {index: 0x6060, sub_index: 0, value: 10}
-  tpdo: # TPDO needed statusword, actual velocity, actual position, mode of operation
+    - {index: 0x6060, sub_index: 0, value: 1}
+    - {index: 0x6040, sub_index: 0, value: 0x0F}
+  tpdo:
     1:
       enabled: true
       cob_id: "auto"
       transmission: 0x01
       mapping:
-       - {index: 0x6041, sub_index: 0} # status word
-       - {index: 0x6061, sub_index: 0} # mode of operation display
-    2:
+        - {index: 0x6064, sub_index: 0}
+        - {index: 0x606C, sub_index: 0}
+  rpdo:
+    1:
       enabled: true
       cob_id: "auto"
       transmission: 0x01
       mapping:
-       - {index: 0x6069, sub_index: 0} # position actual value
-       - {index: 0x6064, sub_index: 0} # velocity actual pvalue
-  rpdo: # RPDO needed controlword, target position, target velocity, mode of operation
-    1:
-      enabled: true
-      cob_id: "auto"
-      mapping:
-      - {index: 0x6040, sub_index: 0} # controlword
-      - {index: 0x6060, sub_index: 0} # mode of operation
-    2:
-      enabled: true
-      cob_id: "auto"
-      mapping:
-      - {index: 0x6040, sub_index: 0} # Controlword
-      - {index: 0x60FF, sub_index: 0} # Target velocity
+        - {index: 0x607A, sub_index: 0}

@@ -1,13 +1,12 @@
 import os
-import tempfile
-from ament_index_python.packages import get_package_share_directory
+import re
+from ament_index_python.packages import get_package_share_directory, PackageNotFoundError
 from launch import LaunchDescription
 from launch.actions import (
     IncludeLaunchDescription,
     OpaqueFunction,
-    RegisterEventHandler,
+    TimerAction,
 )
-from launch.event_handlers import OnShutdown
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 from launch_ros.descriptions import ParameterValue
@@ -20,18 +19,22 @@ def _prepare_bus_config(share_dir: str) -> str:
     with open(source_path, "r", encoding="utf-8") as infp:
         content = infp.read()
 
-    if _CANROS_PREFIX not in content:
-        raise RuntimeError(
-            "Expected CANopen path placeholder not found inside bus.yml; "
-            "please update _prepare_bus_config."
-        )
+    # 如果找到旧占位符，则替换为当前share_dir
+    if _CANROS_PREFIX in content:
+        patched_content = content.replace(_CANROS_PREFIX, share_dir)
+    else:
+        # 如果bus.yml中已经是实际路径，确保dcf_path指向正确的路径
+        expected_config_path = os.path.join(share_dir, "config", "robot_control")
+        # 更新dcf_path为当前正确的路径
+        pattern = r'dcf_path:\s*"[^"]*"'
+        replacement = f'dcf_path: "{expected_config_path}"'
+        patched_content = re.sub(pattern, replacement, content)
+    
+    # 直接更新bus.yml文件
+    with open(source_path, "w", encoding="utf-8") as outfp:
+        outfp.write(patched_content)
 
-    patched_content = content.replace(_CANROS_PREFIX, share_dir)
-    fd, temp_path = tempfile.mkstemp(prefix="tower_crane_bus_", suffix=".yml")
-    with os.fdopen(fd, "w", encoding="utf-8") as tmp:
-        tmp.write(patched_content)
-
-    return temp_path
+    return source_path
 
 
 def _load_robot_description(
@@ -45,21 +48,20 @@ def _load_robot_description(
     with open(urdf_file, "r", encoding="utf-8") as infp:
         content = infp.read()
 
-    replacements = {
-        f"{_CANROS_PREFIX}/config/robot_control/bus.yml": bus_config_path,
-        f"{_CANROS_PREFIX}/config/robot_control/master.dcf": master_config_path,
-        '<param name="can_interface_name">can0</param>': (
-            f'<param name="can_interface_name">{can_interface}</param>'
-        ),
-    }
+    # 替换bus_config路径 - 使用正则表达式匹配任何路径
+    bus_config_pattern = r'<param name="bus_config">[^<]*</param>'
+    bus_config_replacement = f'<param name="bus_config">{bus_config_path}</param>'
+    content = re.sub(bus_config_pattern, bus_config_replacement, content)
 
-    for placeholder, resolved in replacements.items():
-        if placeholder not in content:
-            raise RuntimeError(
-                f"Expected placeholder '{placeholder}' not found in URDF. "
-                "Please update the file conversion logic."
-            )
-        content = content.replace(placeholder, resolved)
+    # 替换master_config路径 - 使用正则表达式匹配任何路径
+    master_config_pattern = r'<param name="master_config">[^<]*</param>'
+    master_config_replacement = f'<param name="master_config">{master_config_path}</param>'
+    content = re.sub(master_config_pattern, master_config_replacement, content)
+
+    # 替换can_interface_name
+    can_interface_pattern = r'<param name="can_interface_name">[^<]*</param>'
+    can_interface_replacement = f'<param name="can_interface_name">{can_interface}</param>'
+    content = re.sub(can_interface_pattern, can_interface_replacement, content)
 
     return ParameterValue(content, value_type=str)
 
@@ -156,30 +158,53 @@ def generate_launch_description():
             output="screen",
         )
 
-        node_joint_state_publisher_gui = Node(
-            package="joint_state_publisher_gui",
-            executable="joint_state_publisher_gui",
-            name="joint_state_publisher_gui",
-        )
-
-        cleanup_action = RegisterEventHandler(
-            OnShutdown(
-                on_shutdown=lambda *_, path=bus_config_path: os.path.exists(path)
-                and os.remove(path)
-            )
-        )
-
-        return [
-            node_joint_state_publisher_gui,
-            control_node,
-            joint_state_broadcaster_spawner,
-            forward_position_controller_spawner,
+        # 先启动slave节点和robot_state_publisher，延迟启动control_node
+        # 确保slave节点在master尝试连接之前就已经准备好
+        nodes_to_launch = [
             robot_state_publisher_node,
             slave_node_1,
             slave_node_2,
             slave_node_3,
-            node_rviz,
-            cleanup_action,
         ]
+        
+        # 延迟3秒后启动control_node，确保slave节点已完全启动并发送Boot-Up帧
+        # 同时给master节点足够时间初始化CAN接口
+        delayed_control_node = TimerAction(
+            period=3.0,
+            actions=[control_node],
+        )
+        
+        # 延迟5秒后启动controller spawners，确保control_node已初始化并完成设备连接
+        delayed_spawners = TimerAction(
+            period=5.0,
+            actions=[
+                joint_state_broadcaster_spawner,
+                forward_position_controller_spawner,
+            ],
+        )
+        
+        # 延迟启动rviz，确保系统已初始化
+        delayed_rviz = TimerAction(
+            period=1.0,
+            actions=[node_rviz],
+        )
+        
+        try:
+            get_package_share_directory("joint_state_publisher_gui")
+            node_joint_state_publisher_gui = Node(
+                package="joint_state_publisher_gui",
+                executable="joint_state_publisher_gui",
+                name="joint_state_publisher_gui",
+            )
+            nodes_to_launch.append(node_joint_state_publisher_gui)
+        except PackageNotFoundError:
+            print("[WARNING] joint_state_publisher_gui package not found. Skipping GUI node.")
+
+        nodes_to_launch.extend([
+            delayed_control_node,
+            delayed_spawners,
+            delayed_rviz,
+        ])
+        return nodes_to_launch
 
     return LaunchDescription([OpaqueFunction(function=launch_setup)])
