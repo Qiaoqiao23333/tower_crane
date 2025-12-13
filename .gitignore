@@ -1,5 +1,9 @@
-ros2_canopen/
-trinamic_pd42_can/
-tower_crane/build/
-tower_crane/install/
-tower_crane/log/
+# Third-party packages are vendored in the workspace but not tracked in git
+third_party/
+
+# Python cache artifacts should never be tracked
+**/__pycache__/
+**/*.pyc
+
+# Editor settings
+.vscode/

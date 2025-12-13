@@ -25,6 +25,8 @@ find_package(lely_core_libraries REQUIRED)
 install(DIRECTORY
   launch urdf meshes config
   DESTINATION share/${PROJECT_NAME}
+  PATTERN "__pycache__" EXCLUDE
+  PATTERN "*.pyc" EXCLUDE
 )
 
 install(FILES config/tower_crane_ros2_control.yaml

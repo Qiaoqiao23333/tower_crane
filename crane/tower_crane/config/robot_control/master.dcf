@@ -2,7 +2,7 @@
 NodeID=127
 NodeName=
 NodeRefd=
-Baudrate=1000
+Baudrate=500
 NetNumber=1
 NetworkName=
 NetRefd=
@@ -49,7 +49,9 @@ SupportedObjects=3
 3=0x1018
 
 [OptionalObjects]
-SupportedObjects=0
+SupportedObjects=2
+1=0x1F80
+2=0x1F81
 
 [1000]
 ParameterName=Device type
@@ -96,3 +98,37 @@ ParameterName=Serial number
 DataType=0x0007
 AccessType=ro
 
+[1F80]
+ParameterName=NMT startup
+DataType=0x0007
+AccessType=rw
+DefaultValue=0x00000001
+
+[1F81]
+SubNumber=4
+ParameterName=Slave assignment
+ObjectType=0x09
+
+[1F81sub0]
+ParameterName=Highest sub-index supported
+DataType=0x0005
+AccessType=const
+DefaultValue=3
+
+[1F81sub1]
+ParameterName=Node 1 assignment
+DataType=0x0007
+AccessType=rw
+DefaultValue=0x0000000D
+
+[1F81sub2]
+ParameterName=Node 2 assignment
+DataType=0x0007
+AccessType=rw
+DefaultValue=0x0000000D
+
+[1F81sub3]
+ParameterName=Node 3 assignment
+DataType=0x0007
+AccessType=rw
+DefaultValue=0x0000000D

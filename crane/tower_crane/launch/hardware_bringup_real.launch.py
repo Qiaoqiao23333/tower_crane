@@ -23,7 +23,7 @@ from launch.actions import (
     RegisterEventHandler,
 )
 from launch.event_handlers import OnShutdown
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import Command, FindExecutable, LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.descriptions import ParameterValue
 
@@ -31,14 +31,13 @@ _CANROS_PREFIX = "/home/qiaoqiaochen/appdata/canros/install/tower_crane/share/to
 _BUS_CONFIG_PATH_PLACEHOLDER = "@BUS_CONFIG_PATH@"
 
 
-def _prepare_bus_config(share_dir: str) -> str:
+def _prepare_bus_config(share_dir: str) -> tuple[str, bool]:
     """Return a bus.yml path usable by canopen_core.
 
-    Historically this function patched hard-coded path placeholders from an
-    external canros install tree. In this refactored workspace the checked-in
-    bus.yml already points at the correct dcf_path inside the installed
-    tower_crane package, so we treat it as ready-to-use unless we explicitly
-    detect a placeholder.
+    The checked-in bus.yml contains a @BUS_CONFIG_PATH@ placeholder.
+    canopen_core expects a real path, so we patch it at runtime.
+
+    Returns (path, should_cleanup).
     """
     source_path = os.path.join(share_dir, "config", "robot_control", "bus.yml")
     with open(source_path, "r", encoding="utf-8") as infp:
@@ -54,45 +53,46 @@ def _prepare_bus_config(share_dir: str) -> str:
     elif _CANROS_PREFIX in content:
         patched_content = content.replace(_CANROS_PREFIX, share_dir)
     else:
-        # No placeholder at all: assume bus.yml already contains valid paths
-        # (as in this workspace, where dcf_path is absolute). In that case
-        # we can use the file in-place without creating a temp copy.
-        return source_path
+        # No placeholder: use file in-place and do not delete it on shutdown.
+        return source_path, False
 
     fd, temp_path = tempfile.mkstemp(prefix="tower_crane_bus_", suffix=".yml")
     with os.fdopen(fd, "w", encoding="utf-8") as tmp:
         tmp.write(patched_content)
 
-    return temp_path
+    return temp_path, True
 
 
 def _load_robot_description(
-    can_interface: str, bus_config_path: str, master_config_path: str
+    xacro_path: str, can_interface: str, bus_config_path: str, master_config_path: str
 ) -> ParameterValue:
-    """Load the installed Tower_crane.urdf as-is for robot_description.
+    """Generate robot_description from xacro so ros2_control uses RobotSystem.
 
-    The previous implementation tried to patch hard-coded absolute paths and
-    CANopen configuration placeholders from an older canros environment.
-    The current URDF in this workspace no longer contains those placeholders,
-    and MoveIt already handles ros2_control integration via its own xacro.
-
-    For real hardware bringup we simply provide the URDF model to
-    robot_state_publisher and ros2_control_node; CANopen configuration is
-    handled separately via tower_crane_ros2_control.yaml and bus.yml.
+    This ensures the <ros2_control> tag uses canopen_ros2_control/RobotSystem and
+    passes bus/master configs + can interface into the hardware plugin.
     """
-    share_dir = get_package_share_directory("tower_crane")
-    urdf_path = os.path.join(share_dir, "urdf", "Tower_crane.urdf")
-    if not os.path.exists(urdf_path):
-        raise FileNotFoundError(f"URDF file not found: {urdf_path}")
+    if not os.path.exists(xacro_path):
+        raise FileNotFoundError(f"Xacro file not found: {xacro_path}")
 
-    with open(urdf_path, "r", encoding="utf-8") as infp:
-        content = infp.read()
-
-    # We intentionally ignore can_interface, bus_config_path and
-    # master_config_path here; those are used by CANopen-specific
-    # components (e.g. bus.yml, master.dcf) and not embedded into the
-    # URDF itself in this refactored workspace.
-    return ParameterValue(content, value_type=str)
+    return ParameterValue(
+        Command(
+            [
+                FindExecutable(name="xacro"),
+                " ",
+                xacro_path,
+                " ",
+                "can_interface_name:=",
+                can_interface,
+                " ",
+                "bus_config_path:=",
+                bus_config_path,
+                " ",
+                "master_config_path:=",
+                master_config_path,
+            ]
+        ),
+        value_type=str,
+    )
 
 
 def generate_launch_description():
@@ -118,11 +118,13 @@ def generate_launch_description():
         can_interface_name = LaunchConfiguration("can_interface_name").perform(context)
         share_dir = get_package_share_directory("tower_crane")
         master_config = os.path.join(share_dir, "config", "robot_control", "master.dcf")
-        bus_config_path = _prepare_bus_config(share_dir)
+        bus_config_path, cleanup_bus_config = _prepare_bus_config(share_dir)
+
+        xacro_path = os.path.join(share_dir, "urdf", "Tower_crane_canopen.urdf.xacro")
 
         robot_description = {
             "robot_description": _load_robot_description(
-                can_interface_name, bus_config_path, master_config
+                xacro_path, can_interface_name, bus_config_path, master_config
             )
         }
         controller_config = os.path.join(
@@ -176,7 +178,8 @@ def generate_launch_description():
 
         cleanup_action = RegisterEventHandler(
             OnShutdown(
-                on_shutdown=lambda *_, path=bus_config_path: os.path.exists(path)
+                on_shutdown=lambda *_, path=bus_config_path, cleanup=cleanup_bus_config: cleanup
+                and os.path.exists(path)
                 and os.remove(path)
             )
         )
@@ -190,4 +193,3 @@ def generate_launch_description():
         ]
 
     return LaunchDescription(declared_arguments + [OpaqueFunction(function=launch_setup)])
-

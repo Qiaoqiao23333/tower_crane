@@ -1,0 +1,107 @@
+options:
+  # Patched at runtime by launch files (see tower_crane/launch/hardware_bringup_real.launch.py)
+  dcf_path: "@BUS_CONFIG_PATH@"
+
+master:
+  node_id: 127
+  name: "master"
+  driver: "ros2_canopen::MasterDriver"
+  package: "canopen_master_driver"
+  sync_period: 10000
+  boot_timeout_ms: 10000
+
+# Device entries are defined at the YAML root (one per joint).
+# NOTE: This canopen_core version treats unknown top-level keys as devices.
+# Do NOT add a top-level 'defaults' section; fully specify each device instead.
+
+slewing_joint:
+  node_id: 3
+  dcf: "DSY-C.EDS"
+  driver: "ros2_canopen::Cia402Driver"
+  package: "canopen_402_driver"
+  period: 10
+  heartbeat_producer: 1000
+  heartbeat_consumer: 2000
+  # Needed so canopen_ros2_control exports a 'position' command interface for this joint.
+  # Mode value matches CiA402 operation mode (Profile Position = 1).
+  position_mode: 1
+  boot_timeout_ms: 10000
+  sdo:
+    - {index: 0x6040, sub_index: 0, value: 6}   # Servo No Fault → Servo Ready
+    - {index: 0x6040, sub_index: 0, value: 7}   # Servo Ready → Waiting to Enable Servo
+    - {index: 0x6040, sub_index: 0, value: 15}  # Waiting to Enable Servo → Servo Running
+  tpdo:
+    1:
+      enabled: true
+      cob_id: "auto"
+      transmission: 0x01
+      mapping:
+        - {index: 0x6064, sub_index: 0}
+        - {index: 0x606C, sub_index: 0}
+  rpdo:
+    1:
+      enabled: true
+      cob_id: "auto"
+      transmission: 0x01
+      mapping:
+        - {index: 0x607A, sub_index: 0}
+
+trolley_joint:
+  node_id: 2
+  dcf: "DSY-C.EDS"
+  driver: "ros2_canopen::Cia402Driver"
+  package: "canopen_402_driver"
+  period: 10
+  heartbeat_producer: 1000
+  heartbeat_consumer: 2000
+  position_mode: 1
+  boot_timeout_ms: 10000
+  sdo:
+    - {index: 0x6040, sub_index: 0, value: 6}   # Servo No Fault → Servo Ready
+    - {index: 0x6040, sub_index: 0, value: 7}   # Servo Ready → Waiting to Enable Servo
+    - {index: 0x6040, sub_index: 0, value: 15}  # Waiting to Enable Servo → Servo Running
+  tpdo:
+    1:
+      enabled: true
+      cob_id: "auto"
+      transmission: 0x01
+      mapping:
+        - {index: 0x6064, sub_index: 0}
+        - {index: 0x606C, sub_index: 0}
+  rpdo:
+    1:
+      enabled: true
+      cob_id: "auto"
+      transmission: 0x01
+      mapping:
+        - {index: 0x607A, sub_index: 0}
+
+hook_joint:
+  node_id: 1
+  dcf: "DSY-C.EDS"
+  driver: "ros2_canopen::Cia402Driver"
+  package: "canopen_402_driver"
+  period: 10
+  heartbeat_producer: 1000
+  heartbeat_consumer: 2000
+  position_mode: 1
+  boot_timeout_ms: 10000
+  sdo:
+    - {index: 0x6040, sub_index: 0, value: 6}   # Servo No Fault → Servo Ready
+    - {index: 0x6040, sub_index: 0, value: 7}   # Servo Ready → Waiting to Enable Servo
+    - {index: 0x6040, sub_index: 0, value: 15}  # Waiting to Enable Servo → Servo Running
+  tpdo:
+    1:
+      enabled: true
+      cob_id: "auto"
+      transmission: 0x01
+      mapping:
+        - {index: 0x6064, sub_index: 0}
+        - {index: 0x606C, sub_index: 0}
+  rpdo:
+    1:
+      enabled: true
+      cob_id: "auto"
+      transmission: 0x01
+      mapping:
+        - {index: 0x607A, sub_index: 0}
