@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot
+  name="tower_crane">
+  <link name="world"/>
+  <joint name="world_to_base" type="fixed">
+    <parent link="world"/>
+    <child link="base_base_link"/>
+    <origin rpy="0 0 0" xyz="0 0 0"/>
+  </joint>
+  <link name="base_base_link">
+    <visual>
+      <geometry>
+        <box size="0.45 0.45 0.2"/>
+      </geometry>
+      <material name="">
+        <color rgba="0.79216 0.81961 0.93333 1"/>
+      </material>
+    </visual>
+  </link>
+  <joint name="base_to_base" type="fixed">
+    <parent link="base_base_link"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 2" rpy="0 0 0"/> 
+  </joint>
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="-0.00054365 0.0005699 -0.90918"
+        rpy="0 0 0" />
+      <mass
+        value="24.622" />
+      <inertia
+        ixx="12.76"
+        ixy="0"
+        ixz="0.01"
+        iyy="12.75"
+        iyz="-0.04"
+        izz="0.70" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://tower_crane/meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.79216 0.81961 0.93333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://tower_crane/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="slewing_Link">
+    <inertial>
+      <origin
+        xyz="-0.000744911036835383 -0.0874649854532076 0.14613338637878"
+        rpy="0 0 0" />
+      <mass
+        value="38.2285461245108" />
+      <inertia
+        ixx=" 32.67"
+        ixy="0.03"
+        ixz="0.00"
+        iyy="2.25"
+        iyz="2.79"
+        izz=" 31.30" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://tower_crane/meshes/slewing_Link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://tower_crane/meshes/slewing_Link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="slewing_joint"
+    type="revolute">
+    <origin
+      xyz="0 0 0.007"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="slewing_Link" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="100"
+      velocity="0" />
+  </joint>
+  <link
+    name="trolley_Link">
+    <inertial>
+      <origin
+        xyz="-0.00252711686986329 -6.66133814775094E-16 -0.146022586184743"
+        rpy="0 0 0" />
+      <mass
+        value="0.567964273921575" />
+      <inertia
+        ixx="0.12"
+        ixy="0.00"
+        ixz="0.00"
+        iyy="0.13"
+        iyz="0.00"
+        izz="0.01" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://tower_crane/meshes/trolley_Link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://tower_crane/meshes/trolley_Link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="trolley_joint"
+    type="prismatic">
+    <origin
+      xyz="0.00031802 -1.4078 0.1438"
+      rpy="0 0 -3.1416" />
+    <parent
+      link="slewing_Link" />
+    <child
+      link="trolley_Link" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="-2"
+      upper="0.5"
+      effort="20"
+      velocity="0.5" />
+  </joint>
+  <link
+    name="hook_Link">
+    <inertial>
+      <origin
+        xyz="0 2.22044604925031E-16 0"
+        rpy="0 0 0" />
+      <mass
+        value="5.0" />
+      <inertia
+        ixx="0.01"
+        ixy="0.00"
+        ixz="0.00"
+        iyy="0.01"
+        iyz="0.00"
+        izz="0.01" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://tower_crane/meshes/hook_Link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://tower_crane/meshes/hook_Link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="hook_joint"
+    type="prismatic">
+    <origin
+      xyz="-0.013982 0 -1.9126"
+      rpy="0 0 3.1416" />
+    <parent
+      link="trolley_Link" />
+    <child
+      link="hook_Link" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="2"
+      effort="50"
+      velocity="0.5" />
+  </joint>
+  
+
+</robot>
+
+
+
+

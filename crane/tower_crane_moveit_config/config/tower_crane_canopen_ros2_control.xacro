@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+    <xacro:macro name="tower_crane_canopen_ros2_control" params="can_interface_name bus_config_path master_config_path">
+        <ros2_control name="canopen_ros2_control/CanopenSystem" type="system">
+            <hardware>
+                <plugin>canopen_ros2_control/RobotSystem</plugin>
+                <param name="bus_config">${bus_config_path}</param>
+                <param name="master_config">${master_config_path}</param>
+                <param name="can_interface_name">${can_interface_name}</param>
+            </hardware>
+
+            <joint name="slewing_joint">
+                <command_interface name="position"/>
+                <state_interface name="position"/>
+                <state_interface name="velocity"/>
+                <param name="device_name">slewing_motor</param>
+            </joint>
+
+            <joint name="trolley_joint">
+                <command_interface name="position"/>
+                <state_interface name="position"/>
+                <state_interface name="velocity"/>
+                <param name="device_name">trolley_motor</param>
+            </joint>
+
+            <joint name="hook_joint">
+                <command_interface name="position"/>
+                <state_interface name="position"/>
+                <state_interface name="velocity"/>
+                <param name="device_name">hoist_motor</param>
+            </joint>
+        </ros2_control>
+    </xacro:macro>
+</robot>
+
