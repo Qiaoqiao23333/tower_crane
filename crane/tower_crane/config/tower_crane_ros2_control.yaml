@@ -1,6 +1,7 @@
 controller_manager:
   ros__parameters:
-    update_rate: 100
+    # 100 Hz can overload CAN/SDO traffic in polling mode. Reduce to ease bus load.
+    update_rate: 20
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster

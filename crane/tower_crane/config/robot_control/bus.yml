@@ -19,14 +19,21 @@ slewing_joint:
   dcf: "DSY-C.EDS"
   driver: "ros2_canopen::Cia402Driver"
   package: "canopen_402_driver"
-  period: 10
+  # Polling period in ms. Keep consistent across drives to reduce bursts.
+  period: 50
   heartbeat_producer: 1000
   heartbeat_consumer: 2000
+  # SDO timeout in ms (default is 20ms); increase for real hardware / USB-CAN adapters.
+  sdo_timeout_ms: 500
+  # Explicitly select polling mode.
+  polling: true
   # Needed so canopen_ros2_control exports a 'position' command interface for this joint.
   # Mode value matches CiA402 operation mode (Profile Position = 1).
   position_mode: 1
-  boot_timeout_ms: 10000
+  boot_timeout_ms: 20000
   sdo:
+    # Ensure Profile Position mode (1) is selected before enabling.
+    - {index: 0x6060, sub_index: 0, value: 1}
     - {index: 0x6040, sub_index: 0, value: 6}   # Servo No Fault → Servo Ready
     - {index: 0x6040, sub_index: 0, value: 7}   # Servo Ready → Waiting to Enable Servo
     - {index: 0x6040, sub_index: 0, value: 15}  # Waiting to Enable Servo → Servo Running
@@ -34,46 +41,61 @@ slewing_joint:
     1:
       enabled: true
       cob_id: "auto"
-      transmission: 0x01
+      # Asynchronous / event-driven; avoids requiring SYNC during bringup.
+      transmission: 0xFF
       mapping:
-        - {index: 0x6064, sub_index: 0}
-        - {index: 0x606C, sub_index: 0}
+        # Include CiA402 state so the driver can track transitions.
+        - {index: 0x6041, sub_index: 0}  # Statusword
+        - {index: 0x6061, sub_index: 0}  # Modes of operation display
+        - {index: 0x6064, sub_index: 0}  # Position actual value
+        - {index: 0x606C, sub_index: 0}  # Velocity actual value
   rpdo:
     1:
       enabled: true
       cob_id: "auto"
-      transmission: 0x01
+      # Asynchronous.
+      transmission: 0xFF
       mapping:
-        - {index: 0x607A, sub_index: 0}
+        - {index: 0x6040, sub_index: 0}  # Controlword
+        - {index: 0x6060, sub_index: 0}  # Modes of operation
+        - {index: 0x607A, sub_index: 0}  # Target position
 
 trolley_joint:
   node_id: 2
   dcf: "DSY-C.EDS"
   driver: "ros2_canopen::Cia402Driver"
   package: "canopen_402_driver"
-  period: 10
+  period: 50
   heartbeat_producer: 1000
   heartbeat_consumer: 2000
+  sdo_timeout_ms: 500
+  polling: true
   position_mode: 1
-  boot_timeout_ms: 10000
+  boot_timeout_ms: 20000
   sdo:
+    # Ensure Profile Position mode (1) is selected before enabling.
+    - {index: 0x6060, sub_index: 0, value: 1}
     - {index: 0x6040, sub_index: 0, value: 6}   # Servo No Fault → Servo Ready
     - {index: 0x6040, sub_index: 0, value: 7}   # Servo Ready → Waiting to Enable Servo
-    - {index: 0x6040, sub_index: 0, value: 15}  # Waiting to Enable Servo → Servo Running
+    - {index: 0x6040, sub_index: 0, value: 15}  # Servo Ready → Waiting to Enable Servo → Servo Running
   tpdo:
     1:
       enabled: true
       cob_id: "auto"
-      transmission: 0x01
+      transmission: 0xFF
       mapping:
+        - {index: 0x6041, sub_index: 0}
+        - {index: 0x6061, sub_index: 0}
         - {index: 0x6064, sub_index: 0}
         - {index: 0x606C, sub_index: 0}
   rpdo:
     1:
       enabled: true
       cob_id: "auto"
-      transmission: 0x01
+      transmission: 0xFF
       mapping:
+        - {index: 0x6040, sub_index: 0}
+        - {index: 0x6060, sub_index: 0}
         - {index: 0x607A, sub_index: 0}
 
 hook_joint:
@@ -81,27 +103,35 @@ hook_joint:
   dcf: "DSY-C.EDS"
   driver: "ros2_canopen::Cia402Driver"
   package: "canopen_402_driver"
-  period: 10
+  period: 50
   heartbeat_producer: 1000
   heartbeat_consumer: 2000
+  sdo_timeout_ms: 500
+  polling: true
   position_mode: 1
-  boot_timeout_ms: 10000
+  boot_timeout_ms: 20000
   sdo:
+    # Ensure Profile Position mode (1) is selected before enabling.
+    - {index: 0x6060, sub_index: 0, value: 1}
     - {index: 0x6040, sub_index: 0, value: 6}   # Servo No Fault → Servo Ready
     - {index: 0x6040, sub_index: 0, value: 7}   # Servo Ready → Waiting to Enable Servo
-    - {index: 0x6040, sub_index: 0, value: 15}  # Waiting to Enable Servo → Servo Running
+    - {index: 0x6040, sub_index: 0, value: 15}  # Servo Ready → Waiting to Enable Servo → Servo Running
   tpdo:
     1:
       enabled: true
       cob_id: "auto"
-      transmission: 0x01
+      transmission: 0xFF
       mapping:
+        - {index: 0x6041, sub_index: 0}
+        - {index: 0x6061, sub_index: 0}
         - {index: 0x6064, sub_index: 0}
         - {index: 0x606C, sub_index: 0}
   rpdo:
     1:
       enabled: true
       cob_id: "auto"
-      transmission: 0x01
+      transmission: 0xFF
       mapping:
+        - {index: 0x6040, sub_index: 0}
+        - {index: 0x6060, sub_index: 0}
         - {index: 0x607A, sub_index: 0}

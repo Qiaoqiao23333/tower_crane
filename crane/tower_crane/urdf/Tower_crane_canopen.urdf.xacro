@@ -20,21 +20,21 @@
     <joint name="slewing_joint">
       <command_interface name="position" />
       <state_interface name="position" />
-      <state_interface name="velocity" />
+      <!-- Omit velocity state interface to avoid frequent 0x606C reads over SDO on slow buses. -->
       <param name="device_name">slewing_joint</param>
     </joint>
 
     <joint name="trolley_joint">
       <command_interface name="position" />
       <state_interface name="position" />
-      <state_interface name="velocity" />
+      <!-- Omit velocity state interface to avoid frequent 0x606C reads over SDO on slow buses. -->
       <param name="device_name">trolley_joint</param>
     </joint>
 
     <joint name="hook_joint">
       <command_interface name="position" />
       <state_interface name="position" />
-      <state_interface name="velocity" />
+      <!-- Omit velocity state interface to avoid frequent 0x606C reads over SDO on slow buses. -->
       <param name="device_name">hook_joint</param>
     </joint>
   </ros2_control>
