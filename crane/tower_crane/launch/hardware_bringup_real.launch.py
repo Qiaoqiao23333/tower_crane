@@ -217,9 +217,7 @@ def generate_launch_description():
             package="controller_manager",
             executable="ros2_control_node",
             output="screen",
-            parameters=[robot_description],
-            arguments=["--ros-args", "--params-file", controller_config],
-            name="controller_manager",
+            parameters=[robot_description, controller_config],
         )
 
         controller_manager_immediate = TimerAction(
@@ -246,8 +244,8 @@ def generate_launch_description():
                         "joint_state_broadcaster",
                         "--controller-manager",
                         "/controller_manager",
-                        "--controller-manager-timeout",
-                        "100.0",
+                        # "--controller-manager-timeout",
+                        # "100.0",
                     ],
                 )
             ],
@@ -263,8 +261,6 @@ def generate_launch_description():
                         "forward_position_controller",
                         "--controller-manager",
                         "/controller_manager",
-                        "--controller-manager-timeout",
-                        "100.0",
                     ],
                 )
             ],

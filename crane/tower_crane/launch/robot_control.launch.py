@@ -135,7 +135,13 @@ def generate_launch_description():
         joint_state_broadcaster_spawner = Node(
             package="controller_manager",
             executable="spawner",
-            arguments=["joint_state_broadcaster", "--controller-manager", "/controller_manager"],
+            arguments=[
+                "joint_state_broadcaster",
+                "--controller-manager",
+                "/controller_manager",
+                "--param-file",
+                controller_config,
+            ],
         )
 
         forward_position_controller_spawner = Node(
@@ -145,6 +151,8 @@ def generate_launch_description():
                 "forward_position_controller",
                 "--controller-manager",
                 "/controller_manager",
+                "--param-file",
+                controller_config,
             ],
         )
 
