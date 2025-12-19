@@ -3,6 +3,7 @@
   <xacro:arg name="can_interface_name" default="can0" />
   <xacro:arg name="bus_config_path" default="" />
   <xacro:arg name="master_config_path" default="" />
+  <xacro:arg name="master_bin_path" default="" />
 
   <!-- Base geometry/joints without ros2_control tags -->
   <xacro:include filename="$(find tower_crane)/urdf/Tower_crane_base.urdf" />
@@ -14,27 +15,28 @@
       <param name="bus_config">$(arg bus_config_path)</param>
       <param name="master_config">$(arg master_config_path)</param>
       <param name="can_interface_name">$(arg can_interface_name)</param>
+      <param name="master_bin">$(arg master_bin_path)</param>
     </hardware>
 
     <!-- device_name must match the node keys in tower_crane/config/robot_control/bus.yml -->
     <joint name="slewing_joint">
       <command_interface name="position" />
       <state_interface name="position" />
-      <!-- Omit velocity state interface to avoid frequent 0x606C reads over SDO on slow buses. -->
+      <state_interface name="velocity" />
       <param name="device_name">slewing_joint</param>
     </joint>
 
     <joint name="trolley_joint">
       <command_interface name="position" />
       <state_interface name="position" />
-      <!-- Omit velocity state interface to avoid frequent 0x606C reads over SDO on slow buses. -->
+      <state_interface name="velocity" />
       <param name="device_name">trolley_joint</param>
     </joint>
 
     <joint name="hook_joint">
       <command_interface name="position" />
       <state_interface name="position" />
-      <!-- Omit velocity state interface to avoid frequent 0x606C reads over SDO on slow buses. -->
+      <state_interface name="velocity" />
       <param name="device_name">hook_joint</param>
     </joint>
   </ros2_control>

@@ -7,7 +7,7 @@ master:
   name: "master"
   driver: "ros2_canopen::MasterDriver"
   package: "canopen_master_driver"
-  sync_period: 10000
+  sync_period: 100000
   boot_timeout_ms: 10000
 
 # Device entries are defined at the YAML root (one per joint).
@@ -20,11 +20,11 @@ slewing_joint:
   driver: "ros2_canopen::Cia402Driver"
   package: "canopen_402_driver"
   # Polling period in ms. Keep consistent across drives to reduce bursts.
-  period: 50
+  period: 100
   heartbeat_producer: 1000
   heartbeat_consumer: 2000
   # SDO timeout in ms (default is 20ms); increase for real hardware / USB-CAN adapters.
-  sdo_timeout_ms: 500
+  sdo_timeout_ms: 100
   # Explicitly select polling mode.
   polling: true
   # Needed so canopen_ros2_control exports a 'position' command interface for this joint.
@@ -65,10 +65,10 @@ trolley_joint:
   dcf: "DSY-C.EDS"
   driver: "ros2_canopen::Cia402Driver"
   package: "canopen_402_driver"
-  period: 50
+  period: 100
   heartbeat_producer: 1000
   heartbeat_consumer: 2000
-  sdo_timeout_ms: 500
+  sdo_timeout_ms: 100
   polling: true
   position_mode: 1
   boot_timeout_ms: 20000
@@ -103,10 +103,10 @@ hook_joint:
   dcf: "DSY-C.EDS"
   driver: "ros2_canopen::Cia402Driver"
   package: "canopen_402_driver"
-  period: 50
+  period: 100
   heartbeat_producer: 1000
   heartbeat_consumer: 2000
-  sdo_timeout_ms: 500
+  sdo_timeout_ms: 100
   polling: true
   position_mode: 1
   boot_timeout_ms: 20000

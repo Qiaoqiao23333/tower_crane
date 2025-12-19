@@ -210,11 +210,15 @@ def generate_launch_description():
             output="screen",
         )
 
+        # NOTE: Controllers are created as additional nodes inside the ros2_control_node
+        # process. Pass the controllers YAML as a global params file so controller-specific
+        # parameters (e.g. joints/command_interfaces) are available at configure() time.
         controller_manager_node = Node(
             package="controller_manager",
             executable="ros2_control_node",
             output="screen",
-            parameters=[robot_description, controller_config],
+            parameters=[robot_description],
+            arguments=["--ros-args", "--params-file", controller_config],
             name="controller_manager",
         )
 
@@ -242,13 +246,15 @@ def generate_launch_description():
                         "joint_state_broadcaster",
                         "--controller-manager",
                         "/controller_manager",
+                        "--controller-manager-timeout",
+                        "100.0",
                     ],
                 )
             ],
         )
 
         forward_position_controller_spawner = TimerAction(
-            period=9.0,
+            period=8.0,
             actions=[
                 Node(
                     package="controller_manager",
@@ -257,6 +263,8 @@ def generate_launch_description():
                         "forward_position_controller",
                         "--controller-manager",
                         "/controller_manager",
+                        "--controller-manager-timeout",
+                        "100.0",
                     ],
                 )
             ],

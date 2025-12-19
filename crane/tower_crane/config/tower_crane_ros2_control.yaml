@@ -1,7 +1,6 @@
 controller_manager:
   ros__parameters:
-    # 100 Hz can overload CAN/SDO traffic in polling mode. Reduce to ease bus load.
-    update_rate: 20
+    update_rate: 10
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
@@ -9,17 +8,14 @@ controller_manager:
     forward_position_controller:
       type: joint_trajectory_controller/JointTrajectoryController
 
-# Configuration for the joint state broadcaster
 joint_state_broadcaster:
   ros__parameters:
-    # List of joints to be published by the joint state broadcaster
     joints:
       - slewing_joint
       - trolley_joint
       - hook_joint
     use_local_topics: false
 
-# Configuration for the forward position controller
 forward_position_controller:
   ros__parameters:
     joints:
@@ -28,13 +24,9 @@ forward_position_controller:
       - hook_joint
     command_interfaces:
       - position
-    # Use only the position state interface for trajectory control. Velocity
-    # is still provided by the hardware but is not required for configuration
-    # of the joint_trajectory_controller.
     state_interfaces:
       - position
     allow_partial_joints_goal: false
-    # Allow non-zero initial joint positions when the controller starts.
     allow_nonzero_initial_positions: true
     constraints:
       goal_time: 2.0

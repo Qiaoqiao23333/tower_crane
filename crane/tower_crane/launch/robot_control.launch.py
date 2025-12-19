@@ -120,10 +120,15 @@ def generate_launch_description():
             "cia402_slave.launch.py",
         )
 
+        # NOTE: Controllers (e.g. JointTrajectoryController) are created as additional nodes
+        # inside the ros2_control_node process. To make sure their per-controller parameters
+        # (e.g. forward_position_controller.ros__parameters.joints/command_interfaces) are
+        # available, pass the YAML as a *global* params file argument.
         control_node = Node(
             package="controller_manager",
             executable="ros2_control_node",
-            parameters=[robot_description, controller_config],
+            parameters=[robot_description],
+            arguments=["--ros-args", "--params-file", controller_config],
             output="screen",
         )
 

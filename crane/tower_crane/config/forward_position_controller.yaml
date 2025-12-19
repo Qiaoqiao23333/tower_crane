@@ -1,0 +1,7 @@
+forward_position_controller:
+  ros__parameters:
+    joints:
+      - slewing_joint
+      - trolley_joint
+      - hook_joint
+    interface_name: position
