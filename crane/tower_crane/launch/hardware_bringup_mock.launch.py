@@ -21,13 +21,47 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from ament_index_python import get_package_share_directory
 
 
+_BUS_CONFIG_PATH_PLACEHOLDER = "@BUS_CONFIG_PATH@"
+
+
+def _prepare_bus_config(share_dir: str) -> str:
+    """Return a bus.yml path usable by canopen_core.
+
+    The checked-in bus.yml contains a @BUS_CONFIG_PATH@ placeholder.
+    canopen_core expects a real path, so we patch it at runtime.
+
+    Instead of writing to /tmp (which breaks when running nodes manually), we
+    write the patched file to a stable location under ~/.ros.
+    """
+    source_path = os.path.join(share_dir, "config", "robot_control", "bus.yml")
+    with open(source_path, "r", encoding="utf-8") as infp:
+        content = infp.read()
+
+    # If no placeholder remains, use the file in-place.
+    if _BUS_CONFIG_PATH_PLACEHOLDER not in content:
+        return source_path
+
+    expected_config_path = os.path.join(share_dir, "config", "robot_control")
+    patched_content = content.replace(_BUS_CONFIG_PATH_PLACEHOLDER, expected_config_path)
+
+    ros_home = os.environ.get("ROS_HOME", os.path.join(os.path.expanduser("~"), ".ros"))
+    out_dir = os.path.join(ros_home, "tower_crane")
+    os.makedirs(out_dir, exist_ok=True)
+
+    out_path = os.path.join(out_dir, "bus.patched.yml")
+    with open(out_path, "w", encoding="utf-8") as outfp:
+        outfp.write(patched_content)
+
+    return out_path
+
+
 def generate_launch_description():
     ld = LaunchDescription()
 
     can_interface_arg = DeclareLaunchArgument(
         "can_interface_name",
-        default_value="vcan0",
-        description="CAN interface (e.g. vcan0 for mock simulation)",
+        default_value="can0",
+        description="CAN interface (e.g. can0 for mock simulation with fake slaves)",
     )
     ld.add_action(can_interface_arg)
 
@@ -46,12 +80,8 @@ def generate_launch_description():
         "robot_control",
         "master.bin",
     )
-    bus_config = os.path.join(
-        share_dir,
-        "config",
-        "robot_control",
-        "bus.yml",
-    )
+    # Patch bus.yml to replace @BUS_CONFIG_PATH@ placeholder
+    bus_config = _prepare_bus_config(share_dir)
     slave_config = os.path.join(
         share_dir,
         "config",
@@ -70,6 +100,7 @@ def generate_launch_description():
             "node_id": "2",
             "node_name": "slave_node_1",
             "slave_config": slave_config,
+            "can_interface_name": can_interface,
         }.items(),
     )
 
@@ -84,6 +115,7 @@ def generate_launch_description():
             "node_id": "1",
             "node_name": "slave_node_2",
             "slave_config": slave_config,
+            "can_interface_name": can_interface,
         }.items(),
     )
 
@@ -98,6 +130,7 @@ def generate_launch_description():
             "node_id": "3",
             "node_name": "slave_node_3",
             "slave_config": slave_config,
+            "can_interface_name": can_interface,
         }.items(),
     )
 
