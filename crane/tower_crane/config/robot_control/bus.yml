@@ -7,12 +7,103 @@ master:
   name: "master"
   driver: "ros2_canopen::MasterDriver"
   package: "canopen_master_driver"
-  sync_period: 100000
-  boot_timeout_ms: 10000
+  sync_period: 10000
+  boot_timeout_ms: 2000
 
 # Device entries are defined at the YAML root (one per joint).
 # NOTE: This canopen_core version treats unknown top-level keys as devices.
 # Do NOT add a top-level 'defaults' section; fully specify each device instead.
+hook_joint:
+  node_id: 1
+  dcf: "DSY-C.EDS"
+  driver: "ros2_canopen::Cia402Driver"
+  package: "canopen_402_driver"
+  period: 100
+  heartbeat_producer: 1000
+  heartbeat_consumer: 2000
+  sdo_timeout_ms: 5000
+  polling: true
+  position_mode: 1
+  boot_timeout_ms: 5000  # Reduced timeout - devices boot quickly
+  sdo:
+    # Set Profile Position mode (required for 402 driver)
+    - {index: 0x6060, sub_index: 0, value: 1}
+    # Set profile parameters for smooth motion
+    - {index: 0x6081, sub_index: 0, value: 50000}  # Profile velocity
+    - {index: 0x6083, sub_index: 0, value: 10000}  # Profile acceleration
+    - {index: 0x6084, sub_index: 0, value: 10000}  # Profile deceleration
+  tpdo:
+    1:
+      enabled: true
+      cob_id: "auto"
+      transmission: 0x01
+      mapping:
+        - {index: 0x6041, sub_index: 0}  # Statusword (16 bits)
+        - {index: 0x6064, sub_index: 0}  # Position actual value (32 bits)
+        # Total: 48 bits (6 bytes) - fits within 64-bit limit
+    2:
+      enabled: true
+      cob_id: "auto"
+      transmission: 0x01
+      mapping:
+        - {index: 0x6061, sub_index: 0}  # Modes of operation display (8 bits)
+        - {index: 0x606C, sub_index: 0}  # Velocity actual value (32 bits)
+        # Total: 40 bits (5 bytes) - fits within 64-bit limit
+  rpdo:
+    1:
+      enabled: true
+      cob_id: "auto"
+      transmission: 0x01
+      mapping:
+        - {index: 0x6040, sub_index: 0}  # controlword
+        - {index: 0x6060, sub_index: 0}  # mode of operation
+        - {index: 0x607A, sub_index: 0}  # target position
+
+trolley_joint:
+  node_id: 2
+  dcf: "DSY-C.EDS"
+  driver: "ros2_canopen::Cia402Driver"
+  package: "canopen_402_driver"
+  period: 100
+  heartbeat_producer: 1000
+  heartbeat_consumer: 2000
+  sdo_timeout_ms: 5000
+  polling: true
+  position_mode: 1
+  boot_timeout_ms: 5000  # Reduced timeout - devices boot quickly
+  sdo:
+    # Set Profile Position mode (required for 402 driver)
+    - {index: 0x6060, sub_index: 0, value: 1}
+    # Set profile parameters for smooth motion
+    - {index: 0x6081, sub_index: 0, value: 50000}  # Profile velocity
+    - {index: 0x6083, sub_index: 0, value: 10000}  # Profile acceleration
+    - {index: 0x6084, sub_index: 0, value: 10000}  # Profile deceleration
+  tpdo:
+    1:
+      enabled: true
+      cob_id: "auto"
+      transmission: 0x01
+      mapping:
+        - {index: 0x6041, sub_index: 0}  # Statusword (16 bits)
+        - {index: 0x6064, sub_index: 0}  # Position actual value (32 bits)
+        # Total: 48 bits (6 bytes) - fits within 64-bit limit
+    2:
+      enabled: true
+      cob_id: "auto"
+      transmission: 0x01
+      mapping:
+        - {index: 0x6061, sub_index: 0}  # Modes of operation display (8 bits)
+        - {index: 0x606C, sub_index: 0}  # Velocity actual value (32 bits)
+        # Total: 40 bits (5 bytes) - fits within 64-bit limit
+  rpdo:
+    1:
+      enabled: true
+      cob_id: "auto"
+      transmission: 0x01
+      mapping:
+        - {index: 0x6040, sub_index: 0}  # controlword
+        - {index: 0x6060, sub_index: 0}  # mode of operation
+        - {index: 0x607A, sub_index: 0}  # target position
 
 slewing_joint:
   node_id: 3
@@ -24,114 +115,51 @@ slewing_joint:
   heartbeat_producer: 1000
   heartbeat_consumer: 2000
   # SDO timeout in ms (default is 20ms); increase for real hardware / USB-CAN adapters.
-  sdo_timeout_ms: 100
-  # Explicitly select polling mode.
+  sdo_timeout_ms: 5000
+  # Use event-driven mode (TPDOs) instead of polling for better performance
   polling: true
   # Needed so canopen_ros2_control exports a 'position' command interface for this joint.
   # Mode value matches CiA402 operation mode (Profile Position = 1).
   position_mode: 1
-  boot_timeout_ms: 20000
+  boot_timeout_ms: 5000  # Reduced timeout - devices boot quickly
+  # Unit conversion: ROS2 (radians) <-> Device (encoder counts)
+  # Gear ratio: 10:1, Encoder resolution: 131072 (2^17)
+  # Formula: (ENCODER_RESOLUTION * GEAR_RATIO) / (2 * pi)
+  # scale_pos_to_dev: 208626.5      # Convert radians to encoder counts
+  # scale_pos_from_dev: 0.000004794 # Convert encoder counts to radians
+  # scale_vel_to_dev: 208626.5      # Convert rad/s to counts/s
+  # scale_vel_from_dev: 0.000004794 # Convert counts/s to rad/s
   sdo:
-    # Ensure Profile Position mode (1) is selected before enabling.
+    # Set Profile Position mode (required for 402 driver)
     - {index: 0x6060, sub_index: 0, value: 1}
-    - {index: 0x6040, sub_index: 0, value: 6}   # Servo No Fault → Servo Ready
-    - {index: 0x6040, sub_index: 0, value: 7}   # Servo Ready → Waiting to Enable Servo
-    - {index: 0x6040, sub_index: 0, value: 15}  # Waiting to Enable Servo → Servo Running
+    # Set profile parameters for smooth motion
+    - {index: 0x6081, sub_index: 0, value: 50000}  # Profile velocity
+    - {index: 0x6083, sub_index: 0, value: 10000}  # Profile acceleration
+    - {index: 0x6084, sub_index: 0, value: 10000}  # Profile deceleration
   tpdo:
     1:
       enabled: true
       cob_id: "auto"
-      # Asynchronous / event-driven; avoids requiring SYNC during bringup.
-      transmission: 0xFF
+      transmission: 0x01
       mapping:
         # Include CiA402 state so the driver can track transitions.
-        - {index: 0x6041, sub_index: 0}  # Statusword
-        - {index: 0x6061, sub_index: 0}  # Modes of operation display
-        - {index: 0x6064, sub_index: 0}  # Position actual value
-        - {index: 0x606C, sub_index: 0}  # Velocity actual value
+        - {index: 0x6041, sub_index: 0}  # Statusword (16 bits)
+        - {index: 0x6064, sub_index: 0}  # Position actual value (32 bits)
+        # Total: 48 bits (6 bytes) - fits within 64-bit limit
+    2:
+      enabled: true
+      cob_id: "auto"
+      transmission: 0x01
+      mapping:
+        - {index: 0x6061, sub_index: 0}  # Modes of operation display (8 bits)
+        - {index: 0x606C, sub_index: 0}  # Velocity actual value (32 bits)
+        # Total: 40 bits (5 bytes) - fits within 64-bit limit
   rpdo:
     1:
       enabled: true
       cob_id: "auto"
-      # Asynchronous.
-      transmission: 0xFF
+      transmission: 0x01
       mapping:
         - {index: 0x6040, sub_index: 0}  # Controlword
         - {index: 0x6060, sub_index: 0}  # Modes of operation
         - {index: 0x607A, sub_index: 0}  # Target position
-
-trolley_joint:
-  node_id: 2
-  dcf: "DSY-C.EDS"
-  driver: "ros2_canopen::Cia402Driver"
-  package: "canopen_402_driver"
-  period: 100
-  heartbeat_producer: 1000
-  heartbeat_consumer: 2000
-  sdo_timeout_ms: 100
-  polling: true
-  position_mode: 1
-  boot_timeout_ms: 20000
-  sdo:
-    # Ensure Profile Position mode (1) is selected before enabling.
-    - {index: 0x6060, sub_index: 0, value: 1}
-    - {index: 0x6040, sub_index: 0, value: 6}   # Servo No Fault → Servo Ready
-    - {index: 0x6040, sub_index: 0, value: 7}   # Servo Ready → Waiting to Enable Servo
-    - {index: 0x6040, sub_index: 0, value: 15}  # Servo Ready → Waiting to Enable Servo → Servo Running
-  tpdo:
-    1:
-      enabled: true
-      cob_id: "auto"
-      transmission: 0xFF
-      mapping:
-        - {index: 0x6041, sub_index: 0}
-        - {index: 0x6061, sub_index: 0}
-        - {index: 0x6064, sub_index: 0}
-        - {index: 0x606C, sub_index: 0}
-  rpdo:
-    1:
-      enabled: true
-      cob_id: "auto"
-      transmission: 0xFF
-      mapping:
-        - {index: 0x6040, sub_index: 0}
-        - {index: 0x6060, sub_index: 0}
-        - {index: 0x607A, sub_index: 0}
-
-hook_joint:
-  node_id: 1
-  dcf: "DSY-C.EDS"
-  driver: "ros2_canopen::Cia402Driver"
-  package: "canopen_402_driver"
-  period: 100
-  heartbeat_producer: 1000
-  heartbeat_consumer: 2000
-  sdo_timeout_ms: 100
-  polling: true
-  position_mode: 1
-  boot_timeout_ms: 20000
-  sdo:
-    # Ensure Profile Position mode (1) is selected before enabling.
-    - {index: 0x6060, sub_index: 0, value: 1}
-    - {index: 0x6040, sub_index: 0, value: 6}   # Servo No Fault → Servo Ready
-    - {index: 0x6040, sub_index: 0, value: 7}   # Servo Ready → Waiting to Enable Servo
-    - {index: 0x6040, sub_index: 0, value: 15}  # Servo Ready → Waiting to Enable Servo → Servo Running
-  tpdo:
-    1:
-      enabled: true
-      cob_id: "auto"
-      transmission: 0xFF
-      mapping:
-        - {index: 0x6041, sub_index: 0}
-        - {index: 0x6061, sub_index: 0}
-        - {index: 0x6064, sub_index: 0}
-        - {index: 0x606C, sub_index: 0}
-  rpdo:
-    1:
-      enabled: true
-      cob_id: "auto"
-      transmission: 0xFF
-      mapping:
-        - {index: 0x6040, sub_index: 0}
-        - {index: 0x6060, sub_index: 0}
-        - {index: 0x607A, sub_index: 0}

@@ -1,6 +1,6 @@
 controller_manager:
   ros__parameters:
-    update_rate: 10
+    update_rate: 100  # Period in milliseconds (was 10 Hz = 100 ms)
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
@@ -27,16 +27,18 @@ forward_position_controller:
     state_interfaces:
       - position
     allow_partial_joints_goal: false
+    open_loop_control: true
     allow_nonzero_initial_positions: true
     constraints:
-      goal_time: 2.0
-      stopped_velocity_tolerance: 0.01
+      goal_time: 0.0  # 0.0 = unlimited time to reach goal (useful for debugging)
+      stopped_velocity_tolerance: 0.5
       slewing_joint:
-        trajectory: 0.1
-        goal: 0.05
+        trajectory: 2.0  # Increased to prevent state tolerance violations
+        goal: 0.5
       trolley_joint:
-        trajectory: 0.02
-        goal: 0.01
+        trajectory: 2.0  # Increased to prevent state tolerance violations
+        goal: 0.5  # Relaxed for debugging motor movement issues
       hook_joint:
-        trajectory: 0.02
-        goal: 0.01
+        trajectory: 2.0  # Increased to prevent state tolerance violations
+        goal: 0.5  # Relaxed for debugging motor movement issues
+

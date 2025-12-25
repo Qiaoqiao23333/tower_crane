@@ -1,19 +1,47 @@
 controller_manager:
   ros__parameters:
-    update_rate: 10
+    update_rate: 100  # Increased for better trajectory tracking
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
-      joints:
-        - slewing_joint
-        - trolley_joint
-        - hook_joint
-      use_local_topics: false
 
     forward_position_controller:
-      type: forward_command_controller/ForwardCommandController
-      joints:
-        - slewing_joint
-        - trolley_joint
-        - hook_joint
-      interface_name: position
+      type: joint_trajectory_controller/JointTrajectoryController
+
+joint_state_broadcaster:
+  ros__parameters:
+    joints:
+      - slewing_joint
+      - trolley_joint
+      - hook_joint
+    use_local_topics: false
+
+forward_position_controller:
+  ros__parameters:
+    joints:
+      - slewing_joint
+      - trolley_joint
+      - hook_joint
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    state_publish_rate: 50.0
+    action_monitor_rate: 20.0
+    allow_partial_joints_goal: false
+    open_loop_control: true  # Important for mock hardware
+    allow_integration_in_goal_trajectories: true
+    # Very relaxed tolerances for simulation/testing with mock hardware
+    constraints:
+      stopped_velocity_tolerance: 1.0
+      goal_time: 0.0  # No goal time constraint
+      slewing_joint:
+        trajectory: 5.0  # 5 rad tolerance during path (very relaxed)
+        goal: 0.1        # 0.1 rad at goal
+      trolley_joint:
+        trajectory: 5.0  # 5 m tolerance during path (very relaxed)
+        goal: 0.1        # 0.1 m at goal
+      hook_joint:
+        trajectory: 5.0  # 5 m tolerance during path (very relaxed)
+        goal: 0.1        # 0.1 m at goal

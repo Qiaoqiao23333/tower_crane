@@ -1,3 +1,30 @@
+#!/usr/bin/env python3
+"""
+Tower Crane Full System Bringup
+
+Alternative launch file that brings up the complete crane system with crane_master nodes.
+Use this when you need the CANopen master nodes for motor control.
+
+What it launches:
+  1. Robot State Publisher (loads robot model)
+  2. Robot Control (ros2_control + optional crane_master nodes)
+  3. Static Virtual Joint Transforms
+  4. MoveIt Move Group
+  5. RViz (optional)
+
+Usage:
+  # Full bringup with crane_master and RViz
+  ros2 launch tower_crane_moveit_config bringup.launch.py
+
+  # Without crane_master (mock only)
+  ros2 launch tower_crane_moveit_config bringup.launch.py use_crane_master:=false
+
+  # With real hardware
+  ros2 launch tower_crane_moveit_config bringup.launch.py can_interface_name:=can0
+
+Note: For most use cases, demo.launch.py is recommended as it's simpler.
+      Use this launch file when you specifically need crane_master nodes.
+"""
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
@@ -35,7 +62,21 @@ def generate_launch_description():
     use_crane_master = LaunchConfiguration("use_crane_master")
     use_rviz = LaunchConfiguration("use_rviz")
 
-    # 1) Robot/control bringup (ros2_control + fake slaves + optional crane_master nodes)
+    # ============================================================================
+    # STEP 1: Robot State Publisher - CRITICAL FIRST STEP
+    # ============================================================================
+    rsp = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            PathJoinSubstitution(
+                [FindPackageShare("tower_crane_moveit_config"), "launch", "rsp.launch.py"]
+            )
+        )
+    )
+
+    # ============================================================================
+    # STEP 2: Robot Control Bringup
+    # ============================================================================
+    # Launches ros2_control + optional crane_master CANopen nodes
     robot_control = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution(
@@ -50,7 +91,9 @@ def generate_launch_description():
         }.items(),
     )
 
-    # 2) MoveIt
+    # ============================================================================
+    # STEP 3: Static Virtual Joint Transforms
+    # ============================================================================
     static_virtual_joint_tfs = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution(
@@ -63,6 +106,9 @@ def generate_launch_description():
         )
     )
 
+    # ============================================================================
+    # STEP 4: MoveIt Move Group
+    # ============================================================================
     move_group = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution(
@@ -71,6 +117,9 @@ def generate_launch_description():
         )
     )
 
+    # ============================================================================
+    # STEP 5: RViz Visualization (Optional)
+    # ============================================================================
     moveit_rviz = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution(
@@ -80,6 +129,9 @@ def generate_launch_description():
         condition=IfCondition(use_rviz),
     )
 
+    # ============================================================================
+    # Return Launch Description
+    # ============================================================================
     return LaunchDescription(
-        declared_arguments + [robot_control, static_virtual_joint_tfs, move_group, moveit_rviz]
+        declared_arguments + [rsp, robot_control, static_virtual_joint_tfs, move_group, moveit_rviz]
     )

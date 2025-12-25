@@ -90,6 +90,9 @@ def _load_robot_description(
                 " ",
                 "master_config_path:=",
                 master_config_path,
+                " ",
+                "master_bin_path:=",
+                "",  # Empty string for master_bin (not used in this setup)
             ]
         ),
         value_type=str,
@@ -213,10 +216,11 @@ def generate_launch_description():
         # NOTE: Controllers are created as additional nodes inside the ros2_control_node
         # process. Pass the controllers YAML as a global params file so controller-specific
         # parameters (e.g. joints/command_interfaces) are available at configure() time.
+        
         controller_manager_node = Node(
             package="controller_manager",
             executable="ros2_control_node",
-            output="screen",
+            output="both",
             parameters=[robot_description, controller_config],
         )
 
@@ -234,27 +238,17 @@ def generate_launch_description():
             ),
         )
 
-        joint_state_broadcaster_spawner = TimerAction(
-            period=8.0,
-            actions=[
-                Node(
+        joint_state_broadcaster_spawner = Node(
                     package="controller_manager",
                     executable="spawner",
                     arguments=[
                         "joint_state_broadcaster",
                         "--controller-manager",
                         "/controller_manager",
-                        # "--controller-manager-timeout",
-                        # "100.0",
                     ],
-                )
-            ],
         )
 
-        forward_position_controller_spawner = TimerAction(
-            period=8.0,
-            actions=[
-                Node(
+        forward_position_controller_spawner = Node(
                     package="controller_manager",
                     executable="spawner",
                     arguments=[
@@ -262,8 +256,6 @@ def generate_launch_description():
                         "--controller-manager",
                         "/controller_manager",
                     ],
-                )
-            ],
         )
 
         return [

@@ -35,5 +35,7 @@
     <disable_collisions link1="trolley_Link" link2="hook_Link" reason="Adjacent"/>
     <disable_collisions link1="trolley_Link" link2="slewing_Link" reason="Adjacent"/>
     <disable_collisions link1="base_link" link2="slewing_Link" reason="Adjacent"/>
+    <disable_collisions link1="base_link" link2="trolley_Link" reason="Never"/>
+    <disable_collisions link1="base_link" link2="hook_Link" reason="Never"/>
 
 </robot>

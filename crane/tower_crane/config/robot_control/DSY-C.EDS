@@ -13,9 +13,9 @@ ModifiedBy=BOHENG
 
 [DeviceInfo]
 VendorName=BOHENG
-VendorNumber=0x100
+VendorNumber=0x00
 ProductName=BOHENG
-ProductNumber=0x0003
+ProductNumber=0x00
 RevisionNumber=0x00000000
 BaudRate_10=1
 BaudRate_20=1
@@ -87,7 +87,7 @@ ParameterName=Vendor ID
 ObjectType=0x7
 DataType=0x0007
 AccessType=ro
-DefaultValue=0x100
+DefaultValue=0x00
 PDOMapping=0
 
 [1018sub2]
@@ -95,7 +95,7 @@ ParameterName=Product Code
 ObjectType=0x7
 DataType=0x0007
 AccessType=ro
-DefaultValue=0x0003
+DefaultValue=0x00
 PDOMapping=0
 
 [1018sub3]
