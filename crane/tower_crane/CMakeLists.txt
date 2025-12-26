@@ -19,7 +19,8 @@ find_package(canopen_proxy_driver REQUIRED)
 find_package(lely_core_libraries REQUIRED)
 
 
-generate_dcf(robot_control)  # Generate master.dcf from bus.yml using dcfgen
+# cogen_dcf(robot_control)  # Generate master.dcf from bus.yml using dcfgen
+# Commented out: We use the pre-existing master.dcf file directly
 
 # Install package resources (URDF, meshes, config, launch)
 install(DIRECTORY

@@ -176,3 +176,7 @@ AccessType=rw
 ParameterName=SYNC start value
 DataType=0x0005
 AccessType=rw
+
+[1006]
+ParameterName=Communication Cycle Period
+DefaultValue=0x00004E20

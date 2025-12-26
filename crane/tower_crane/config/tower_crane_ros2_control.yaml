@@ -29,16 +29,5 @@ forward_position_controller:
     allow_partial_joints_goal: false
     open_loop_control: true
     allow_nonzero_initial_positions: true
-    constraints:
-      goal_time: 0.0  # 0.0 = unlimited time to reach goal (useful for debugging)
-      stopped_velocity_tolerance: 0.5
-      slewing_joint:
-        trajectory: 2.0  # Increased to prevent state tolerance violations
-        goal: 0.5
-      trolley_joint:
-        trajectory: 2.0  # Increased to prevent state tolerance violations
-        goal: 0.5  # Relaxed for debugging motor movement issues
-      hook_joint:
-        trajectory: 2.0  # Increased to prevent state tolerance violations
-        goal: 0.5  # Relaxed for debugging motor movement issues
+    
 

@@ -8,7 +8,9 @@ master:
   driver: "ros2_canopen::MasterDriver"
   package: "canopen_master_driver"
   sync_period: 10000
-  boot_timeout_ms: 2000
+  boot_timeout_ms: 5000
+  timeout_ms: 1000  # SDO timeout for master operations
+  sdo_timeout_ms: 10000  # Increased SDO timeout
 
 # Device entries are defined at the YAML root (one per joint).
 # NOTE: This canopen_core version treats unknown top-level keys as devices.
@@ -21,10 +23,12 @@ hook_joint:
   period: 100
   heartbeat_producer: 1000
   heartbeat_consumer: 2000
-  sdo_timeout_ms: 5000
+  sdo_timeout_ms: 10000  # Increased timeout for reliable communication
   polling: true
+  scale_pos_to_dev: 10000.000000
   position_mode: 1
-  boot_timeout_ms: 5000  # Reduced timeout - devices boot quickly
+  boot_timeout_ms: 10000  # Increased boot timeout
+  switching_state: 5  # Add delay between state transitions
   sdo:
     # Set Profile Position mode (required for 402 driver)
     - {index: 0x6060, sub_index: 0, value: 1}
@@ -38,15 +42,16 @@ hook_joint:
       cob_id: "auto"
       transmission: 0x01
       mapping:
+        # Include CiA402 state so the driver can track transitions.
         - {index: 0x6041, sub_index: 0}  # Statusword (16 bits)
-        - {index: 0x6064, sub_index: 0}  # Position actual value (32 bits)
+        - {index: 0x6061, sub_index: 0}  # Position actual value (32 bits)
         # Total: 48 bits (6 bytes) - fits within 64-bit limit
     2:
       enabled: true
       cob_id: "auto"
       transmission: 0x01
       mapping:
-        - {index: 0x6061, sub_index: 0}  # Modes of operation display (8 bits)
+        - {index: 0x6064, sub_index: 0}  # Modes of operation display (8 bits)
         - {index: 0x606C, sub_index: 0}  # Velocity actual value (32 bits)
         # Total: 40 bits (5 bytes) - fits within 64-bit limit
   rpdo:
@@ -55,9 +60,16 @@ hook_joint:
       cob_id: "auto"
       transmission: 0x01
       mapping:
-        - {index: 0x6040, sub_index: 0}  # controlword
-        - {index: 0x6060, sub_index: 0}  # mode of operation
-        - {index: 0x607A, sub_index: 0}  # target position
+        - {index: 0x6040, sub_index: 0}  # Controlword
+        - {index: 0x6060, sub_index: 0}  # Modes of operation
+  rpdo:
+    2:
+      enabled: true
+      cob_id: "auto"
+      transmission: 0x01
+      mapping:
+        - {index: 0x607A, sub_index: 0}  # Target position
+        - {index: 0x607A, sub_index: 0}  # Target position
 
 trolley_joint:
   node_id: 2
@@ -67,10 +79,12 @@ trolley_joint:
   period: 100
   heartbeat_producer: 1000
   heartbeat_consumer: 2000
-  sdo_timeout_ms: 5000
+  sdo_timeout_ms: 10000  # Increased timeout for reliable communication
   polling: true
+  scale_pos_to_dev: 10000.000000
   position_mode: 1
-  boot_timeout_ms: 5000  # Reduced timeout - devices boot quickly
+  boot_timeout_ms: 10000  # Increased boot timeout
+  switching_state: 5  # Add delay between state transitions
   sdo:
     # Set Profile Position mode (required for 402 driver)
     - {index: 0x6060, sub_index: 0, value: 1}
@@ -84,15 +98,16 @@ trolley_joint:
       cob_id: "auto"
       transmission: 0x01
       mapping:
+        # Include CiA402 state so the driver can track transitions.
         - {index: 0x6041, sub_index: 0}  # Statusword (16 bits)
-        - {index: 0x6064, sub_index: 0}  # Position actual value (32 bits)
+        - {index: 0x6061, sub_index: 0}  # Position actual value (32 bits)
         # Total: 48 bits (6 bytes) - fits within 64-bit limit
     2:
       enabled: true
       cob_id: "auto"
       transmission: 0x01
       mapping:
-        - {index: 0x6061, sub_index: 0}  # Modes of operation display (8 bits)
+        - {index: 0x6064, sub_index: 0}  # Modes of operation display (8 bits)
         - {index: 0x606C, sub_index: 0}  # Velocity actual value (32 bits)
         # Total: 40 bits (5 bytes) - fits within 64-bit limit
   rpdo:
@@ -101,9 +116,16 @@ trolley_joint:
       cob_id: "auto"
       transmission: 0x01
       mapping:
-        - {index: 0x6040, sub_index: 0}  # controlword
-        - {index: 0x6060, sub_index: 0}  # mode of operation
-        - {index: 0x607A, sub_index: 0}  # target position
+        - {index: 0x6040, sub_index: 0}  # Controlword
+        - {index: 0x6060, sub_index: 0}  # Modes of operation
+  rpdo:
+    2:
+      enabled: true
+      cob_id: "auto"
+      transmission: 0x01
+      mapping:
+        - {index: 0x607A, sub_index: 0}  # Target position
+        - {index: 0x607A, sub_index: 0}  # Target position
 
 slewing_joint:
   node_id: 3
@@ -115,13 +137,15 @@ slewing_joint:
   heartbeat_producer: 1000
   heartbeat_consumer: 2000
   # SDO timeout in ms (default is 20ms); increase for real hardware / USB-CAN adapters.
-  sdo_timeout_ms: 5000
+  sdo_timeout_ms: 10000  # Increased timeout for reliable communication
   # Use event-driven mode (TPDOs) instead of polling for better performance
   polling: true
   # Needed so canopen_ros2_control exports a 'position' command interface for this joint.
   # Mode value matches CiA402 operation mode (Profile Position = 1).
   position_mode: 1
-  boot_timeout_ms: 5000  # Reduced timeout - devices boot quickly
+  boot_timeout_ms: 10000  # Increased boot timeout
+  switching_state: 5  # Add delay between state transitions
+  scale_pos_to_dev: 10000.000000
   # Unit conversion: ROS2 (radians) <-> Device (encoder counts)
   # Gear ratio: 10:1, Encoder resolution: 131072 (2^17)
   # Formula: (ENCODER_RESOLUTION * GEAR_RATIO) / (2 * pi)
@@ -144,14 +168,14 @@ slewing_joint:
       mapping:
         # Include CiA402 state so the driver can track transitions.
         - {index: 0x6041, sub_index: 0}  # Statusword (16 bits)
-        - {index: 0x6064, sub_index: 0}  # Position actual value (32 bits)
+        - {index: 0x6061, sub_index: 0}  # Position actual value (32 bits)
         # Total: 48 bits (6 bytes) - fits within 64-bit limit
     2:
       enabled: true
       cob_id: "auto"
       transmission: 0x01
       mapping:
-        - {index: 0x6061, sub_index: 0}  # Modes of operation display (8 bits)
+        - {index: 0x6064, sub_index: 0}  # Modes of operation display (8 bits)
         - {index: 0x606C, sub_index: 0}  # Velocity actual value (32 bits)
         # Total: 40 bits (5 bytes) - fits within 64-bit limit
   rpdo:
@@ -162,4 +186,11 @@ slewing_joint:
       mapping:
         - {index: 0x6040, sub_index: 0}  # Controlword
         - {index: 0x6060, sub_index: 0}  # Modes of operation
+  rpdo:
+    2:
+      enabled: true
+      cob_id: "auto"
+      transmission: 0x01
+      mapping:
+        - {index: 0x607A, sub_index: 0}  # Target position
         - {index: 0x607A, sub_index: 0}  # Target position

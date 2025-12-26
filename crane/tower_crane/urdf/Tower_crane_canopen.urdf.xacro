@@ -9,7 +9,7 @@
   <xacro:include filename="$(find tower_crane)/urdf/Tower_crane_base.urdf" />
 
   <!-- CANopen-backed ros2_control hardware -->
-  <ros2_control name="canopen_ros2_control/CanopenSystem" type="system">
+  <ros2_control name="canopen_ros2_control/RobotSystem" type="system">
     <hardware>
       <plugin>canopen_ros2_control/RobotSystem</plugin>
       <param name="bus_config">$(arg bus_config_path)</param>
