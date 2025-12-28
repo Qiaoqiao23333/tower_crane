@@ -76,18 +76,19 @@ def generate_launch_description():
     # ============================================================================
     # STEP 2: Robot Control Bringup
     # ============================================================================
-    # Launches ros2_control + optional crane_master CANopen nodes
+    # Launches ros2_control with simulation (fake slaves + CANopen master)
+    # Note: crane_master nodes are not included in simulation.launch.py
     robot_control = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution(
-                [FindPackageShare("tower_crane"), "launch", "robot_control.launch.py"]
+                [FindPackageShare("tower_crane"), "launch", "simulation.launch.py"]
             )
         ),
         launch_arguments={
             "can_interface_name": can_interface_name,
-            "auto_start": auto_start,
-            "use_crane_master": use_crane_master,
             "use_rviz": "false",  # MoveIt RViz is launched separately below
+            # "use_joint_state_publisher_gui": "false",  # GUI disabled in simulation.launch.py
+            "use_robot_state_publisher": "false",  # RSP launched separately via rsp.launch.py
         }.items(),
     )
 

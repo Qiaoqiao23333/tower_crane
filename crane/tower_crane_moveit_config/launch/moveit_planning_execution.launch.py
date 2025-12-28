@@ -74,14 +74,14 @@ def launch_setup(context, *args, **kwargs):
         hardware = IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 PathJoinSubstitution(
-                    [FindPackageShare("tower_crane"), "launch", "robot_control.launch.py"]
+                    [FindPackageShare("tower_crane"), "launch", "simulation.launch.py"]
                 )
             ),
             launch_arguments={
                 "can_interface_name": can_interface_name,
-                "auto_start": "true",
                 "use_rviz": "false",  # RViz launched separately below
-                "use_crane_master": "false",
+                # "use_joint_state_publisher_gui": "false",  # GUI disabled in simulation.launch.py
+                "use_robot_state_publisher": "false",  # RSP launched separately via rsp.launch.py
             }.items(),
         )
 
