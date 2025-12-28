@@ -1,78 +1,97 @@
 #!/bin/bash
-# Motor Status Diagnostic Script
-# Checks the status of all three CANopen motors
+# Motor Status Check - Reads statusword and key parameters via ROS2 services
 
-set -e
-
-CAN_IF="${1:-can0}"
-
-echo "============================================"
-echo "CANopen Motor Status Diagnostic"
-echo "CAN Interface: ${CAN_IF}"
-echo "============================================"
+echo "=========================================="
+echo "Motor Status Check"
+echo "=========================================="
 echo ""
 
-# Function to read SDO
+# Color codes
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+# Function to read SDO via ROS2 service
 read_sdo() {
-    local node_id=$1
+    local joint=$1
     local index=$2
-    local subindex=$3
-    local description=$4
+    local description=$3
     
-    echo -n "Node ${node_id} - ${description}: "
+    local result=$(timeout 3 ros2 service call /${joint}/sdo_read canopen_interfaces/srv/COReadID "{index: ${index}, subindex: 0}" 2>/dev/null)
     
-    # Send SDO upload request
-    cansend ${CAN_IF} $(printf '%03X#40%02X%02X%02X00000000' $((0x600+node_id)) $((index & 0xFF)) $((index >> 8)) ${subindex})
-    
-    # Wait and capture response
-    response=$(timeout 0.5s candump -L ${CAN_IF},$(printf '%03X' $((0x580+node_id))):7FF | tail -n 1 || echo "timeout")
-    
-    if [[ "$response" == "timeout" ]] || [[ -z "$response" ]]; then
-        echo "NO RESPONSE (motor may be offline)"
-    else
-        # Extract data bytes from response
-        data=$(echo "$response" | awk '{print $3}' | cut -d'#' -f2)
-        echo "0x${data}"
+    if echo "$result" | grep -q "success: true"; then
+        local data=$(echo "$result" | grep -oP 'data:\s*\K[0-9]+')
+        if [ -n "$data" ]; then
+            echo "$data"
+            return 0
+        fi
     fi
+    return 1
 }
 
-echo "Checking Hook Motor (Node ID 1):"
-echo "─────────────────────────────────────────"
-read_sdo 1 0x6041 0x00 "Statusword (0x6041)"
-read_sdo 1 0x6061 0x00 "Operation Mode (0x6061)"
-read_sdo 1 0x603F 0x00 "Error Code (0x603F)"
-read_sdo 1 0x6064 0x00 "Position Actual (0x6064)"
-echo ""
+# Check each motor
+for joint in hook_joint trolley_joint slewing_joint; do
+    echo "--- $joint ---"
+    
+    # Statusword (0x6041)
+    SW=$(read_sdo "$joint" 6041 "Statusword")
+    if [ -n "$SW" ]; then
+        SW_HEX=$(printf "0x%04X" $SW)
+        echo "  Statusword: $SW_HEX ($SW)"
+        
+        # Decode statusword
+        if [ $((SW & 0x0027)) -eq 39 ]; then
+            echo -e "    ${GREEN}✓ Operation Enabled${NC}"
+        elif [ $((SW & 0x0008)) -ne 0 ]; then
+            echo -e "    ${RED}✗ Fault State${NC}"
+        elif [ $((SW & 0x0040)) -ne 0 ]; then
+            echo -e "    ${YELLOW}⚠ Operation Disabled${NC}"
+        else
+            echo -e "    ${YELLOW}⚠ State: $SW_HEX${NC}"
+        fi
+    else
+        echo -e "  ${RED}✗ Cannot read statusword${NC}"
+    fi
+    
+    # Operation Mode (0x6061)
+    MODE=$(read_sdo "$joint" 6061 "Operation Mode")
+    if [ -n "$MODE" ]; then
+        case $MODE in
+            1) echo "  Operation Mode: 1 (Profile Position)" ;;
+            3) echo "  Operation Mode: 3 (Profile Velocity)" ;;
+            7) echo "  Operation Mode: 7 (Interpolated Position)" ;;
+            *) echo "  Operation Mode: $MODE" ;;
+        esac
+    fi
+    
+    # Position (0x6064)
+    POS=$(read_sdo "$joint" 6064 "Position")
+    if [ -n "$POS" ]; then
+        # Handle signed 32-bit
+        if [ $POS -gt 2147483647 ]; then
+            POS=$((POS - 4294967296))
+        fi
+        echo "  Position: $POS encoder counts"
+    fi
+    
+    # Error Register (0x1001)
+    ERR=$(read_sdo "$joint" 1001 "Error Register")
+    if [ -n "$ERR" ]; then
+        if [ "$ERR" -eq 0 ]; then
+            echo -e "  Error Register: ${GREEN}0 (No errors)${NC}"
+        else
+            echo -e "  Error Register: ${RED}$ERR${NC}"
+        fi
+    fi
+    
+    echo ""
+done
 
-echo "Checking Trolley Motor (Node ID 2):"
-echo "─────────────────────────────────────────"
-read_sdo 2 0x6041 0x00 "Statusword (0x6041)"
-read_sdo 2 0x6061 0x00 "Operation Mode (0x6061)"
-read_sdo 2 0x603F 0x00 "Error Code (0x603F)"
-read_sdo 2 0x6064 0x00 "Position Actual (0x6064)"
-echo ""
-
-echo "Checking Slewing Motor (Node ID 3):"
-echo "─────────────────────────────────────────"
-read_sdo 3 0x6041 0x00 "Statusword (0x6041)"
-read_sdo 3 0x6061 0x00 "Operation Mode (0x6061)"
-read_sdo 3 0x603F 0x00 "Error Code (0x603F)"
-read_sdo 3 0x6064 0x00 "Position Actual (0x6064)"
-echo ""
-
-echo "============================================"
-echo "Statusword Decoder:"
+echo "=========================================="
+echo "Statusword Reference:"
 echo "  0x0027 = Operation Enabled (READY)"
 echo "  0x0250 = Switch On Disabled"
 echo "  0x0237 = Quick Stop Active"
 echo "  0x0008 = Fault"
-echo "  0x0040 = Switch On Disabled"
-echo "============================================"
-echo ""
-echo "Operation Mode Decoder:"
-echo "  1 = Profile Position Mode"
-echo "  3 = Profile Velocity Mode"
-echo "  7 = Interpolated Position Mode"
-echo "============================================"
-
-
+echo "=========================================="
