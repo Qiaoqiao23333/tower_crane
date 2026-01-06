@@ -18,13 +18,23 @@ find_package(canopen_base_driver REQUIRED)
 find_package(canopen_proxy_driver REQUIRED)
 find_package(lely_core_libraries REQUIRED)
 
+# Include the CMake macros from lely_core_libraries (provides generate_dcf macro)
+include(${lely_core_libraries_DIR}/lely_core_libraries-extras.cmake)
 
-# cogen_dcf(robot_control)  # Generate master.dcf from bus.yml using dcfgen
-# Commented out: We use the pre-existing master.dcf file directly
+cogen_dcf(robot_control)
 
-# Install package resources (URDF, meshes, config, launch)
+# Patch the generated master.dcf to disable vendor ID verification
+# Use Python script to patch both 0x1F81 (assignment) and 0x1F85 (vendor IDs)
+add_custom_command(
+    TARGET robot_control POST_BUILD
+    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/config/robot_control/patch_master_dcf.py 
+            ${CMAKE_BINARY_DIR}/config/robot_control/master.dcf
+    COMMENT "Patching master.dcf to disable vendor ID verification"
+)
+
+# Install package resources (URDF, meshes, config, launch, examples)
 install(DIRECTORY
-  launch urdf meshes config
+  launch urdf meshes config examples
   DESTINATION share/${PROJECT_NAME}
   PATTERN "__pycache__" EXCLUDE
   PATTERN "*.pyc" EXCLUDE
@@ -32,6 +42,16 @@ install(DIRECTORY
 
 install(FILES config/tower_crane_ros2_control.yaml
   DESTINATION share/${PROJECT_NAME}/config
+)
+
+# Install Python scripts
+install(PROGRAMS
+  src/spherical_pendulum_dynamics_node.py
+  src/joint_state_merger_node.py
+  src/crane_controller_test.py
+  examples/custom_controller_example.py
+  examples/state_plotter.py
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 

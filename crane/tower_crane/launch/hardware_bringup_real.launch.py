@@ -41,7 +41,7 @@ def _prepare_bus_config(share_dir: str) -> str:
     Instead of writing to /tmp (which breaks when running nodes manually), we
     write the patched file to a stable location under ~/.ros.
     """
-    source_path = os.path.join(share_dir, "config", "robot_control", "bus.yml")
+    source_path = os.path.join(share_dir, "config", "robot_control", "preprocessed_bus.yml")
     with open(source_path, "r", encoding="utf-8") as infp:
         content = infp.read()
 

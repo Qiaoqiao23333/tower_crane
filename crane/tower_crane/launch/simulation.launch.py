@@ -21,6 +21,7 @@ This launch file integrates:
 - ROS2 control with mock hardware
 - Robot state publisher
 - Controllers (joint_state_broadcaster, forward_position_controller)
+- Optional spherical pendulum dynamics simulation (sway physics)
 - Optional RViz visualization
 - Optional joint_state_publisher_gui (currently disabled)
 
@@ -33,6 +34,12 @@ Usage:
 
     # Custom CAN interface
     ros2 launch tower_crane simulation.launch.py can_interface_name:=vcan0
+
+    # With pendulum dynamics (sway simulation)
+    ros2 launch tower_crane simulation.launch.py use_pendulum_dynamics:=true
+
+    # Full simulation with custom pendulum parameters
+    ros2 launch tower_crane simulation.launch.py use_pendulum_dynamics:=true payload_mass:=10.0 rope_length:=2.5
 """
 
 import os
@@ -64,7 +71,7 @@ def _prepare_bus_config(share_dir: str) -> str:
     Instead of writing to /tmp (which breaks when running nodes manually), we
     write the patched file to a stable location under ~/.ros.
     """
-    source_path = os.path.join(share_dir, "config", "robot_control", "bus.yml")
+    source_path = os.path.join(share_dir, "config", "robot_control", "preprocessed_bus.yml")
     with open(source_path, "r", encoding="utf-8") as infp:
         content = infp.read()
 
@@ -119,7 +126,53 @@ def generate_launch_description():
             default_value="true",
             description="Start robot_state_publisher (true/false). Set to false if launched from another launch file that already includes RSP.",
         ),
+        DeclareLaunchArgument(
+            "use_pendulum_dynamics",
+            default_value="false",
+            description="Enable spherical pendulum dynamics simulation (sway physics) (true/false)",
+        ),
+        DeclareLaunchArgument(
+            "payload_mass",
+            default_value="5.0",
+            description="Payload mass in kg (for pendulum dynamics)",
+        ),
+        DeclareLaunchArgument(
+            "trolley_mass",
+            default_value="0.568",
+            description="Trolley mass in kg (for pendulum dynamics)",
+        ),
+        DeclareLaunchArgument(
+            "rope_length",
+            default_value="1.9126",
+            description="Rope length in meters (for pendulum dynamics)",
+        ),
+        DeclareLaunchArgument(
+            "damping_x",
+            default_value="0.1",
+            description="Damping coefficient for X-axis sway",
+        ),
+        DeclareLaunchArgument(
+            "damping_y",
+            default_value="0.1",
+            description="Damping coefficient for Y-axis sway",
+        ),
+        DeclareLaunchArgument(
+            "simulation_dt",
+            default_value="0.01",
+            description="Simulation timestep in seconds (for pendulum dynamics)",
+        ),
+        DeclareLaunchArgument(
+            "publish_rate",
+            default_value="50.0",
+            description="Publishing rate in Hz (for pendulum dynamics)",
+        ),
     ]
+
+    # Note: When use_pendulum_dynamics:=true, the system works as follows:
+    # 1. ROS2 control publishes joint_states to /joint_states (slewing_joint, hook_joint, etc.)
+    # 2. Pendulum dynamics publishes to /joint_states_dynamics (trolley_joint with physics)
+    # 3. Joint state merger merges them: trolley_joint from dynamics, others from control
+    # 4. Merged joint_states published to /joint_states for robot_state_publisher
 
     def launch_setup(context, *args, **kwargs):
         can_interface_name = LaunchConfiguration("can_interface_name").perform(context)
@@ -129,6 +182,9 @@ def generate_launch_description():
         # )
         use_robot_state_publisher = (
             LaunchConfiguration("use_robot_state_publisher").perform(context).lower() == "true"
+        )
+        use_pendulum_dynamics = (
+            LaunchConfiguration("use_pendulum_dynamics").perform(context).lower() == "true"
         )
 
         share_dir = get_package_share_directory("tower_crane")
@@ -225,14 +281,61 @@ def generate_launch_description():
             ],
         )
 
+        # Spherical pendulum dynamics node (optional)
+        # This simulates the payload sway physics based on Lagrangian mechanics
+        # It publishes joint_states that include trolley position with sway dynamics
+        pendulum_dynamics_node = None
+        if use_pendulum_dynamics:
+            pendulum_dynamics_node = Node(
+                package="tower_crane",
+                executable="spherical_pendulum_dynamics_node.py",
+                name="spherical_pendulum_dynamics",
+                output="screen",
+                parameters=[{
+                    "payload_mass": LaunchConfiguration("payload_mass"),
+                    "trolley_mass": LaunchConfiguration("trolley_mass"),
+                    "rope_length": LaunchConfiguration("rope_length"),
+                    "damping_x": LaunchConfiguration("damping_x"),
+                    "damping_y": LaunchConfiguration("damping_y"),
+                    "simulation_dt": LaunchConfiguration("simulation_dt"),
+                    "publish_rate": LaunchConfiguration("publish_rate"),
+                    "joint_states_topic": "/joint_states_dynamics",  # Publish to separate topic for merging
+                }],
+            )
+
+        # Joint state merger node (only needed when pendulum dynamics is enabled)
+        # This merges joint_states from ROS2 control and pendulum dynamics
+        joint_state_merger_node = None
+        if use_pendulum_dynamics:
+            joint_state_merger_node = Node(
+                package="tower_crane",
+                executable="joint_state_merger_node.py",
+                name="joint_state_merger",
+                output="screen",
+                parameters=[{
+                    "use_pendulum_dynamics": True,
+                    "control_topic": "/joint_states",  # From ROS2 control
+                    "dynamics_topic": "/joint_states_dynamics",  # From pendulum dynamics
+                    "output_topic": "/joint_states_merged",  # Merged output (remapped for robot_state_publisher)
+                }],
+            )
+
         # Robot state publisher
         # Note: robot_state_publisher needs joint_states to compute TF transforms.
         # We delay it slightly to ensure joint_state_broadcaster is ready.
+        # When pendulum dynamics is enabled, remap to use merged joint_states
+        robot_state_publisher_params = [robot_description]
+        robot_state_publisher_remaps = []
+        if use_pendulum_dynamics:
+            # Remap to use merged joint_states instead of control's joint_states
+            robot_state_publisher_remaps = [("joint_states", "joint_states_merged")]
+        
         robot_state_publisher_node = Node(
             package="robot_state_publisher",
             executable="robot_state_publisher",
             output="both",
-            parameters=[robot_description],
+            parameters=robot_state_publisher_params,
+            remappings=robot_state_publisher_remaps,
         )
 
         # Build launch list
@@ -275,6 +378,24 @@ def generate_launch_description():
                 delayed_joint_state_broadcaster,
                 delayed_forward_position_controller,
             ])
+
+        # Add pendulum dynamics and merger nodes if enabled
+        # Start them after ROS2 control is ready (period 6.0) so they can interact with controllers
+        if use_pendulum_dynamics:
+            if pendulum_dynamics_node:
+                delayed_pendulum_dynamics = TimerAction(
+                    period=6.0,
+                    actions=[pendulum_dynamics_node],
+                )
+                nodes_to_launch.append(delayed_pendulum_dynamics)
+            
+            if joint_state_merger_node:
+                # Start merger slightly after dynamics to ensure it receives data
+                delayed_joint_state_merger = TimerAction(
+                    period=6.2,
+                    actions=[joint_state_merger_node],
+                )
+                nodes_to_launch.append(delayed_joint_state_merger)
 
         # Optional RViz
         if use_rviz:

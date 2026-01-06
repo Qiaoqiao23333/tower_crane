@@ -173,7 +173,7 @@
     <axis
       xyz="0 1 0" />
     <limit
-      lower="-2"
+      lower="-1.0"
       upper="0.5"
       effort="20"
       velocity="0.5" />
@@ -248,6 +248,10 @@
       <state_interface name="position"/>
       <state_interface name="velocity"/>
       <param name="device_name">slewing_joint</param>
+      <limit>
+        <min>-3.14</min>
+        <max>3.14</max>
+      </limit>
     </joint>
 
     <joint name="trolley_joint">
@@ -255,6 +259,10 @@
       <state_interface name="position"/>
       <state_interface name="velocity"/>
       <param name="device_name">trolley_joint</param>
+      <limit>
+        <min>-1.0</min>
+        <max>0.5</max>
+      </limit>
     </joint>
 
     <joint name="hook_joint">
@@ -262,6 +270,10 @@
       <state_interface name="position"/>
       <state_interface name="velocity"/>
       <param name="device_name">hook_joint</param>
+      <limit>
+        <min>0</min>
+        <max>2</max>
+      </limit>
     </joint>
   </ros2_control>
 
