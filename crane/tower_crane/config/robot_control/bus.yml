@@ -1,5 +1,4 @@
 options: # General options especially dcf_path
-  # Patched at runtime by launch files (see tower_crane/launch/hardware_bringup_real.launch.py)
   dcf_path: "@BUS_CONFIG_PATH@"
 
 master: # The configuration of the master
@@ -7,89 +6,75 @@ master: # The configuration of the master
   name: "master"
   driver: "ros2_canopen::MasterDriver"
   package: "canopen_master_driver"
-  sync_period: 10000
-  boot_timeout_ms: 5000
-  timeout_ms: 1000  # SDO timeout for master operations
-  sdo_timeout_ms: 10000  # Increased SDO timeout
+  baudrate: 500  # CAN bus baudrate in kbit/s
+  sync_period: 20000  # Communication Cycle Period (0x1006) = 0x00004E20
+  boot_timeout: 5000
 
 defaults: # Defaults that apply to all slave nodes
   dcf: "DSY-C.EDS"
   driver: "ros2_canopen::Cia402Driver"
   package: "canopen_402_driver"
-  period: 100
-  heartbeat_producer: 1000
-  heartbeat_consumer: 2000
-  sdo_timeout_ms: 10000  # Increased timeout for reliable communication
+  # period: 10
+  # heartbeat_producer: 1000
+  # heartbeat_consumer: 2000
+  sdo_timeout_ms: 5000  # Increased timeout for reliable communication
   scale_pos_to_dev: 10000.000000
   scale_pos_from_dev: 0.0001
   position_mode: 1
-  boot_timeout_ms: 10000  # Increased boot timeout
-  switching_state: 50  # Delay between state transitions in ms (increased for slow devices)
-  state_switch_timeout: 5000000  # State transition timeout in microseconds (5 seconds)
-  assignment: 0x0D  # NMT slave assignment: mandatory(0x01) + boot(0x04) + verify_config(0x08), but NOT verify vendor_id
-  sdo:
-    # Set Profile Position mode (required for 402 driver)
+  boot: true
+  mandatory: true
+  vendor_id: 0x100
+  product_code: 0x0003
+  revision_number: 0
+  polling: false
+  boot_timeout_ms: 15000  # Increased boot timeout for slow motors important !!!!!!!!
+  # switching_state: 2  # Switch to Operation_Enable (state 5) before enabling - safer transition
+  # state_switch_timeout: 20  # Increased timeout to 20 seconds for reliable state transitions
+  sdo:    # Set Profile Position mode before enabling operation
     - {index: 0x6060, sub_index: 0, value: 1}
-    # Set profile parameters for smooth motion
     - {index: 0x6081, sub_index: 0, value: 50000}  # Profile velocity
     - {index: 0x6083, sub_index: 0, value: 10000}  # Profile acceleration
     - {index: 0x6084, sub_index: 0, value: 10000}  # Profile deceleration
-    - {index: 0x605A, sub_index: 0, value: 2}  # Quick stop option code: slow down on quick stop ramp
-    - {index: 0x6085, sub_index: 0, value: 10000}  # Quick stop deceleration
+    - {index: 0x1006, sub_index: 0, value: 10000}
+    # 设置插补时间周期 (60C2:01) 为 10 (单位由 sub_index 2 决定，通常为 ms) [cite: 11]
+    - {index: 0x60C2, sub_index: 1, value: 10}
+    # 设置插补时间指数 (60C2:02) 为 -3 (即 10^-3秒 = ms) [cite: 11]
+    - {index: 0x60C2, sub_index: 2, value: -3}
+    # - {index: 0x605A, sub_index: 0, value: 2}      # Quick stop deceleration
   tpdo:
     1:
       enabled: true
       cob_id: "auto"
-      transmission: 0x01
+      transmission: 0xFF  # ASynchronous
       mapping:
-        # Include CiA402 state so the driver can track transitions.
         - {index: 0x6041, sub_index: 0}  # Statusword (16 bits)
-        - {index: 0x6061, sub_index: 0}  # Position actual value (32 bits)
-        # Total: 48 bits (6 bytes) - fits within 64-bit limit
+        - {index: 0x6064, sub_index: 0}  # Position actual value (32 bits)
     2:
       enabled: true
       cob_id: "auto"
-      transmission: 0x01
+      transmission: 0xFF
       mapping:
-        - {index: 0x6064, sub_index: 0}  # Modes of operation display (8 bits)
+        - {index: 0x6061, sub_index: 0}  # Modes of operation display (8 bits)
         - {index: 0x606C, sub_index: 0}  # Velocity actual value (32 bits)
-        # Total: 40 bits (5 bytes) - fits within 64-bit limit
   rpdo:
     1:
       enabled: true
       cob_id: "auto"
-      transmission: 0x01
+      transmission: 0xFF
       mapping:
         - {index: 0x6040, sub_index: 0}  # Controlword
-        - {index: 0x6060, sub_index: 0}  # Modes of operation
     2:
       enabled: true
       cob_id: "auto"
-      transmission: 0x01
+      transmission: 0xFF
       mapping:
         - {index: 0x607A, sub_index: 0}  # Target position
 
 nodes: # Configurations for all slave nodes
   hook_joint:
     node_id: 1
-    # polling: true
-
   trolley_joint:
     node_id: 2
-    # polling: true
-
   slewing_joint:
     node_id: 3
-    # Polling period in ms. Keep consistent across drives to reduce bursts.
-    # SDO timeout in ms (default is 20ms); increase for real hardware / USB-CAN adapters.
-    # Use event-driven mode (TPDOs) instead of polling for better performance
-    # polling: true
-    # Needed so canopen_ros2_control exports a 'position' command interface for this joint.
-    # Mode value matches CiA402 operation mode (Profile Position = 1).
-    # Unit conversion: ROS2 (radians) <-> Device (encoder counts)
-    # Gear ratio: 10:1, Encoder resolution: 131072 (2^17)
-    # Formula: (ENCODER_RESOLUTION * GEAR_RATIO) / (2 * pi)
-    # scale_pos_to_dev: 208626.5      # Convert radians to encoder counts
-    # scale_pos_from_dev: 0.000004794 # Convert encoder counts to radians
-    # scale_vel_to_dev: 208626.5      # Convert rad/s to counts/s
-    # scale_vel_from_dev: 0.000004794 # Convert counts/s to rad/s
+

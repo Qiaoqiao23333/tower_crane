@@ -1,19 +1,60 @@
 #!/usr/bin/env python3
-"""Patch master.dcf to disable vendor ID verification"""
+"""Patch master.dcf to disable vendor ID verification and empty ManufacturerObjects"""
 import sys
+import re
 
 def patch_master_dcf(filepath):
     with open(filepath, 'r') as f:
         lines = f.readlines()
     
-    in_verification_section = None
-    modified_lines = []
+    # First pass: identify and remove all manufacturer objects
+    # Manufacturer objects are in range 0x2000-0x5FFF
+    in_manufacturer_object = False
+    filtered_lines = []
     
     for line in lines:
+        line_stripped = line.strip()
+        
+        # Check if this is a manufacturer object section header
+        if line.startswith('['):
+            # Match [2xxx], [3xxx], [4xxx], [5xxx] (including sub and Value suffixes)
+            if re.match(r'^\[(2[0-9A-Fa-f]{3}|[3-5][0-9A-Fa-f]{3})', line_stripped):
+                in_manufacturer_object = True
+                continue  # Skip this line
+            else:
+                # Not a manufacturer object, we've exited
+                in_manufacturer_object = False
+        
+        # Skip lines that are part of manufacturer objects
+        if in_manufacturer_object:
+            continue
+        
+        # Keep this line
+        filtered_lines.append(line)
+    
+    # Second pass: patch remaining content
+    in_verification_section = None
+    found_manufacturer_header = False
+    modified_lines = []
+    
+    for line in filtered_lines:
         # Patch 0x1F81 values (NMT assignment) to 0x05 = mandatory(0x01) + boot(0x04)
         if line.startswith('1=0x00000305') or line.startswith('2=0x00000305') or line.startswith('3=0x00000305'):
             modified_lines.append(line.replace('0x00000305', '0x00000005'))
             continue
+        
+        # Replace ManufacturerObjects section content
+        if line.strip() == '[ManufacturerObjects]':
+            modified_lines.append(line)
+            found_manufacturer_header = True
+            continue
+        
+        # If we just found the header, add "SupportedObjects=0"
+        if found_manufacturer_header:
+            if line.startswith('SupportedObjects='):
+                modified_lines.append("SupportedObjects=0\n")
+                found_manufacturer_header = False
+                continue
         
         # Track when we're in verification sections (1F84=DeviceType, 1F85=VendorID, 1F86=ProductCode)
         if line.strip() in ['[1F84Value]', '[1F85Value]', '[1F86Value]']:
@@ -37,7 +78,7 @@ def patch_master_dcf(filepath):
     with open(filepath, 'w') as f:
         f.writelines(modified_lines)
     
-    print(f"Patched {filepath}")
+    print(f"Patched {filepath}: disabled verification and emptied ManufacturerObjects")
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:

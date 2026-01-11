@@ -17,13 +17,10 @@ from ament_index_python import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
-    TimerAction,
     OpaqueFunction,
     ExecuteProcess,
-    RegisterEventHandler,
 )
-from launch.conditions import IfCondition, UnlessCondition
-from launch.event_handlers import OnProcessExit
+from launch.conditions import IfCondition
 from launch.substitutions import Command, FindExecutable, LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.descriptions import ParameterValue
@@ -41,7 +38,7 @@ def _prepare_bus_config(share_dir: str) -> str:
     Instead of writing to /tmp (which breaks when running nodes manually), we
     write the patched file to a stable location under ~/.ros.
     """
-    source_path = os.path.join(share_dir, "config", "robot_control", "preprocessed_bus.yml")
+    source_path = os.path.join(share_dir, "config", "robot_control", "bus.yml")
     with open(source_path, "r", encoding="utf-8") as infp:
         content = infp.read()
 
@@ -138,7 +135,27 @@ def generate_launch_description():
         can_interface_name = LaunchConfiguration("can_interface_name").perform(context)
         share_dir = get_package_share_directory("tower_crane")
         master_config = os.path.join(share_dir, "config", "robot_control", "master.dcf")
-        bus_config_path = _prepare_bus_config(share_dir)
+        # Use the preprocessed bus config which has flattened structure for canopen_ros2_control
+        # But we still need to patch the @BUS_CONFIG_PATH@ placeholder
+        preprocessed_path = os.path.join(share_dir, "config", "robot_control", "preprocessed_bus.yml")
+        
+        # Read and patch the preprocessed file
+        with open(preprocessed_path, "r", encoding="utf-8") as infp:
+            content = infp.read()
+        
+        expected_config_path = os.path.join(share_dir, "config", "robot_control")
+        patched_content = content.replace(_BUS_CONFIG_PATH_PLACEHOLDER, expected_config_path)
+        patched_content = patched_content.replace(_CANROS_PREFIX, share_dir)
+        
+        ros_home = os.environ.get("ROS_HOME", os.path.join(os.path.expanduser("~"), ".ros"))
+        out_dir = os.path.join(ros_home, "tower_crane")
+        os.makedirs(out_dir, exist_ok=True)
+        
+        out_path = os.path.join(out_dir, "preprocessed_bus.patched.yml")
+        with open(out_path, "w", encoding="utf-8") as outfp:
+            outfp.write(patched_content)
+        
+        bus_config_path = out_path
 
         xacro_path = os.path.join(share_dir, "urdf", "Tower_crane_canopen.urdf.xacro")
 
@@ -156,36 +173,6 @@ def generate_launch_description():
             executable="robot_state_publisher",
             output="both",
             parameters=[robot_description],
-        )
-
-        pre_enable_step = ExecuteProcess(
-            condition=IfCondition(LaunchConfiguration("pre_enable_drives")),
-            cmd=[
-                "/bin/bash",
-                "-lc",
-                # Pre-select Profile Position mode and enable drives 1/2/3.
-                # We loop and verify the CiA402 statusword (0x6041) indicates Operation Enabled.
-                # NOTE: this sends controlwords to real hardware.
-                "set -e; CAN_IF='" + can_interface_name + "'; "
-                "echo '[pre_enable_drives] enabling CiA402 nodes 1/2/3 on ' ${CAN_IF}; "
-                "read_sw(){ local id=$1; "
-                "  cansend ${CAN_IF} $(printf '%03X#4041600000000000' $((0x600+id))); "
-                "  timeout 0.2s candump -L ${CAN_IF},$(printf '%03X' $((0x580+id))):7FF | tail -n 1 || true; "
-                "}; "
-                "for id in 1 2 3; do "
-                "  echo '[pre_enable_drives] node' ${id} ': set mode 0x6060=1'; "
-                "  cansend ${CAN_IF} $(printf '%03X#2F60600001000000' $((0x600+id))); "
-                "  for attempt in $(seq 1 30); do "
-                "    cansend ${CAN_IF} $(printf '%03X#2B40600006000000' $((0x600+id))); sleep 0.05; "
-                "    cansend ${CAN_IF} $(printf '%03X#2B40600007000000' $((0x600+id))); sleep 0.05; "
-                "    cansend ${CAN_IF} $(printf '%03X#2B4060000F000000' $((0x600+id))); sleep 0.10; "
-                "    sw=$(read_sw ${id}); "
-                "    echo '[pre_enable_drives] node' ${id} 'attempt' ${attempt} 'statusword:' ${sw:-<no_reply>}; "
-                "    if echo ${sw} | grep -qE '4B416000..27'; then break; fi; "
-                "  done; "
-                "done",
-            ],
-            output="screen",
         )
 
         # Optional diagnostics: poll statusword (0x6041) + error code (0x603F)
@@ -224,20 +211,6 @@ def generate_launch_description():
             parameters=[robot_description, controller_config],
         )
 
-        controller_manager_immediate = TimerAction(
-            condition=UnlessCondition(LaunchConfiguration("pre_enable_drives")),
-            period=0.0,
-            actions=[controller_manager_node],
-        )
-
-        controller_manager_after_pre_enable = RegisterEventHandler(
-            condition=IfCondition(LaunchConfiguration("pre_enable_drives")),
-            event_handler=OnProcessExit(
-                target_action=pre_enable_step,
-                on_exit=[controller_manager_node],
-            ),
-        )
-
         joint_state_broadcaster_spawner = Node(
                     package="controller_manager",
                     executable="spawner",
@@ -261,9 +234,7 @@ def generate_launch_description():
         return [
             robot_state_publisher_node,
             canopen_diag,
-            pre_enable_step,
-            controller_manager_immediate,
-            controller_manager_after_pre_enable,
+            controller_manager_node,
             joint_state_broadcaster_spawner,
             forward_position_controller_spawner,
         ]
