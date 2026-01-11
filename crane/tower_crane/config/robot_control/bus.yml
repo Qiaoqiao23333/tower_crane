@@ -73,8 +73,14 @@ defaults: # Defaults that apply to all slave nodes
 nodes: # Configurations for all slave nodes
   hook_joint:
     node_id: 1
+    gearbox_ratio: 20.0
+    scale_pos_to_dev: 200000.000000  # 10000.0 * 20 (gearbox ratio)
+    scale_pos_from_dev: 0.000005     # 0.0001 / 20 (gearbox ratio)
   trolley_joint:
     node_id: 2
   slewing_joint:
     node_id: 3
+    gearbox_ratio: 10.0
+    scale_pos_to_dev: 100000.000000  # 10000.0 * 10 (gearbox ratio)
+    scale_pos_from_dev: 0.00001      # 0.0001 / 10 (gearbox ratio)
 
