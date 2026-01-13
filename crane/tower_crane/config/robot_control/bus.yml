@@ -26,7 +26,7 @@ defaults: # Defaults that apply to all slave nodes
   vendor_id: 0x100
   product_code: 0x0003
   revision_number: 0
-  polling: false
+  polling: true
   boot_timeout_ms: 15000  # Increased boot timeout for slow motors important !!!!!!!!
   # switching_state: 2  # Switch to Operation_Enable (state 5) before enabling - safer transition
   # state_switch_timeout: 20  # Increased timeout to 20 seconds for reliable state transitions

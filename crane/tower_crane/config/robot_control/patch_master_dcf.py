@@ -34,7 +34,7 @@ def patch_master_dcf(filepath):
     
     # Second pass: patch remaining content
     in_verification_section = None
-    found_manufacturer_header = False
+    in_manufacturer_objects_section = False
     modified_lines = []
     
     for line in filtered_lines:
@@ -46,15 +46,29 @@ def patch_master_dcf(filepath):
         # Replace ManufacturerObjects section content
         if line.strip() == '[ManufacturerObjects]':
             modified_lines.append(line)
-            found_manufacturer_header = True
+            in_manufacturer_objects_section = True
             continue
         
-        # If we just found the header, add "SupportedObjects=0"
-        if found_manufacturer_header:
+        # If we're in ManufacturerObjects section, handle it specially
+        if in_manufacturer_objects_section:
+            # Exit when we hit a new section
+            if line.startswith('['):
+                in_manufacturer_objects_section = False
+                modified_lines.append(line)
+                continue
+            
+            # Replace SupportedObjects value with 0
             if line.startswith('SupportedObjects='):
                 modified_lines.append("SupportedObjects=0\n")
-                found_manufacturer_header = False
                 continue
+            
+            # Skip all numbered entries (1=0x2000, 2=0x2001, etc.)
+            if re.match(r'^\d+=0x[0-9A-Fa-f]+', line.strip()):
+                continue
+            
+            # Keep any other lines (shouldn't be any, but just in case)
+            modified_lines.append(line)
+            continue
         
         # Track when we're in verification sections (1F84=DeviceType, 1F85=VendorID, 1F86=ProductCode)
         if line.strip() in ['[1F84Value]', '[1F85Value]', '[1F86Value]']:
