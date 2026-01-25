@@ -62,6 +62,7 @@
 #define OD_TARGET_POSITION       0x607A
 #define OD_TARGET_VELOCITY       0x60FF
 #define OD_ACTUAL_POSITION       0x6064
+#define OD_ACTUAL_VELOCITY       0x606C
 #define OD_PROFILE_VELOCITY      0x6081
 #define OD_PROFILE_ACCELERATION  0x6083
 #define OD_PROFILE_DECELERATION  0x6084
@@ -132,6 +133,7 @@ private:
     int32_t angle_to_position(float angle);
     float position_to_angle(int32_t position);
     int32_t velocity_to_units(float velocity_deg_per_sec);
+    float units_to_velocity(int32_t velocity_units_per_sec);
     int32_t acceleration_to_units(float acceleration_deg_per_sec2);
     
     // Electronic Gear Ratio Calculation
@@ -151,6 +153,7 @@ private:
     int can_socket_ = -1;
     uint16_t status_word_ = 0;
     int32_t position_ = 0;
+    int32_t velocity_ = 0;  // Current velocity in command units
     
     // ROS 2 interfaces
     rclcpp::TimerBase::SharedPtr timer_;

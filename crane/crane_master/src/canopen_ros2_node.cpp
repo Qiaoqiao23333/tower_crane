@@ -101,6 +101,8 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     
     // String消息需要更大的payload size
     status_pub_ = this->create_publisher<std_msgs::msg::String>("crane_status", qos_profile);
+    // 创建位置发布器：发布塔吊当前位置（Float32类型，单位为度），话题名为"crane_position"，队列大小为10
+    // Create position publisher: publishes current crane position (Float32 type, unit: degrees), topic name "crane_position", queue size 10
     position_pub_ = this->create_publisher<std_msgs::msg::Float32>("crane_position", 10);
     velocity_pub_ = this->create_publisher<std_msgs::msg::Float32>("crane_velocity", 10);
     

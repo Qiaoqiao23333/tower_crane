@@ -35,6 +35,32 @@ void CANopenROS2::publish_status()
     auto pos_msg = std_msgs::msg::Float32();
     pos_msg.data = position_to_angle(position_);
     position_pub_->publish(pos_msg);
+    
+    // 读取并发布速度（通过SDO读取实际速度 0x606C）
+    try
+    {
+        int32_t velocity_units = read_sdo(OD_ACTUAL_VELOCITY, 0x00);
+        velocity_ = velocity_units;
+        float velocity_deg_per_sec = units_to_velocity(velocity_units);
+        
+        // 发布速度（检查发布器是否已初始化）
+        if (velocity_pub_)
+        {
+            auto vel_msg = std_msgs::msg::Float32();
+            vel_msg.data = velocity_deg_per_sec;
+            velocity_pub_->publish(vel_msg);
+        }
+    }
+    catch (...)
+    {
+        // 如果读取失败，发布0速度或跳过
+        if (velocity_pub_)
+        {
+            auto vel_msg = std_msgs::msg::Float32();
+            vel_msg.data = 0.0;
+            velocity_pub_->publish(vel_msg);
+        }
+    }
 }
 
 void CANopenROS2::position_callback(const std_msgs::msg::Float32::SharedPtr msg)
@@ -134,40 +160,71 @@ void CANopenROS2::handle_set_mode(const std::shared_ptr<std_srvs::srv::SetBool::
     try
     {
         // 读取当前操作模式
-        int32_t mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
-        RCLCPP_INFO(this->get_logger(), "当前操作模式: %d\nCurrent operation mode: %d", mode, mode);
+        int32_t current_mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
+        RCLCPP_INFO(this->get_logger(), "当前操作模式: %d\nCurrent operation mode: %d", current_mode, current_mode);
         
-        // 无论当前模式如何，都设置相应的参数
         if (request->data)
         {
-            // 设置位置模式参数
+            // 切换到位置模式
+            RCLCPP_INFO(this->get_logger(), "切换到位置模式...\nSwitching to position mode...");
+            
+            // 1. 先设置位置模式参数
             set_profile_parameters(30, 30, 30);  // 速度、加速度、减速度：30°/s, 30°/s², 30°/s²
             
-            // 设置目标位置为当前位置，防止电机立即运动
-            int32_t current_position = read_sdo(OD_ACTUAL_POSITION, 0x00);
-            write_sdo(OD_TARGET_POSITION, 0x00, current_position, 4);
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            // 2. 切换到位置模式
+            set_operation_mode(MODE_PROFILE_POSITION);
             
-            response->message = "已设置位置模式参数";
+            // 3. 验证模式是否切换成功
+            int32_t new_mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
+            if (new_mode == MODE_PROFILE_POSITION)
+            {
+                // 设置目标位置为当前位置，防止电机立即运动
+                int32_t current_position = read_sdo(OD_ACTUAL_POSITION, 0x00);
+                write_sdo(OD_TARGET_POSITION, 0x00, current_position, 4);
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                
+                response->message = "已成功切换到位置模式";
+                response->success = true;
+            }
+            else
+            {
+                response->message = "切换到位置模式失败，当前模式: " + std::to_string(new_mode);
+                response->success = false;
+            }
         }
         else
         {
-            // 设置速度模式参数
+            // 切换到速度模式
+            RCLCPP_INFO(this->get_logger(), "切换到速度模式...\nSwitching to velocity mode...");
+            
+            // 1. 先设置速度模式参数
             set_profile_velocity(30);  // 默认速度：30°/s
             
-            // 设置目标速度为0，防止电机立即运动
-            write_sdo(0x60FF, 0x00, 0, 4);  // 0x60FF是目标速度对象
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            // 2. 切换到速度模式
+            set_operation_mode(MODE_PROFILE_VELOCITY);
             
-            response->message = "已设置速度模式参数";
+            // 3. 验证模式是否切换成功
+            int32_t new_mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
+            if (new_mode == MODE_PROFILE_VELOCITY)
+            {
+                // 设置目标速度为0，防止电机立即运动
+                write_sdo(0x60FF, 0x00, 0, 4);  // 0x60FF是目标速度对象
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                
+                response->message = "已成功切换到速度模式";
+                response->success = true;
+            }
+            else
+            {
+                response->message = "切换到速度模式失败，当前模式: " + std::to_string(new_mode);
+                response->success = false;
+            }
         }
-        
-        response->success = true;
     }
     catch (const std::exception& e)
     {
         response->success = false;
-        response->message = "设置模式参数失败: " + std::string(e.what());
+        response->message = "设置模式失败: " + std::string(e.what());
     }
 }
 
