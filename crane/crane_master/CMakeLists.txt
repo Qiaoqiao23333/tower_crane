@@ -50,10 +50,20 @@ ament_target_dependencies(moveit_bridge
   trajectory_msgs
 )
 
+# sync_trajectory_action_server node
+add_executable(sync_trajectory_action_server src/sync_trajectory_action_server.cpp)
+ament_target_dependencies(sync_trajectory_action_server 
+  rclcpp 
+  rclcpp_action 
+  std_msgs 
+  control_msgs
+)
+
 # 安装可执行文件
 install(TARGETS
   tower_crane
   moveit_bridge
+  sync_trajectory_action_server
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -67,6 +77,13 @@ install(DIRECTORY
 install(DIRECTORY
   config
   DESTINATION share/${PROJECT_NAME}
+)
+
+# 安装Python脚本
+install(PROGRAMS
+  src/joystick_bridge.py
+  scripts/test_sync_trajectory.sh
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 # 导出依赖

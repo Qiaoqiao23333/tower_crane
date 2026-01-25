@@ -7,7 +7,7 @@ def generate_launch_description():
         # 声明参数
         DeclareLaunchArgument(
             'can_interface',
-            default_value='vcan0',
+            default_value='can0',
             description='CAN接口名称'
         ),
         DeclareLaunchArgument(
@@ -127,9 +127,22 @@ def launch_nodes(context):
     else:
         raise ValueError(f"Invalid node_id: {node_id_value}. Must be 'all', '1', '2', or '3'")
     
+    # Add synchronized trajectory action server
+    sync_trajectory_server = Node(
+        package='crane_master',
+        executable='sync_trajectory_action_server',
+        name='sync_trajectory_action_server',
+        output='screen',
+        emulate_tty=True,
+        parameters=[{
+            'can_interface': can_interface_value
+        }]
+    )
+    
     return [
         LogInfo(msg=f"启动CANopenROS2节点 (node_id={node_id_value})..."),
         check_can,
         *nodes_to_launch,
+        sync_trajectory_server,
         list_info
     ]

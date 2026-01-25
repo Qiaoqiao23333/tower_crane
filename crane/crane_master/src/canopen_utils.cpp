@@ -28,6 +28,14 @@ int32_t CANopenROS2::velocity_to_units(float velocity_deg_per_sec)
     return velocity_units_per_sec;
 }
 
+float CANopenROS2::units_to_velocity(int32_t velocity_units_per_sec)
+{
+    // Convert command units/s to deg/s
+    // Formula: velocity_units_per_sec * degrees_per_unit_ = velocity_deg_per_sec
+    float velocity_deg_per_sec = static_cast<float>(velocity_units_per_sec) * degrees_per_unit_;
+    return velocity_deg_per_sec;
+}
+
 int32_t CANopenROS2::acceleration_to_units(float acceleration_deg_per_sec2)
 {
     // Convert deg/s² to command units/s² using cached ratio from calculate_gear_ratio_params
