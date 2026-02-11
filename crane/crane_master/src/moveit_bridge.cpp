@@ -14,18 +14,18 @@
 #include "control_msgs/action/follow_joint_trajectory.hpp"
 #include "trajectory_msgs/msg/joint_trajectory_point.hpp"
 
-// 辅助函数：角度转弧度 (用于旋转关节)
+// 📐 辅助函数：角度转弧度 (用于旋转关节)
 static double deg2rad(double deg) {
     return deg * M_PI / 180.0;
 }
 
-// 辅助函数：弧度转角度 (用于旋转关节)
+// 📐 辅助函数：弧度转角度 (用于旋转关节)
 static double rad2deg(double rad) {
     return rad * 180.0 / M_PI;
 }
 
-// 辅助函数：角度转米 (用于移动关节: Hoist, Trolley)
-// TODO: 用户需要根据实际卷扬机/丝杠参数修改此转换系数
+// 📐 辅助函数：角度转米 (用于移动关节: Hoist, Trolley)
+// ⚠️ TODO: 用户需要根据实际卷扬机/丝杠参数修改此转换系数
 // 假设: 电机转动 1 度对应的直线移动距离 (米)
 static const double METERS_PER_DEGREE_HOIST = 0.001; // 示例值
 static const double METERS_PER_DEGREE_TROLLEY = 0.001; // 示例值
@@ -111,7 +111,7 @@ public:
             std::bind(&CraneMoveItBridge::handle_accepted, this, std::placeholders::_1)
         );
 
-        RCLCPP_INFO(this->get_logger(), "CraneMoveItBridge initialized.");
+        RCLCPP_INFO(this->get_logger(), "✅ CraneMoveItBridge 初始化完成");
     }
 
 private:
@@ -170,7 +170,7 @@ private:
         std::shared_ptr<const FollowJointTrajectory::Goal> goal)
     {
         (void)uuid;
-        RCLCPP_INFO(this->get_logger(), "Received goal request with %zu trajectory points", goal->trajectory.points.size());
+        RCLCPP_INFO(this->get_logger(), "📋 收到目标请求，包含 %zu 个轨迹点", goal->trajectory.points.size());
         
         // 简单的验证：检查关节名称是否匹配
         for (const auto& name : goal->trajectory.joint_names) {
@@ -182,7 +182,7 @@ private:
                 }
             }
             if (!found) {
-                RCLCPP_WARN(this->get_logger(), "Unknown joint in goal: %s", name.c_str());
+                RCLCPP_WARN(this->get_logger(), "⚠️ 目标中包含未知关节: %s", name.c_str());
                 return rclcpp_action::GoalResponse::REJECT;
             }
         }
@@ -193,7 +193,7 @@ private:
         const std::shared_ptr<GoalHandleFJT> goal_handle)
     {
         (void)goal_handle;
-        RCLCPP_INFO(this->get_logger(), "Received request to cancel goal");
+        RCLCPP_INFO(this->get_logger(), "⏹️ 收到取消目标请求");
         return rclcpp_action::CancelResponse::ACCEPT;
     }
 
@@ -208,7 +208,7 @@ private:
     // -----------------------------------------------------------------------
     void execute(const std::shared_ptr<GoalHandleFJT> goal_handle)
     {
-        RCLCPP_INFO(this->get_logger(), "Executing trajectory...");
+        RCLCPP_INFO(this->get_logger(), "🎬 执行轨迹中...");
         const auto goal = goal_handle->get_goal();
         auto feedback = std::make_shared<FollowJointTrajectory::Feedback>();
         auto result = std::make_shared<FollowJointTrajectory::Result>();
@@ -229,7 +229,7 @@ private:
             if (goal_handle->is_canceling()) {
                 result->error_code = control_msgs::action::FollowJointTrajectory::Result::INVALID_GOAL;
                 goal_handle->canceled(result);
-                RCLCPP_INFO(this->get_logger(), "Goal canceled");
+                RCLCPP_INFO(this->get_logger(), "❌ 目标已取消");
                 return;
             }
 
@@ -286,7 +286,7 @@ private:
         if (rclcpp::ok()) {
             result->error_code = control_msgs::action::FollowJointTrajectory::Result::SUCCESSFUL;
             goal_handle->succeed(result);
-            RCLCPP_INFO(this->get_logger(), "Goal succeeded");
+            RCLCPP_INFO(this->get_logger(), "✅ 目标执行成功");
         }
     }
 };

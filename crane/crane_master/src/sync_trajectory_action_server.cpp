@@ -11,7 +11,7 @@ SyncTrajectoryActionServer::SyncTrajectoryActionServer()
     can_interface_ = this->get_parameter("can_interface").as_string();
     
     RCLCPP_INFO(this->get_logger(), 
-        "Initializing Synchronized Trajectory Action Server on CAN interface: %s", 
+        "🔄 初始化同步轨迹 Action Server，CAN 接口: %s", 
         can_interface_.c_str());
     
     // Initialize CAN socket for SYNC frames
@@ -62,7 +62,7 @@ SyncTrajectoryActionServer::SyncTrajectoryActionServer()
     );
     
     RCLCPP_INFO(this->get_logger(), 
-        "Synchronized Trajectory Action Server ready at: /forward_position_controller/follow_joint_trajectory");
+        "✅ 同步轨迹 Action Server 就绪: /forward_position_controller/follow_joint_trajectory");
 }
 
 SyncTrajectoryActionServer::~SyncTrajectoryActionServer()
@@ -78,7 +78,7 @@ void SyncTrajectoryActionServer::init_can_socket()
     can_socket_ = socket(PF_CAN, SOCK_RAW, CAN_RAW);
     if (can_socket_ < 0) {
         RCLCPP_ERROR(this->get_logger(), 
-            "Failed to create CAN socket: %s", strerror(errno));
+            "❌ 创建 CAN 套接字失败: %s", strerror(errno));
         return;
     }
     
@@ -93,7 +93,7 @@ void SyncTrajectoryActionServer::init_can_socket()
     
     if (ioctl(can_socket_, SIOCGIFINDEX, &ifr) < 0) {
         RCLCPP_ERROR(this->get_logger(), 
-            "Failed to get interface index for %s: %s", 
+            "❌ 获取接口 %s 索引失败: %s", 
             can_interface_.c_str(), strerror(errno));
         close(can_socket_);
         can_socket_ = -1;
@@ -108,19 +108,19 @@ void SyncTrajectoryActionServer::init_can_socket()
     
     if (bind(can_socket_, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         RCLCPP_ERROR(this->get_logger(), 
-            "Failed to bind CAN socket: %s", strerror(errno));
+            "❌ 绑定 CAN 套接字失败: %s", strerror(errno));
         close(can_socket_);
         can_socket_ = -1;
         return;
     }
     
-    RCLCPP_INFO(this->get_logger(), "CAN socket initialized successfully");
+    RCLCPP_INFO(this->get_logger(), "✅ CAN 套接字初始化成功");
 }
 
 void SyncTrajectoryActionServer::send_sync_frame()
 {
     if (can_socket_ < 0) {
-        RCLCPP_WARN(this->get_logger(), "CAN socket not initialized, cannot send SYNC");
+        RCLCPP_WARN(this->get_logger(), "⚠️ CAN 套接字未初始化，无法发送 SYNC");
         return;
     }
     
@@ -131,9 +131,9 @@ void SyncTrajectoryActionServer::send_sync_frame()
     ssize_t bytes_written = write(can_socket_, &frame, sizeof(struct can_frame));
     if (bytes_written != sizeof(struct can_frame)) {
         RCLCPP_WARN(this->get_logger(), 
-            "Failed to send SYNC frame: %s", strerror(errno));
+            "❌ 发送 SYNC 帧失败: %s", strerror(errno));
     } else {
-        RCLCPP_DEBUG(this->get_logger(), "SYNC frame sent (0x080)");
+        RCLCPP_DEBUG(this->get_logger(), "🔄 SYNC 帧已发送 (0x080)");
     }
 }
 
@@ -144,7 +144,7 @@ rclcpp_action::GoalResponse SyncTrajectoryActionServer::handle_goal(
     (void)uuid;
     
     RCLCPP_INFO(this->get_logger(), 
-        "Received trajectory goal with %zu points", 
+        "📋 收到轨迹目标，包含 %zu 个点", 
         goal->trajectory.points.size());
     
     // Validate joint names
@@ -153,13 +153,13 @@ rclcpp_action::GoalResponse SyncTrajectoryActionServer::handle_goal(
             joint_name != "trolley_joint" && 
             joint_name != "hook_joint") {
             RCLCPP_WARN(this->get_logger(), 
-                "Unknown joint name in trajectory: %s", joint_name.c_str());
+                "⚠️ 轨迹中包含未知关节名称: %s", joint_name.c_str());
             return rclcpp_action::GoalResponse::REJECT;
         }
     }
     
     if (goal->trajectory.points.empty()) {
-        RCLCPP_WARN(this->get_logger(), "Trajectory has no points");
+        RCLCPP_WARN(this->get_logger(), "⚠️ 轨迹没有点");
         return rclcpp_action::GoalResponse::REJECT;
     }
     
@@ -170,7 +170,7 @@ rclcpp_action::CancelResponse SyncTrajectoryActionServer::handle_cancel(
     const std::shared_ptr<GoalHandleFJT> goal_handle)
 {
     (void)goal_handle;
-    RCLCPP_INFO(this->get_logger(), "Received request to cancel trajectory");
+    RCLCPP_INFO(this->get_logger(), "⏹️ 收到取消轨迹请求");
     return rclcpp_action::CancelResponse::ACCEPT;
 }
 
@@ -187,7 +187,7 @@ void SyncTrajectoryActionServer::handle_accepted(
 void SyncTrajectoryActionServer::execute(
     const std::shared_ptr<GoalHandleFJT> goal_handle)
 {
-    RCLCPP_INFO(this->get_logger(), "Executing synchronized trajectory...");
+    RCLCPP_INFO(this->get_logger(), "🎬 执行同步轨迹中...");
     
     const auto goal = goal_handle->get_goal();
     auto feedback = std::make_shared<FollowJointTrajectory::Feedback>();
@@ -207,7 +207,7 @@ void SyncTrajectoryActionServer::execute(
         if (goal_handle->is_canceling()) {
             result->error_code = FollowJointTrajectory::Result::PATH_TOLERANCE_VIOLATED;
             goal_handle->canceled(result);
-            RCLCPP_INFO(this->get_logger(), "Trajectory cancelled");
+            RCLCPP_INFO(this->get_logger(), "❌ 轨迹已取消");
             return;
         }
         
@@ -230,7 +230,7 @@ void SyncTrajectoryActionServer::execute(
                 cmd.data = static_cast<float>(point.positions[idx]);
                 pub_slewing_->publish(cmd);
                 RCLCPP_DEBUG(this->get_logger(), 
-                    "Slewing command: %.2f degrees", cmd.data);
+                    "🔄 回转命令: %.2f 度", cmd.data);
             }
         }
         
@@ -240,7 +240,7 @@ void SyncTrajectoryActionServer::execute(
                 cmd.data = static_cast<float>(point.positions[idx]);
                 pub_trolley_->publish(cmd);
                 RCLCPP_DEBUG(this->get_logger(), 
-                    "Trolley command: %.2f degrees", cmd.data);
+                    "🚤 小车命令: %.2f 度", cmd.data);
             }
         }
         
@@ -250,7 +250,7 @@ void SyncTrajectoryActionServer::execute(
                 cmd.data = static_cast<float>(point.positions[idx]);
                 pub_hook_->publish(cmd);
                 RCLCPP_DEBUG(this->get_logger(), 
-                    "Hook command: %.2f degrees", cmd.data);
+                    "🎣 起升命令: %.2f 度", cmd.data);
             }
         }
         
@@ -261,7 +261,7 @@ void SyncTrajectoryActionServer::execute(
         send_sync_frame();
         
         RCLCPP_INFO(this->get_logger(), 
-            "Commands sent and synchronized with SYNC frame");
+            "📤 命令已发送并通过 SYNC 帧同步");
         
         // Publish feedback
         feedback->header.stamp = this->now();
@@ -282,7 +282,7 @@ void SyncTrajectoryActionServer::execute(
         result->error_code = FollowJointTrajectory::Result::SUCCESSFUL;
         goal_handle->succeed(result);
         RCLCPP_INFO(this->get_logger(), 
-            "Synchronized trajectory executed successfully");
+            "✅ 同步轨迹执行成功");
     }
 }
 

@@ -8,17 +8,17 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'can_interface',
             default_value='can0',
-            description='CAN接口名称'
+            description='📡 CAN 接口名称'
         ),
         DeclareLaunchArgument(
             'node_id',
             default_value='all',
-            description='CANopen节点ID (all, 1, 2, or 3). Default: all (launch all nodes)'
+            description='🆔 CANopen 节点 ID (all, 1, 2, or 3)，默认: all (启动所有节点)'
         ),
         DeclareLaunchArgument(
             'auto_start',
             default_value='true',
-            description='是否自动启动电机'
+            description='⚡ 是否自动启动电机'
         ),
         
         # 使用OpaqueFunction来根据node_id动态创建节点
@@ -140,7 +140,7 @@ def launch_nodes(context):
     )
     
     return [
-        LogInfo(msg=f"启动CANopenROS2节点 (node_id={node_id_value})..."),
+        LogInfo(msg=f"🏗️ 启动 CANopen ROS2 节点 (node_id={node_id_value})..."),
         check_can,
         *nodes_to_launch,
         sync_trajectory_server,

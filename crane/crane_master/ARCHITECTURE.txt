@@ -1,0 +1,225 @@
+===============================================================================
+  SYNCHRONIZED TRAJECTORY SYSTEM ARCHITECTURE
+===============================================================================
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                            USER / APPLICATION                            │
+└────────────────────────────┬────────────────────────────────────────────┘
+                             │
+                             │ FollowJointTrajectory Action
+                             │ (joint_names + positions + time)
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                  SYNC TRAJECTORY ACTION SERVER                           │
+│                 (sync_trajectory_action_server)                          │
+│                                                                           │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │  1. Receive action goal with trajectory points                  │   │
+│  │  2. Validate joint names and trajectory                         │   │
+│  │  3. For each trajectory point:                                  │   │
+│  │     a. Wait for time_from_start                                 │   │
+│  │     b. Publish position commands to motor topics                │   │
+│  │     c. Send SYNC frame (0x080) on CAN bus                       │   │
+│  │  4. Publish feedback (actual vs desired)                        │   │
+│  │  5. Return success/failure                                      │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                           │
+└──┬────────────────────┬────────────────────┬────────────────────────┬───┘
+   │                    │                    │                        │
+   │ Float32            │ Float32            │ Float32                │ SYNC
+   │ /slewing/          │ /trolley/          │ /hoist/                │ 0x080
+   │ target_position    │ target_position    │ target_position        │ (CAN)
+   │                    │                    │                        │
+   ▼                    ▼                    ▼                        ▼
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐         ┌─────────────┐
+│   SLEWING    │  │   TROLLEY    │  │     HOOK     │         │  CAN BUS    │
+│    MOTOR     │  │    MOTOR     │  │    MOTOR     │         │             │
+│   NODE       │  │    NODE      │  │    NODE      │         │  SYNC Frame │
+│  (Node ID 3) │  │  (Node ID 2) │  │  (Node ID 1) │         │  Broadcast  │
+│              │  │              │  │              │         │             │
+│ Namespace:   │  │ Namespace:   │  │ Namespace:   │         └──────┬──────┘
+│  /slewing    │  │  /trolley    │  │  /hoist      │                │
+└──────┬───────┘  └──────┬───────┘  └──────┬───────┘                │
+       │                 │                 │                        │
+       │ Position        │ Position        │ Position               │
+       │ Command         │ Command         │ Command                │
+       │ (SDO/PDO)       │ (SDO/PDO)       │ (SDO/PDO)              │
+       │                 │                 │                        │
+       ▼                 ▼                 ▼                        ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                            CAN BUS (can0)                                │
+│                                                                           │
+│  All nodes connected to same CAN bus                                    │
+│  SYNC frame (0x080) synchronizes motor movements                        │
+└─────────┬───────────────┬───────────────┬───────────────────────────────┘
+          │               │               │
+          ▼               ▼               ▼
+    ┌─────────┐     ┌─────────┐     ┌─────────┐
+    │ MOTOR 3 │     │ MOTOR 2 │     │ MOTOR 1 │
+    │ Slewing │     │ Trolley │     │  Hoist  │
+    └─────────┘     └─────────┘     └─────────┘
+          │               │               │
+          └───────────────┴───────────────┘
+                          │
+                    Physical Movement
+                    (SYNCHRONIZED)
+
+
+===============================================================================
+  MESSAGE FLOW EXAMPLE
+===============================================================================
+
+Step 1: User sends action goal
+-------------------------------
+ros2 action send_goal /forward_position_controller/follow_joint_trajectory \
+  control_msgs/action/FollowJointTrajectory "
+trajectory:
+  joint_names: [slewing_joint, trolley_joint, hook_joint]
+  points:
+  - positions: [10.0, 1.0, 20.0]
+    time_from_start:
+      sec: 2
+"
+
+Step 2: Action server processes
+--------------------------------
+[sync_trajectory_action_server]
+  ✓ Goal accepted
+  ✓ Validated joint names
+  ✓ Starting trajectory execution
+  
+Step 3: Commands sent to motors
+--------------------------------
+[sync_trajectory_action_server]
+  → Publishing to /slewing/target_position: 10.0
+  → Publishing to /trolley/target_position: 1.0
+  → Publishing to /hoist/target_position: 20.0
+  
+Step 4: Motor nodes receive commands
+-------------------------------------
+[Node 3 - Slewing] Received position: 10.0°
+[Node 2 - Trolley] Received position: 1.0°
+[Node 1 - Hoist]   Received position: 20.0°
+
+Step 5: SYNC frame broadcast
+-----------------------------
+[sync_trajectory_action_server]
+  → Sending SYNC frame (0x080)
+  
+[CAN Bus] 080 [0]
+
+Step 6: Motors move simultaneously
+-----------------------------------
+[Motor 3] Moving to 10.0° (synchronized)
+[Motor 2] Moving to 1.0° (synchronized)
+[Motor 1] Moving to 20.0° (synchronized)
+
+Step 7: Feedback published
+---------------------------
+[sync_trajectory_action_server]
+  Feedback:
+    desired: [10.0, 1.0, 20.0]
+    actual:  [current positions from motor feedback]
+
+Step 8: Goal succeeded
+-----------------------
+[sync_trajectory_action_server]
+  ✓ Trajectory completed successfully
+
+
+===============================================================================
+  COMPARISON: WITH vs WITHOUT SYNC
+===============================================================================
+
+WITHOUT SYNC (Old Method - Individual Commands):
+-------------------------------------------------
+  Time    Action                              Result
+  ------  ----------------------------------  --------------------------------
+  t=0     Publish /slewing/target_position    Motor 3 starts moving
+  t=10ms  Publish /trolley/target_position    Motor 2 starts moving (delayed)
+  t=20ms  Publish /hoist/target_position      Motor 1 starts moving (delayed)
+  
+  Result: Motors move sequentially, not synchronized
+
+
+WITH SYNC (New Method - Synchronized Action Server):
+-----------------------------------------------------
+  Time    Action                              Result
+  ------  ----------------------------------  --------------------------------
+  t=0     Publish /slewing/target_position    Motor 3 receives command (waiting)
+  t=1ms   Publish /trolley/target_position    Motor 2 receives command (waiting)
+  t=2ms   Publish /hoist/target_position      Motor 1 receives command (waiting)
+  t=7ms   Broadcast SYNC (0x080)              ALL motors start moving NOW
+  
+  Result: All motors move simultaneously, perfectly synchronized
+
+
+===============================================================================
+  WHY SYNC IS IMPORTANT
+===============================================================================
+
+1. PRECISE COORDINATION
+   - All motors start moving at exactly the same moment
+   - Critical for crane operations requiring coordinated motion
+   - Prevents mechanical stress from unsynchronized movement
+
+2. SMOOTH TRAJECTORIES
+   - When executing complex paths, all joints must move in sync
+   - SYNC ensures trajectory timing is precise
+
+3. SAFETY
+   - Synchronized motion prevents unexpected load shifts
+   - All motors complete movements together
+
+4. CANOPEN STANDARD
+   - SYNC (0x080) is part of CANopen protocol (CiA 301)
+   - Designed specifically for this use case
+
+
+===============================================================================
+  KEY COMPONENTS
+===============================================================================
+
+1. sync_trajectory_action_server (NEW)
+   - Action server node
+   - Handles FollowJointTrajectory actions
+   - Sends SYNC frames
+   - Monitors motor feedback
+
+2. Individual Motor Nodes (EXISTING)
+   - /slewing (Node ID 3)
+   - /trolley (Node ID 2)
+   - /hoist (Node ID 1)
+   - Respond to target_position topics
+   - Respond to SYNC frames
+
+3. CAN Bus Communication
+   - Physical layer: can0 interface
+   - Protocol: CANopen (CiA 301, CiA 402)
+   - SYNC: COB-ID 0x080
+
+
+===============================================================================
+  TOPICS AND INTERFACES
+===============================================================================
+
+Action Server:
+  /forward_position_controller/follow_joint_trajectory
+  Type: control_msgs/action/FollowJointTrajectory
+
+Motor Command Topics (Published by action server):
+  /slewing/target_position  (std_msgs/msg/Float32)
+  /trolley/target_position  (std_msgs/msg/Float32)
+  /hoist/target_position    (std_msgs/msg/Float32)
+
+Motor Feedback Topics (Subscribed by action server):
+  /slewing/crane_position   (std_msgs/msg/Float32)
+  /trolley/crane_position   (std_msgs/msg/Float32)
+  /hoist/crane_position     (std_msgs/msg/Float32)
+
+CAN Messages:
+  SYNC: 0x080 [0] (no data payload)
+
+
+===============================================================================
