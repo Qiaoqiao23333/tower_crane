@@ -230,7 +230,7 @@ void CANopenROS2::start_node()
     // Get actual position
     int32_t actual_position = read_sdo(OD_ACTUAL_POSITION, 0x00);
     float actual_angle = position_to_angle(actual_position);
-    RCLCPP_INFO(this->get_logger(), "📍 actual position: %.2f°", actual_angle, actual_angle);
+    RCLCPP_INFO(this->get_logger(), "📍 actual position: %.2f°", actual_angle);
     
     // Send sync frame
     send_sync_frame();
@@ -257,7 +257,7 @@ void CANopenROS2::set_immediate_effect(bool immediate)
     // Write new control word
     write_sdo(OD_CONTROL_WORD, 0x00, controlword, 2);
     
-    RCLCPP_INFO(this->get_logger(), "🎮 Control word updated to: 0x%04X", controlword, controlword);
+    RCLCPP_INFO(this->get_logger(), "🎮 Control word updated to: 0x%04X", controlword);
 }
 
 void CANopenROS2::check_and_clear_error()
@@ -299,7 +299,7 @@ void CANopenROS2::enable_motor()
     
     // Read current status word
     int32_t status_word = read_sdo(OD_STATUS_WORD, 0x00);
-    RCLCPP_INFO(this->get_logger(), "📊 Current status word: 0x%04X", status_word, status_word);
+    RCLCPP_INFO(this->get_logger(), "📊 Current status word: 0x%04X", status_word);
     
     // If status word read fails, retry multiple times
     int retry_count = 0;
@@ -358,7 +358,7 @@ void CANopenROS2::enable_motor()
     if (status_word >= 0)
     {
         status_word_ = static_cast<uint16_t>(status_word);
-        RCLCPP_INFO(this->get_logger(), "📊 Status word after enable: 0x%04X", status_word_, status_word_);
+        RCLCPP_INFO(this->get_logger(), "📊 Status word after enable: 0x%04X", status_word_);
         
         // Check if enable was successful
         if ((status_word_ & 0x006F) == 0x0027)
@@ -392,12 +392,12 @@ void CANopenROS2::enable_motor()
     send_sync_frame();
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
-    RCLCPP_INFO(this->get_logger(), "✅ Motor enabled");
+    RCLCPP_INFO(this->get_logger(), "👍🏻 Motor enabled");
 }
 
 void CANopenROS2::stop_motor()
 {
-    RCLCPP_INFO(this->get_logger(), "⏹️ Stopping motor...");
+    RCLCPP_INFO(this->get_logger(), "✋🏻 Stopping motor...");
     
     // Set target velocity to 0
     set_target_velocity(0);
@@ -448,30 +448,60 @@ void CANopenROS2::initialize_motor()
     {
         float calculated_gear_ratio = static_cast<float>(motor_revolutions) / static_cast<float>(shaft_revolutions);
         RCLCPP_INFO(this->get_logger(), "⚙️ Current gear ratio (0x6091): motor revolutions=%d, shaft revolutions=%d, calculated value=%.2f (configured value=%.2f)", 
-                   motor_revolutions, shaft_revolutions, calculated_gear_ratio, gear_ratio_,
                    motor_revolutions, shaft_revolutions, calculated_gear_ratio, gear_ratio_);
     }
     else
     {
-        RCLCPP_INFO(this->get_logger(), "⚠️ Unable to read or invalid gear ratio (0x6091), using configured value: %.2f", gear_ratio_, gear_ratio_);
+        RCLCPP_INFO(this->get_logger(), "⚠️ Unable to read or invalid gear ratio (0x6091), using configured value: %.2f", gear_ratio_);
     }
+    
+    // Ensure motor stays still: set target velocity to 0 and target position to current position
+    RCLCPP_INFO(this->get_logger(), "🛑 Ensuring motor stays still after initialization...");
+    
+    // 1. Set target velocity to 0 (important if motor was in velocity mode)
+    set_target_velocity(0);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    // 2. Ensure we're in position mode
+    int32_t current_mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
+    if (current_mode != MODE_PROFILE_POSITION)
+    {
+        RCLCPP_WARN(this->get_logger(), "⚠️ Motor not in position mode (current: %d), switching to position mode...", current_mode);
+        set_operation_mode(MODE_PROFILE_POSITION);
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
+    
+    // 3. Read current position and set target position to current position (keep motor still)
+    int32_t current_position = read_sdo(OD_ACTUAL_POSITION, 0x00);
+    if (current_position >= 0)
+    {
+        write_sdo(OD_TARGET_POSITION, 0x00, current_position, 4);
+        float current_angle = position_to_angle(current_position);
+        RCLCPP_INFO(this->get_logger(), "📍 Motor initialized at current position: %.2f° (keeping still)", current_angle);
+    }
+    else
+    {
+        RCLCPP_WARN(this->get_logger(), "⚠️ Unable to read current position, setting target to 0");
+        write_sdo(OD_TARGET_POSITION, 0x00, 0, 4);
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     RCLCPP_INFO(this->get_logger(), "✅ Motor initialization complete");
 }
 
 void CANopenROS2::set_operation_mode(uint8_t mode)
 {
-    RCLCPP_INFO(this->get_logger(), "🎛️ Starting to switch operation mode to: %d", mode, mode);
+    RCLCPP_INFO(this->get_logger(), "🫵🏻 Starting to switch operation mode to: %d", mode);
     
     // Step 1: First read current status word and mode
     int32_t status_word = read_sdo(OD_STATUS_WORD, 0x00);
     int32_t current_mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
-    RCLCPP_INFO(this->get_logger(), "📊 Current status word: 0x%04X, current mode: %d", status_word, current_mode, status_word, current_mode);
+    RCLCPP_INFO(this->get_logger(), "👉🏻 Current status word: 0x%04X, current mode: %d", status_word, current_mode);
     
     // If already in target mode, return directly
     if (current_mode == mode)
     {
-        RCLCPP_INFO(this->get_logger(), "✅ Already in target mode: %d", mode, mode);
+        RCLCPP_INFO(this->get_logger(), "✅ Already in target mode: %d", mode);
         return;
     }
     
@@ -491,17 +521,17 @@ void CANopenROS2::set_operation_mode(uint8_t mode)
         
         // Check status
         status_word = read_sdo(OD_STATUS_WORD, 0x00);
-        RCLCPP_INFO(this->get_logger(), "📊 Status word after state conversion: 0x%04X", status_word, status_word);
+        RCLCPP_INFO(this->get_logger(), "👉🏻 Status word after state conversion: 0x%04X", status_word);
     }
     
     // Step 3: Set operation mode (must be in "Ready to switch on" or "Switched on" state)
-    RCLCPP_INFO(this->get_logger(), "🎛️ Set operation mode to: %d", mode, mode);
+    RCLCPP_INFO(this->get_logger(), "✍🏻 Set operation mode to: %d", mode);
     write_sdo(OD_OPERATION_MODE, 0x00, mode, 1);
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
     
     // Check if operation mode was set successfully
     current_mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
-    RCLCPP_INFO(this->get_logger(), "📊 Operation mode after setting: %d", current_mode, current_mode);
+    RCLCPP_INFO(this->get_logger(), " 🫶🏻Operation mode after setting: %d", current_mode);
     
     // If SDO setting fails, try using PDO
     if (current_mode != mode)
@@ -523,7 +553,7 @@ void CANopenROS2::set_operation_mode(uint8_t mode)
         }
         else
         {
-            RCLCPP_INFO(this->get_logger(), "📤 PDO operation mode sent: %d", mode, mode);
+            RCLCPP_INFO(this->get_logger(), "📤 PDO operation mode sent: %d", mode);
         }
         
         send_sync_frame();
@@ -531,7 +561,7 @@ void CANopenROS2::set_operation_mode(uint8_t mode)
         
         // Check operation mode again
         current_mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
-        RCLCPP_INFO(this->get_logger(), "📊 Operation mode after PDO setting: %d", current_mode, current_mode);
+        RCLCPP_INFO(this->get_logger(), "📊 Operation mode after PDO setting: %d", current_mode);
     }
     
     // Step 4: If mode setting succeeds, re-enable motor to operation state
@@ -551,14 +581,14 @@ void CANopenROS2::set_operation_mode(uint8_t mode)
         
         // Final confirmation
         status_word = read_sdo(OD_STATUS_WORD, 0x00);
-        RCLCPP_INFO(this->get_logger(), "📊 Final status word: 0x%04X", status_word, status_word);
-        RCLCPP_INFO(this->get_logger(), "✅ Operation mode switch successful: %d", mode, mode);
+        RCLCPP_INFO(this->get_logger(), "👉🏻 Final status word: 0x%04X", status_word);
+        RCLCPP_INFO(this->get_logger(), "✅ Operation mode switch successful: %d", mode);
     }
     else
     {
         RCLCPP_ERROR(this->get_logger(), "❌ Operation mode switch failed, current mode: %d, expected mode: %d", 
-                    current_mode, mode, current_mode, mode);
-        RCLCPP_ERROR(this->get_logger(), "⚠️ Please check if motor supports mode %d, or refer to motor documentation", mode, mode);
+                    current_mode, mode);
+        RCLCPP_ERROR(this->get_logger(), "⚠️ Please check if motor supports mode %d, or refer to motor documentation", mode);
     }
 }
 
@@ -566,21 +596,21 @@ void CANopenROS2::set_profile_velocity(float velocity_deg_per_sec)
 {
     int32_t velocity_units = velocity_to_units(velocity_deg_per_sec);
     write_sdo(OD_PROFILE_VELOCITY, 0x00, velocity_units, 4);
-    RCLCPP_INFO(this->get_logger(), "🏃 Profile velocity set: %.2f°/s", velocity_deg_per_sec, velocity_deg_per_sec);
+    RCLCPP_INFO(this->get_logger(), "🏃 Profile velocity set: %.2f°/s", velocity_deg_per_sec);
 }
 
 void CANopenROS2::set_profile_acceleration(float acceleration_deg_per_sec2)
 {
     int32_t acceleration_units = acceleration_to_units(acceleration_deg_per_sec2);
     write_sdo(OD_PROFILE_ACCELERATION, 0x00, acceleration_units, 4);
-    RCLCPP_INFO(this->get_logger(), "⬆️ Profile acceleration set: %.2f°/s²", acceleration_deg_per_sec2, acceleration_deg_per_sec2);
+    RCLCPP_INFO(this->get_logger(), "⬆️ Profile acceleration set: %.2f°/s²", acceleration_deg_per_sec2);
 }
 
 void CANopenROS2::set_profile_deceleration(float deceleration_deg_per_sec2)
 {
     int32_t deceleration_units = acceleration_to_units(deceleration_deg_per_sec2);
     write_sdo(OD_PROFILE_DECELERATION, 0x00, deceleration_units, 4);
-    RCLCPP_INFO(this->get_logger(), "⬇️ Profile deceleration set: %.2f°/s²", deceleration_deg_per_sec2, deceleration_deg_per_sec2);
+    RCLCPP_INFO(this->get_logger(), "⬇️ Profile deceleration set: %.2f°/s²", deceleration_deg_per_sec2);
 }
 
 void CANopenROS2::set_profile_parameters(float velocity_deg_per_sec, float acceleration_deg_per_sec2, float deceleration_deg_per_sec2)
@@ -589,7 +619,6 @@ void CANopenROS2::set_profile_parameters(float velocity_deg_per_sec, float accel
     set_profile_acceleration(acceleration_deg_per_sec2);
     set_profile_deceleration(deceleration_deg_per_sec2);
     RCLCPP_INFO(this->get_logger(), "📏 Profile parameters set - velocity: %.2f°/s, acceleration: %.2f°/s², deceleration: %.2f°/s²", 
-               velocity_deg_per_sec, acceleration_deg_per_sec2, deceleration_deg_per_sec2,
                velocity_deg_per_sec, acceleration_deg_per_sec2, deceleration_deg_per_sec2);
 }
 
@@ -608,7 +637,7 @@ void CANopenROS2::set_control_word(uint16_t control_word)
     }
     else
     {
-        RCLCPP_INFO(this->get_logger(), "🎮 Control word sent: 0x%04X", control_word, control_word);
+        RCLCPP_INFO(this->get_logger(), "🎮 Control word sent: 0x%04X", control_word);
     }
 }
 
@@ -616,15 +645,15 @@ void CANopenROS2::set_target_velocity(int32_t velocity_units_per_sec)
 {
     // DSY-C.EDS specifies target velocity at 0x60FF
     write_sdo(OD_TARGET_VELOCITY, 0x00, velocity_units_per_sec, 4);
-    RCLCPP_INFO(this->get_logger(), "🎯 Target velocity set (command units): %d", velocity_units_per_sec, velocity_units_per_sec);
+    RCLCPP_INFO(this->get_logger(), "🎯 Target velocity set (command units): %d", velocity_units_per_sec);
 }
 
 void CANopenROS2::go_to_position(float angle)
 {
-    RCLCPP_INFO(this->get_logger(), "📍 Move to position: %.2f°", angle, angle);
+    RCLCPP_INFO(this->get_logger(), "📍 Move to position: %.2f°", angle);
     
     int32_t position = angle_to_position(angle);
-    RCLCPP_INFO(this->get_logger(), "🎯 Target position command units: %d", position, position);
+    RCLCPP_INFO(this->get_logger(), "🎯 Target position command units: %d", position);
     
     // First use SDO to set target position (one-time setting)
     write_sdo(OD_TARGET_POSITION, 0x00, position, 4);
@@ -644,19 +673,22 @@ void CANopenROS2::go_to_position(float angle)
     frame.data[4] = (position >> 16) & 0xFF;
     frame.data[5] = (position >> 24) & 0xFF;
     
-    write(can_socket_, &frame, sizeof(struct can_frame));
+    ssize_t write_result = write(can_socket_, &frame, sizeof(struct can_frame));
+    (void)write_result;  // Explicitly ignore return value
     send_sync_frame();
     std::this_thread::sleep_for(std::chrono::milliseconds(20)); // Brief wait
     
     // 2. Send Enable Operation + New Setpoint (0x001F) + target position (rising edge trigger)
     frame.data[0] = (CONTROL_ENABLE_OPERATION | CONTROL_NEW_SET_POINT) & 0xFF;
-    write(can_socket_, &frame, sizeof(struct can_frame));
+    write_result = write(can_socket_, &frame, sizeof(struct can_frame));
+    (void)write_result;  // Explicitly ignore return value
     send_sync_frame();
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
     
     // 3. Restore Enable Operation (0x000F) + target position (complete handshake)
     frame.data[0] = CONTROL_ENABLE_OPERATION & 0xFF;
-    write(can_socket_, &frame, sizeof(struct can_frame));
+    write_result = write(can_socket_, &frame, sizeof(struct can_frame));
+    (void)write_result;  // Explicitly ignore return value
     send_sync_frame();
     
     RCLCPP_INFO(this->get_logger(), "📤 Position command sent via PDO handshake");
@@ -683,7 +715,7 @@ void CANopenROS2::go_to_position(float angle)
         // Check if fault occurred
         if (status_word & 0x0008 || (status_word & 0x004F) == 0x0040)
         {
-             RCLCPP_ERROR(this->get_logger(), "🚨 Fault or inhibit state detected during movement (0x%04X)", status_word, status_word);
+             RCLCPP_ERROR(this->get_logger(), "🚨 Fault or inhibit state detected during movement (0x%04X)", status_word);
              check_and_clear_error(); // Diagnose error
              // Try to re-enable? Or exit directly
              break;
@@ -696,14 +728,14 @@ void CANopenROS2::go_to_position(float angle)
         // Check target reached bit (bit 10) or position error is small enough
         if ((status_word & 0x0400) || current_diff < 100)
         {
-            RCLCPP_INFO(this->get_logger(), "🎯 Target position reached (status word: 0x%04X, position difference: %d)", status_word, current_diff, status_word, current_diff);
+            RCLCPP_INFO(this->get_logger(), "🎯 Target position reached (status word: 0x%04X, position difference: %d)", status_word, current_diff);
             break;
         }
         
         // Output progress every 5 retries
         if (retry % 5 == 0)
         {
-            RCLCPP_DEBUG(this->get_logger(), "⏳ Waiting for target to arrive... (retry %d/%d, position difference: %d)", retry, max_retries, current_diff, retry, max_retries, current_diff);
+            RCLCPP_DEBUG(this->get_logger(), "⏳ Waiting for target to arrive... (retry %d/%d, position difference: %d)", retry, max_retries, current_diff);
         }
         
         retry++;
@@ -714,20 +746,20 @@ void CANopenROS2::go_to_position(float angle)
         int32_t final_pos = read_sdo(OD_ACTUAL_POSITION, 0x00);
         int32_t final_diff = (position > final_pos) ? (position - final_pos) : (final_pos - position);
         RCLCPP_WARN(this->get_logger(), "⏰ Timeout waiting for target position to arrive (final position difference: %d command units, approximately %.2f°)", 
-                   final_diff, position_to_angle(final_diff), final_diff, position_to_angle(final_diff));
+                   final_diff, position_to_angle(final_diff));
     }
 }
 
 void CANopenROS2::set_velocity(float velocity_deg_per_sec)
 {
-    RCLCPP_INFO(this->get_logger(), "🏃 Set velocity: %.2f°/s", velocity_deg_per_sec, velocity_deg_per_sec);
+    RCLCPP_INFO(this->get_logger(), "🏃 Set velocity: %.2f°/s", velocity_deg_per_sec);
     
     // Read current operation mode
     int32_t mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
     
     if (mode != MODE_PROFILE_VELOCITY)
     {
-        RCLCPP_WARN(this->get_logger(), "⚠️ Currently not in velocity mode, cannot set velocity. Current mode: %d", mode, mode);
+        RCLCPP_WARN(this->get_logger(), "⚠️ Currently not in velocity mode, cannot set velocity. Current mode: %d", mode);
         return;
     }
     
@@ -741,16 +773,16 @@ void CANopenROS2::set_velocity(float velocity_deg_per_sec)
     // Enable operation
     write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_ENABLE_OPERATION, 2);
     
-    RCLCPP_INFO(this->get_logger(), "✅ Velocity set: %.2f°/s (command units: %d)", velocity_deg_per_sec, velocity_units, velocity_deg_per_sec, velocity_units);
+    RCLCPP_INFO(this->get_logger(), "✅ Velocity set: %.2f°/s (command units: %d)", velocity_deg_per_sec, velocity_units);
 }
 
 void CANopenROS2::set_velocity_pdo(float velocity_deg_per_sec)
 {
-    RCLCPP_INFO(this->get_logger(), "🚀 Set velocity using PDO: %.2f°/s", velocity_deg_per_sec, velocity_deg_per_sec);
+    RCLCPP_INFO(this->get_logger(), "🚀 Set velocity using PDO: %.2f°/s", velocity_deg_per_sec);
     
     // Read current operation mode
     int32_t mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
-    RCLCPP_INFO(this->get_logger(), "🎛️ Current operation mode: %d", mode, mode);
+    RCLCPP_INFO(this->get_logger(), "🎛️ Current operation mode: %d", mode);
     
     // If currently not in velocity mode, need to switch to velocity mode first
     if (mode != MODE_PROFILE_VELOCITY)
@@ -762,11 +794,11 @@ void CANopenROS2::set_velocity_pdo(float velocity_deg_per_sec)
         
         // Check mode again
         mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
-        RCLCPP_INFO(this->get_logger(), "📊 Operation mode after switch: %d", mode, mode);
+        RCLCPP_INFO(this->get_logger(), "📊 Operation mode after switch: %d", mode);
         
         if (mode != MODE_PROFILE_VELOCITY)
         {
-            RCLCPP_ERROR(this->get_logger(), "❌ Unable to switch to velocity mode, current mode: %d. Velocity setting may fail.", mode, mode);
+            RCLCPP_ERROR(this->get_logger(), "❌ Unable to switch to velocity mode, current mode: %d. Velocity setting may fail.", mode);
             // Continue trying to set velocity, but may fail
         }
     }
@@ -810,16 +842,15 @@ void CANopenROS2::set_velocity_pdo(float velocity_deg_per_sec)
     
     if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
     {
-        RCLCPP_ERROR(this->get_logger(), "❌ Failed to send velocity PDO [node %d]", node_id_, node_id_);
+        RCLCPP_ERROR(this->get_logger(), "❌ Failed to send velocity PDO [node %d]", node_id_);
     }
     else
     {
         RCLCPP_DEBUG(this->get_logger(), "📤 Velocity PDO sent [node %d]: %.2f°/s (command units: %d)", 
-                    node_id_, velocity_deg_per_sec, velocity_units,
                     node_id_, velocity_deg_per_sec, velocity_units);
     }
     
-    RCLCPP_INFO(this->get_logger(), "✅ Velocity command sent: %.2f°/s (command units: %d)", velocity_deg_per_sec, velocity_units, velocity_deg_per_sec, velocity_units);
+    RCLCPP_INFO(this->get_logger(), "✅ Velocity command sent: %.2f°/s (command units: %d)", velocity_deg_per_sec, velocity_units);
 }
 
 /**
@@ -840,7 +871,7 @@ void CANopenROS2::set_position_range_limit(int32_t max_val, int32_t min_val)
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     RCLCPP_INFO(this->get_logger(),
-        "📐 Position range limit set: max=%d, min=%d (0x607B:01/02)",
+        "👌🏼 Position range limit set: max=%d, min=%d (0x607B:01/02)",
         max_val, min_val);
 }
 

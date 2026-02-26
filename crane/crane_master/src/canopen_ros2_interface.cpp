@@ -66,19 +66,19 @@ void CANopenROS2::publish_status()
 void CANopenROS2::position_callback(const std_msgs::msg::Float32::SharedPtr msg)
 {
     float angle = msg->data;
-    RCLCPP_INFO(this->get_logger(), "📍 Received target position: %.2f°", angle, angle);
+    RCLCPP_INFO(this->get_logger(), "📍 Received target position: %.2f°", angle);
     
     // Add more debug information
-    RCLCPP_INFO(this->get_logger(), "🔌 Current CAN socket: %d", can_socket_, can_socket_);
-    RCLCPP_INFO(this->get_logger(), "🆔 Current node ID: %d", node_id_, node_id_);
+    RCLCPP_INFO(this->get_logger(), "🔌 Current CAN socket: %d", can_socket_);
+    RCLCPP_INFO(this->get_logger(), "🆔 Current node ID: %d", node_id_);
     
     // Read current status word
     int32_t status_word = read_sdo(OD_STATUS_WORD, 0x00);
-    RCLCPP_INFO(this->get_logger(), "📊 Current status word: 0x%04X", status_word, status_word);
+    RCLCPP_INFO(this->get_logger(), "👉🏼 Current status word: 0x%04X", status_word);
     
     // Read current operation mode
     int32_t mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
-    RCLCPP_INFO(this->get_logger(), "Current operation mode: %d", mode);
+    RCLCPP_INFO(this->get_logger(), "👉🏼Current operation mode: %d", mode);
     
     go_to_position(angle);
 }
@@ -86,7 +86,7 @@ void CANopenROS2::position_callback(const std_msgs::msg::Float32::SharedPtr msg)
 void CANopenROS2::velocity_callback(const std_msgs::msg::Float32::SharedPtr msg)
 {
     float velocity = msg->data;
-    RCLCPP_INFO(this->get_logger(), "🏃 Received target velocity: %.2f°/s", velocity, velocity);
+    RCLCPP_INFO(this->get_logger(), "🏃 Received target velocity: %.2f°/s", velocity);
     
     // Try to set velocity using PDO
     set_velocity_pdo(velocity);
@@ -95,7 +95,7 @@ void CANopenROS2::velocity_callback(const std_msgs::msg::Float32::SharedPtr msg)
 void CANopenROS2::handle_start(const std::shared_ptr<std_srvs::srv::Trigger::Request>,
                  std::shared_ptr<std_srvs::srv::Trigger::Response> response)
 {
-    RCLCPP_INFO(this->get_logger(), "▶️ Received start request");
+    RCLCPP_INFO(this->get_logger(), "✋🏼 Received start request");
     
     try
     {
@@ -113,7 +113,7 @@ void CANopenROS2::handle_start(const std::shared_ptr<std_srvs::srv::Trigger::Req
 void CANopenROS2::handle_stop(const std::shared_ptr<std_srvs::srv::Trigger::Request>,
                 std::shared_ptr<std_srvs::srv::Trigger::Response> response)
 {
-    RCLCPP_INFO(this->get_logger(), "⏹️ Received stop request");
+    RCLCPP_INFO(this->get_logger(), "✋🏼 Received stop request");
     
     try
     {
@@ -155,18 +155,18 @@ void CANopenROS2::handle_reset(const std::shared_ptr<std_srvs::srv::Trigger::Req
 void CANopenROS2::handle_set_mode(const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
                     std::shared_ptr<std_srvs::srv::SetBool::Response> response)
 {
-    RCLCPP_INFO(this->get_logger(), "🎛️ Received set mode request: %s", request->data ? "Position mode" : "Velocity mode", request->data ? "Position mode" : "Velocity mode");
+    RCLCPP_INFO(this->get_logger(), "📨 Received set mode request: %s", request->data ? "Position mode" : "Velocity mode");
     
     try
     {
         // Read current operation mode
         int32_t current_mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
-        RCLCPP_INFO(this->get_logger(), "📊 Current operation mode: %d", current_mode, current_mode);
+        RCLCPP_INFO(this->get_logger(), " 👉🏼Current operation mode: %d", current_mode);
         
         if (request->data)
         {
             // Switch to position mode
-            RCLCPP_INFO(this->get_logger(), "📍 Switching to position mode...");
+            RCLCPP_INFO(this->get_logger(), "👀 Switching to position mode...");
             
             // 1. First set position mode parameters (from ROS2 parameters)
             set_profile_parameters(profile_velocity_, profile_acceleration_, profile_deceleration_);
@@ -183,19 +183,19 @@ void CANopenROS2::handle_set_mode(const std::shared_ptr<std_srvs::srv::SetBool::
                 write_sdo(OD_TARGET_POSITION, 0x00, current_position, 4);
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 
-                response->message = "Successfully switched to position mode";
+                response->message = "💁🏼‍♀️Successfully switched to position mode";
                 response->success = true;
             }
             else
             {
-                response->message = "Failed to switch to position mode, current mode: " + std::to_string(new_mode);
+                response->message = "🤦🏼‍♀️Failed to switch to position mode, current mode: " + std::to_string(new_mode);
                 response->success = false;
             }
         }
         else
         {
             // Switch to velocity mode
-            RCLCPP_INFO(this->get_logger(), "🏃 Switching to velocity mode...");
+            RCLCPP_INFO(this->get_logger(), "👀 Switching to velocity mode...");
             
             // 1. First set velocity mode parameters (from ROS2 parameter: profile_velocity)
             set_profile_velocity(profile_velocity_);
@@ -211,12 +211,12 @@ void CANopenROS2::handle_set_mode(const std::shared_ptr<std_srvs::srv::SetBool::
                 write_sdo(0x60FF, 0x00, 0, 4);  // 0x60FF is target velocity object
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 
-                response->message = "Successfully switched to velocity mode";
+                response->message = "💁🏼Successfully switched to velocity mode";
                 response->success = true;
             }
             else
             {
-                response->message = "Failed to switch to velocity mode, current mode: " + std::to_string(new_mode);
+                response->message = "🤷🏼Failed to switch to velocity mode, current mode: " + std::to_string(new_mode);
                 response->success = false;
             }
         }

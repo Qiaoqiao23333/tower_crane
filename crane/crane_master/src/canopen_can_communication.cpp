@@ -98,7 +98,7 @@ void CANopenROS2::send_sync_frame()
     }
     else
     {
-        RCLCPP_DEBUG(this->get_logger(), "🔄 Sync frame sent");
+        RCLCPP_DEBUG(this->get_logger(), "👌🏼Sync frame sent");
     }
 }
 
@@ -315,7 +315,7 @@ void CANopenROS2::receive_can_frames()
             {
                 sdo_read_value_ = data;
                 sdo_response_received_ = true;
-                RCLCPP_DEBUG(this->get_logger(), "✅ SDO response matched, setting flag and data: 0x%08X (%d)", data, data);
+                RCLCPP_DEBUG(this->get_logger(), "✅ SDO response matched, setting flag and data: 0x%08X (%d)", data, static_cast<int>(data));
             }
             
             // 📊 Also handle specific SDO updates (for status monitoring)

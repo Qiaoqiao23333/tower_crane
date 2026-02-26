@@ -102,16 +102,16 @@ std::pair<uint32_t, uint32_t> CANopenROS2::calculate_gear_ratio_params(float gea
         max_iter--;
     }
 
-    uint32_t numerator = static_cast<uint32_t>(std::round(num));
-    uint32_t denominator = static_cast<uint32_t>(std::round(den));
+    uint32_t result_numerator = static_cast<uint32_t>(std::round(num));
+    uint32_t result_denominator = static_cast<uint32_t>(std::round(den));
 
     // ➗ Reduce fraction
-    uint32_t common = calculate_gcd(numerator, denominator);
+    uint32_t common = calculate_gcd(result_numerator, result_denominator);
     
     if (common > 0) {
-        numerator /= common;
-        denominator /= common;
+        result_numerator /= common;
+        result_denominator /= common;
     }
 
-    return std::make_pair(numerator, denominator);
+    return std::make_pair(result_numerator, result_denominator);
 }

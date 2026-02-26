@@ -33,27 +33,33 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     position_range_limit_min_ = static_cast<int32_t>(this->get_parameter("position_range_limit_min").as_int());
     
     // Calculate and cache conversion ratios
-    // Formula: (angle / 360°) × (position_factor_num / position_factor_den / gear_ratio_) = command units
-    // Example: 90° → (90/360) × (10000/10) = 0.25 × 1000 = 250 units
-    units_per_degree_ = (static_cast<float>(position_factor_numerator_) / static_cast<float>(position_factor_denominator_) / gear_ratio_) / 360.0f;
-    degrees_per_unit_ = (gear_ratio_ / (static_cast<float>(position_factor_numerator_) / static_cast<float>(position_factor_denominator_))) * 360.0f;
+    // Formula: units_per_degree_ = (position_factor_num / position_factor_den * gear_ratio) / 360.0
+    //          Then: position = angle × units_per_degree_
+    // gear_ratio = motor_revolutions / output_shaft_revolutions
+    // 1 motor revolution = position_factor_num / position_factor_den command units
+    // 1 output revolution = gear_ratio motor revolutions = gear_ratio × (pfn/pfd) command units
+    // 1 output degree = gear_ratio × (pfn/pfd) / 360 command units
+    // Example: With position_factor_num=10000, position_factor_den=1, gear_ratio=10:
+    //          units_per_degree_ = (10000/1*10)/360 = 277.778
+    //          90° → 90 × 277.778 = 25000 units (2.5 motor revolutions)
+    //          360° → 360 × 277.778 = 100000 units (10 motor revolutions)
+    units_per_degree_ = (static_cast<float>(position_factor_numerator_) / static_cast<float>(position_factor_denominator_) * gear_ratio_) / 360.0f;
+    degrees_per_unit_ = 360.0f / (static_cast<float>(position_factor_numerator_) / static_cast<float>(position_factor_denominator_) * gear_ratio_);
     
     // Log the calculated values for debugging
     std::pair<uint32_t, uint32_t> gear_params = calculate_gear_ratio_params(gear_ratio_, position_factor_numerator_, position_factor_denominator_);
     RCLCPP_INFO(this->get_logger(), "⚙️ Physical gear ratio: %.2f, Position factor: %u/%u, Electronic gear ratio params: (%u, %u), Units/degree: %.6f", 
-               gear_ratio_, position_factor_numerator_, position_factor_denominator_, gear_params.first, gear_params.second, units_per_degree_,
                gear_ratio_, position_factor_numerator_, position_factor_denominator_, gear_params.first, gear_params.second, units_per_degree_);
     
     // Debug: print read parameter values
     RCLCPP_INFO(this->get_logger(), "🔍 [DEBUG] Node name: %s, Read node_id parameter value: '%s', Gear ratio: %.2f", 
-                 this->get_name(), node_id_str.c_str(), gear_ratio_,
                  this->get_name(), node_id_str.c_str(), gear_ratio_);
     
     // Convert node_id string to integer
     try {
         node_id_ = std::stoi(node_id_str);
     } catch (const std::exception& e) {
-        RCLCPP_WARN(this->get_logger(), "⚠️ Failed to parse node_id parameter '%s', trying to extract from node name", node_id_str.c_str(), node_id_str.c_str());
+        RCLCPP_WARN(this->get_logger(), "⚠️ Failed to parse node_id parameter '%s', trying to extract from node name", node_id_str.c_str());
         // If parameter parsing fails, try to extract from node name (e.g., canopen_ros2_node1 -> 1)
         std::string node_name = this->get_name();
         size_t node_pos = node_name.find("node");
@@ -62,7 +68,7 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
             if (num_start < node_name.length()) {
                 try {
                     node_id_ = std::stoi(node_name.substr(num_start));
-                    RCLCPP_INFO(this->get_logger(), "✅ Extracted node ID %d from node name '%s'", node_id_, node_name.c_str(), node_id_, node_name.c_str());
+                    RCLCPP_INFO(this->get_logger(), "✅ Extracted node ID %d from node name '%s'", node_id_, node_name.c_str());
                 } catch (...) {
                     node_id_ = 1;
                     RCLCPP_WARN(this->get_logger(), "⚠️ Failed to extract node ID from node name, using default value 1");
@@ -86,7 +92,6 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
                 int extracted_id = std::stoi(node_name.substr(num_start));
                 if (extracted_id >= 1 && extracted_id <= 3 && extracted_id != node_id_) {
                     RCLCPP_WARN(this->get_logger(), "⚠️ Node name '%s' indicates node ID should be %d, but parameter value is %d, using node name value", 
-                               node_name.c_str(), extracted_id, node_id_,
                                node_name.c_str(), extracted_id, node_id_);
                     node_id_ = extracted_id;
                 }
@@ -97,7 +102,6 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     }
     
     RCLCPP_INFO(this->get_logger(), "🏗️ Initializing tower crane control, node name=%s, CAN interface=%s, node ID=%d (original parameter value: '%s'), gear ratio=%.2f", 
-                this->get_name(), can_interface_.c_str(), node_id_, node_id_str.c_str(), gear_ratio_,
                 this->get_name(), can_interface_.c_str(), node_id_, node_id_str.c_str(), gear_ratio_);
     
     // Initialize CAN socket
@@ -169,12 +173,11 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     {
         float calculated_gear_ratio = static_cast<float>(motor_revolutions) / static_cast<float>(shaft_revolutions);
         RCLCPP_INFO(this->get_logger(), "⚙️ Current gear ratio (0x6091): Motor revolutions=%d, Shaft revolutions=%d, Calculated value=%.2f (Configured value=%.2f)", 
-                   motor_revolutions, shaft_revolutions, calculated_gear_ratio, gear_ratio_,
                    motor_revolutions, shaft_revolutions, calculated_gear_ratio, gear_ratio_);
     }
     else
     {
-        RCLCPP_INFO(this->get_logger(), "⚠️ Unable to read or invalid gear ratio (0x6091), using configured value: %.2f", gear_ratio_, gear_ratio_);
+        RCLCPP_INFO(this->get_logger(), "⚠️ Unable to read or invalid gear ratio (0x6091), using configured value: %.2f", gear_ratio_);
     }
     
     // Set position factor (0x6093 sub1=numerator, sub2=denominator)
@@ -189,8 +192,36 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     // Set position range limit (0x607B sub1=max, sub2=min)
     set_position_range_limit(position_range_limit_max_, position_range_limit_min_);
 
-    // Set target position (e.g., move to 90 degrees)
-    go_to_position(0.0);
+    // Ensure motor stays still: set target velocity to 0 and target position to current position
+    RCLCPP_INFO(this->get_logger(), "🛑 Ensuring motor stays still at startup...");
+    
+    // 1. Set target velocity to 0 (important if motor was in velocity mode)
+    set_target_velocity(0);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    // 2. Ensure we're in position mode (should already be set, but double-check)
+    int32_t current_mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
+    if (current_mode != MODE_PROFILE_POSITION)
+    {
+        RCLCPP_WARN(this->get_logger(), "⚠️ Motor not in position mode (current: %d), switching to position mode...", current_mode);
+        set_operation_mode(MODE_PROFILE_POSITION);
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
+    
+    // 3. Read current position and set target position to current position (keep motor still)
+    int32_t current_position = read_sdo(OD_ACTUAL_POSITION, 0x00);
+    if (current_position >= 0)
+    {
+        write_sdo(OD_TARGET_POSITION, 0x00, current_position, 4);
+        float current_angle = position_to_angle(current_position);
+        RCLCPP_INFO(this->get_logger(), "📍 Motor initialized at current position: %.2f° (keeping still)", current_angle);
+    }
+    else
+    {
+        RCLCPP_WARN(this->get_logger(), "⚠️ Unable to read current position, setting target to 0");
+        write_sdo(OD_TARGET_POSITION, 0x00, 0, 4);
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     // Now all initialization is complete, create timer for receiving CAN frames
     timer_ = this->create_wall_timer(
