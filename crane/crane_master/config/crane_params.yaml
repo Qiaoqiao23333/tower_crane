@@ -22,6 +22,7 @@
     node_id: "1"    # 🆔 CANopen node ID on the bus (must match bus.yml / drive DIP-switch)
     gear_ratio: 0.05    # ⚙️ Physical gear reduction ratio  (motor_revolutions / output_shaft_revolutions)
     target_units_per_rev: 10000    # 📊 Command units per output shaft revolution
+    max_profile_velocity: 10.0    # 📌 0x607F: Max profile velocity limit [r/s] (uint32)
     profile_velocity: 30.0    # 🏃 Default profile velocity   [°/s]
     profile_acceleration: 30.0    # ⬆️ Default profile acceleration [°/s²]
     profile_deceleration: 30.0    # ⬇️ Default profile deceleration [°/s²]
@@ -38,6 +39,7 @@
     node_id: "2"
     gear_ratio: 0.1
     target_units_per_rev: 10000
+    max_profile_velocity: 10.0    # 📌 0x607F: Max profile velocity limit [r/s] (uint32)
     profile_velocity: 30.0
     profile_acceleration: 30.0
     profile_deceleration: 30.0
@@ -54,6 +56,7 @@
     node_id: "3"
     gear_ratio: 0.1
     target_units_per_rev: 10000
+    max_profile_velocity: 10.0    # 📌 0x607F: Max profile velocity limit [r/s] (uint32)
     profile_velocity: 30.0
     profile_acceleration: 30.0
     profile_deceleration: 30.0

@@ -70,6 +70,9 @@ void CANopenROS2::initialize_node()
         RCLCPP_INFO(this->get_logger(), "🎛️ Operation mode after PDO setting: %d", mode);
     }
     
+    // 📌 Set max profile velocity limit (from ROS2 parameter: max_profile_velocity)
+    set_max_profile_velocity(max_profile_velocity_);
+    
     // 🏃 Set profile velocity (from ROS2 parameter: profile_velocity)
     set_profile_velocity(profile_velocity_);
     
@@ -859,4 +862,27 @@ void CANopenROS2::set_quick_stop_deceleration(float deceleration_rev_per_sec2)
     RCLCPP_INFO(this->get_logger(),
         "🛑 Quick stop deceleration set: %.2f r/s² (%u command units/s²) (0x6085)",
         deceleration_rev_per_sec2, decel_units);
+}
+
+/**
+ * @brief 📌 Set maximum profile velocity (0x607F)
+ * @details Writes the upper velocity limit to the drive. The drive will clamp
+ *          any profile velocity (0x6081) command to this value.
+ *          Unit accepted here: r/s (revolutions per second of the output shaft).
+ *          Conversion: command_units/s = rev_per_sec × target_units_per_rev_
+ * @param velocity_rev_per_sec  Max profile velocity [r/s]
+ */
+void CANopenROS2::set_max_profile_velocity(float velocity_rev_per_sec)
+{
+    // Convert r/s → command units/s
+    //   1 revolution = target_units_per_rev_ command units
+    uint32_t velocity_units = static_cast<uint32_t>(
+        velocity_rev_per_sec * static_cast<float>(target_units_per_rev_));
+
+    write_sdo(OD_MAX_PROFILE_VELOCITY, 0x00, static_cast<int32_t>(velocity_units), 4);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    RCLCPP_INFO(this->get_logger(),
+        "📌 Max profile velocity set: %.2f r/s (%u command units/s) (0x607F)",
+        velocity_rev_per_sec, velocity_units);
 }

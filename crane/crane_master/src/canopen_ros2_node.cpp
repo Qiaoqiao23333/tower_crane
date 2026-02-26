@@ -9,6 +9,7 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     this->declare_parameter<std::string>("node_id");
     this->declare_parameter<float>("gear_ratio");
     this->declare_parameter<int>("target_units_per_rev");
+    this->declare_parameter<float>("max_profile_velocity");
     this->declare_parameter<float>("profile_velocity");
     this->declare_parameter<float>("profile_acceleration");
     this->declare_parameter<float>("profile_deceleration");
@@ -21,6 +22,7 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     std::string node_id_str = this->get_parameter("node_id").as_string();
     gear_ratio_ = this->get_parameter("gear_ratio").as_double();
     target_units_per_rev_ = this->get_parameter("target_units_per_rev").as_int();
+    max_profile_velocity_ = static_cast<float>(this->get_parameter("max_profile_velocity").as_double());
     profile_velocity_ = static_cast<float>(this->get_parameter("profile_velocity").as_double());
     profile_acceleration_ = static_cast<float>(this->get_parameter("profile_acceleration").as_double());
     profile_deceleration_ = static_cast<float>(this->get_parameter("profile_deceleration").as_double());
@@ -173,6 +175,9 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
         RCLCPP_INFO(this->get_logger(), "⚠️ Unable to read or invalid gear ratio (0x6091), using configured value: %.2f", gear_ratio_, gear_ratio_);
     }
     
+    // Set max profile velocity limit (0x607F)
+    set_max_profile_velocity(max_profile_velocity_);
+
     // Set quick stop deceleration (0x6085)
     set_quick_stop_deceleration(quick_stop_deceleration_);
 
