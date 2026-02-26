@@ -70,6 +70,9 @@ void CANopenROS2::initialize_node()
         RCLCPP_INFO(this->get_logger(), "🎛️ Operation mode after PDO setting: %d", mode);
     }
     
+    // ⚖️ Set position factor (from ROS2 parameters: position_factor_numerator / denominator)
+    set_position_factor(position_factor_numerator_, position_factor_denominator_);
+    
     // 📌 Set max profile velocity limit (from ROS2 parameter: max_profile_velocity)
     set_max_profile_velocity(max_profile_velocity_);
     
@@ -851,10 +854,10 @@ void CANopenROS2::set_position_range_limit(int32_t max_val, int32_t min_val)
 void CANopenROS2::set_quick_stop_deceleration(float deceleration_rev_per_sec2)
 {
     // Convert r/s² to position command units/s²:
-    //   1 revolution = target_units_per_rev_ command units
-    //   command_units/s² = deceleration_rev_per_sec2 * target_units_per_rev_
+    //   1 revolution = position_factor_numerator_ / position_factor_denominator_ command units
+    //   command_units/s² = deceleration_rev_per_sec2 * (num / den)
     uint32_t decel_units = static_cast<uint32_t>(
-        deceleration_rev_per_sec2 * static_cast<float>(target_units_per_rev_));
+        deceleration_rev_per_sec2 * (static_cast<float>(position_factor_numerator_) / static_cast<float>(position_factor_denominator_)));
 
     write_sdo(OD_QUICK_STOP_DECEL, 0x00, static_cast<int32_t>(decel_units), 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -869,15 +872,15 @@ void CANopenROS2::set_quick_stop_deceleration(float deceleration_rev_per_sec2)
  * @details Writes the upper velocity limit to the drive. The drive will clamp
  *          any profile velocity (0x6081) command to this value.
  *          Unit accepted here: r/s (revolutions per second of the output shaft).
- *          Conversion: command_units/s = rev_per_sec × target_units_per_rev_
+ *          Conversion: command_units/s = rev_per_sec × (position_factor_numerator_ / position_factor_denominator_)
  * @param velocity_rev_per_sec  Max profile velocity [r/s]
  */
 void CANopenROS2::set_max_profile_velocity(float velocity_rev_per_sec)
 {
     // Convert r/s → command units/s
-    //   1 revolution = target_units_per_rev_ command units
+    //   1 revolution = position_factor_numerator_ / position_factor_denominator_ command units
     uint32_t velocity_units = static_cast<uint32_t>(
-        velocity_rev_per_sec * static_cast<float>(target_units_per_rev_));
+        velocity_rev_per_sec * (static_cast<float>(position_factor_numerator_) / static_cast<float>(position_factor_denominator_)));
 
     write_sdo(OD_MAX_PROFILE_VELOCITY, 0x00, static_cast<int32_t>(velocity_units), 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -885,4 +888,45 @@ void CANopenROS2::set_max_profile_velocity(float velocity_rev_per_sec)
     RCLCPP_INFO(this->get_logger(),
         "📌 Max profile velocity set: %.2f r/s (%u command units/s) (0x607F)",
         velocity_rev_per_sec, velocity_units);
+}
+
+/**
+ * @brief ⚖️ Set position factor (0x6093)
+ * @details Configures the drive's internal position scaling between the host-side
+ *          position demand value (what we write to 0x607A / read from 0x6064) and
+ *          the encoder-increment domain used by the drive hardware.
+ *
+ *          CiA 402 formula:
+ *            position_demand [drive units] = encoder_increments × Numerator / Denominator
+ *
+ *          Typical use: set Numerator = desired_units_per_revolution and
+ *                           Denominator = encoder_counts_per_revolution
+ *          so that 1 position unit on the host equals exactly 1 encoder count × scaling.
+ *
+ *          With Numerator = Denominator = 1 (unity, the default) the host unit equals
+ *          one raw encoder increment and all unit conversion remains in software.
+ *
+ * @param numerator    0x6093:01  (uint32)
+ * @param denominator  0x6093:02  (uint32, must be ≠ 0)
+ */
+void CANopenROS2::set_position_factor(uint32_t numerator, uint32_t denominator)
+{
+    if (denominator == 0)
+    {
+        RCLCPP_ERROR(this->get_logger(),
+            "❌ position_factor_denominator must not be 0 – skipping 0x6093 write");
+        return;
+    }
+
+    // Sub-index 1: Numerator
+    write_sdo(OD_POSITION_FACTOR, 0x01, static_cast<int32_t>(numerator), 4);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Sub-index 2: Denominator
+    write_sdo(OD_POSITION_FACTOR, 0x02, static_cast<int32_t>(denominator), 4);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    RCLCPP_INFO(this->get_logger(),
+        "⚖️ Position factor set: %u / %u (0x6093:01 / 0x6093:02)",
+        numerator, denominator);
 }

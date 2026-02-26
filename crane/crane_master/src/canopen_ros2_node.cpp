@@ -8,7 +8,8 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     this->declare_parameter<std::string>("can_interface");
     this->declare_parameter<std::string>("node_id");
     this->declare_parameter<float>("gear_ratio");
-    this->declare_parameter<int>("target_units_per_rev");
+    this->declare_parameter<int>("position_factor_numerator");
+    this->declare_parameter<int>("position_factor_denominator");
     this->declare_parameter<float>("max_profile_velocity");
     this->declare_parameter<float>("profile_velocity");
     this->declare_parameter<float>("profile_acceleration");
@@ -21,7 +22,8 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     can_interface_ = this->get_parameter("can_interface").as_string();
     std::string node_id_str = this->get_parameter("node_id").as_string();
     gear_ratio_ = this->get_parameter("gear_ratio").as_double();
-    target_units_per_rev_ = this->get_parameter("target_units_per_rev").as_int();
+    position_factor_numerator_   = static_cast<uint32_t>(this->get_parameter("position_factor_numerator").as_int());
+    position_factor_denominator_ = static_cast<uint32_t>(this->get_parameter("position_factor_denominator").as_int());
     max_profile_velocity_ = static_cast<float>(this->get_parameter("max_profile_velocity").as_double());
     profile_velocity_ = static_cast<float>(this->get_parameter("profile_velocity").as_double());
     profile_acceleration_ = static_cast<float>(this->get_parameter("profile_acceleration").as_double());
@@ -31,16 +33,16 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     position_range_limit_min_ = static_cast<int32_t>(this->get_parameter("position_range_limit_min").as_int());
     
     // Calculate and cache conversion ratios
-    // Formula: (angle / 360°) × (target_units_per_rev_ / gear_ratio_) = command units
+    // Formula: (angle / 360°) × (position_factor_num / position_factor_den / gear_ratio_) = command units
     // Example: 90° → (90/360) × (10000/10) = 0.25 × 1000 = 250 units
-    units_per_degree_ = (static_cast<float>(target_units_per_rev_) / gear_ratio_) / 360.0f;
-    degrees_per_unit_ = (gear_ratio_ / static_cast<float>(target_units_per_rev_)) * 360.0f;
+    units_per_degree_ = (static_cast<float>(position_factor_numerator_) / static_cast<float>(position_factor_denominator_) / gear_ratio_) / 360.0f;
+    degrees_per_unit_ = (gear_ratio_ / (static_cast<float>(position_factor_numerator_) / static_cast<float>(position_factor_denominator_))) * 360.0f;
     
     // Log the calculated values for debugging
-    std::pair<uint32_t, uint32_t> gear_params = calculate_gear_ratio_params(gear_ratio_, target_units_per_rev_);
-    RCLCPP_INFO(this->get_logger(), "⚙️ Physical gear ratio: %.2f, Target units/rev: %d, Electronic gear ratio params: (%u, %u), Units/degree: %.6f", 
-               gear_ratio_, target_units_per_rev_, gear_params.first, gear_params.second, units_per_degree_,
-               gear_ratio_, target_units_per_rev_, gear_params.first, gear_params.second, units_per_degree_);
+    std::pair<uint32_t, uint32_t> gear_params = calculate_gear_ratio_params(gear_ratio_, position_factor_numerator_, position_factor_denominator_);
+    RCLCPP_INFO(this->get_logger(), "⚙️ Physical gear ratio: %.2f, Position factor: %u/%u, Electronic gear ratio params: (%u, %u), Units/degree: %.6f", 
+               gear_ratio_, position_factor_numerator_, position_factor_denominator_, gear_params.first, gear_params.second, units_per_degree_,
+               gear_ratio_, position_factor_numerator_, position_factor_denominator_, gear_params.first, gear_params.second, units_per_degree_);
     
     // Debug: print read parameter values
     RCLCPP_INFO(this->get_logger(), "🔍 [DEBUG] Node name: %s, Read node_id parameter value: '%s', Gear ratio: %.2f", 
@@ -175,6 +177,9 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
         RCLCPP_INFO(this->get_logger(), "⚠️ Unable to read or invalid gear ratio (0x6091), using configured value: %.2f", gear_ratio_, gear_ratio_);
     }
     
+    // Set position factor (0x6093 sub1=numerator, sub2=denominator)
+    set_position_factor(position_factor_numerator_, position_factor_denominator_);
+
     // Set max profile velocity limit (0x607F)
     set_max_profile_velocity(max_profile_velocity_);
 

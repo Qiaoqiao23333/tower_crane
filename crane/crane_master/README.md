@@ -250,7 +250,6 @@ All services are namespace-specific. Replace `{namespace}` with `hoist`, `trolle
 | can_interface | string | "can0" | CAN interface name |
 | node_id | string | "1" | CANopen node ID ("1", "2", "3", or "all") |
 | gear_ratio | float | 1.0 | Gear ratio (automatically set: hoist=0.05, trolley=0.1, slewing=0.1) |
-| target_units_per_rev | int | 10000 | Command units per output shaft revolution |
 | auto_start | bool | true | Whether to auto-start motor |
 | profile_velocity | float | 30.0 | Profile velocity (degrees/second). Configurable per-axis via launch file or runtime parameter override |
 | profile_acceleration | float | 30.0 | Profile acceleration (degrees/second²). Configurable per-axis via launch file or runtime parameter override |

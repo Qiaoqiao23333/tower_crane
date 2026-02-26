@@ -6,7 +6,7 @@
  * @brief 📐 Convert angle to position command units
  * @param angle Angle (degrees)
  * @return Position command units
- * @details Formula: (angle / 360°) × (target_units_per_rev_ / gear_ratio_) = command units
+ * @details Formula: (angle / 360°) × ((position_factor_num / position_factor_den) / gear_ratio_) = command units
  *          Example: 90° → (90/360) × (10000/10) = 0.25 × 1000 = 250 units
  */
 int32_t CANopenROS2::angle_to_position(float angle)
@@ -19,7 +19,7 @@ int32_t CANopenROS2::angle_to_position(float angle)
  * @brief 📐 Convert position command units to angle
  * @param position Position command units
  * @return Angle (degrees)
- * @details Formula: position × (gear_ratio_ / target_units_per_rev_) × 360° = angle
+ * @details Formula: position × (gear_ratio_ / (position_factor_num / position_factor_den)) × 360° = angle
  *          Example: 250 units → 250 × (10/10000) × 360 = 90°
  */
 float CANopenROS2::position_to_angle(int32_t position)
@@ -82,15 +82,16 @@ static uint32_t calculate_gcd(uint32_t a, uint32_t b) {
 /**
  * @brief ⚙️ Calculate electronic gear ratio parameters
  * @param gear_ratio Physical gear reduction ratio
- * @param target_units_per_rev Target command units per output shaft revolution
+ * @param numerator    Position factor numerator   (0x6093:01)
+ * @param denominator  Position factor denominator (0x6093:02)
  * @return Electronic gear ratio {Numerator, Denominator} corresponding to 0x6091:01 and 0x6091:02
  * @details Formula: (Target_Units) * (Num / Den) = Gear_Ratio
  *          i.e.: Num / Den = Gear_Ratio / Target_Units
  */
-std::pair<uint32_t, uint32_t> CANopenROS2::calculate_gear_ratio_params(float gear_ratio, int32_t target_units_per_rev)
+std::pair<uint32_t, uint32_t> CANopenROS2::calculate_gear_ratio_params(float gear_ratio, uint32_t numerator, uint32_t denominator)
 {
     double num = static_cast<double>(gear_ratio);
-    double den = static_cast<double>(target_units_per_rev);
+    double den = static_cast<double>(numerator) / static_cast<double>(denominator);
 
     // 🔢 Scale up to remove decimal point (supports up to 6 decimal places)
     // Example: 10.5 / 10000 -> 105 / 100000
