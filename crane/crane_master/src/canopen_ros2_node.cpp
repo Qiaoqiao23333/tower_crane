@@ -5,13 +5,15 @@
 CANopenROS2::CANopenROS2() : Node("canopen_ros2")
 {
     // Declare parameters
-    this->declare_parameter<std::string>("can_interface", "can0");
-    this->declare_parameter<std::string>("node_id", "1");
-    this->declare_parameter<float>("gear_ratio", 1.0);
-    this->declare_parameter<int>("target_units_per_rev", 10000);
-    this->declare_parameter<float>("profile_velocity", 30.0);
-    this->declare_parameter<float>("profile_acceleration", 30.0);
-    this->declare_parameter<float>("profile_deceleration", 30.0);
+    this->declare_parameter<std::string>("can_interface");
+    this->declare_parameter<std::string>("node_id");
+    this->declare_parameter<float>("gear_ratio");
+    this->declare_parameter<int>("target_units_per_rev");
+    this->declare_parameter<float>("profile_velocity");
+    this->declare_parameter<float>("profile_acceleration");
+    this->declare_parameter<float>("profile_deceleration");
+    this->declare_parameter<int>("position_range_limit_max");
+    this->declare_parameter<int>("position_range_limit_min");
     
     // Read parameters
     can_interface_ = this->get_parameter("can_interface").as_string();
@@ -21,6 +23,8 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     profile_velocity_ = static_cast<float>(this->get_parameter("profile_velocity").as_double());
     profile_acceleration_ = static_cast<float>(this->get_parameter("profile_acceleration").as_double());
     profile_deceleration_ = static_cast<float>(this->get_parameter("profile_deceleration").as_double());
+    position_range_limit_max_ = static_cast<int32_t>(this->get_parameter("position_range_limit_max").as_int());
+    position_range_limit_min_ = static_cast<int32_t>(this->get_parameter("position_range_limit_min").as_int());
     
     // Calculate and cache conversion ratios
     // Formula: (angle / 360°) × (target_units_per_rev_ / gear_ratio_) = command units
@@ -167,6 +171,9 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
         RCLCPP_INFO(this->get_logger(), "⚠️ Unable to read or invalid gear ratio (0x6091), using configured value: %.2f", gear_ratio_, gear_ratio_);
     }
     
+    // Set position range limit (0x607B sub1=max, sub2=min)
+    set_position_range_limit(position_range_limit_max_, position_range_limit_min_);
+
     // Set target position (e.g., move to 90 degrees)
     go_to_position(0.0);
     

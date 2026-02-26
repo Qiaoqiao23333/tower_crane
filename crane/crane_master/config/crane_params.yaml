@@ -18,29 +18,15 @@
 # ---------------------------------------------------------------------------
 /hoist/canopen_ros2_node1:
   ros__parameters:
-    # 📡 CAN bus interface (e.g. "can0", "can1")
     can_interface: "can0"
-
-    # 🆔 CANopen node ID on the bus (must match bus.yml / drive DIP-switch)
-    node_id: "1"
-
-    # ⚙️ Physical gear reduction ratio  (motor_revolutions / output_shaft_revolutions)
-    #    e.g. 0.05 means 1 output revolution requires 20 motor revolutions
-    gear_ratio: 0.05
-
-    # 📊 Command units per output shaft revolution
-    #    Determined by the drive's encoder resolution × any internal scaling.
-    #    Default: 10000  (10 000 counts/rev)
-    target_units_per_rev: 10000
-
-    # 🏃 Default profile velocity   [°/s]
-    profile_velocity: 30.0
-
-    # ⬆️ Default profile acceleration [°/s²]
-    profile_acceleration: 30.0
-
-    # ⬇️ Default profile deceleration [°/s²]
-    profile_deceleration: 30.0
+    node_id: "1"    # 🆔 CANopen node ID on the bus (must match bus.yml / drive DIP-switch)
+    gear_ratio: 0.05    # ⚙️ Physical gear reduction ratio  (motor_revolutions / output_shaft_revolutions)
+    target_units_per_rev: 10000    # 📊 Command units per output shaft revolution
+    profile_velocity: 30.0    # 🏃 Default profile velocity   [°/s]
+    profile_acceleration: 30.0    # ⬆️ Default profile acceleration [°/s²]
+    profile_deceleration: 30.0    # ⬇️ Default profile deceleration [°/s²]
+    position_range_limit_max: 2147483647    # 0x607B sub1: Maximum position range limit [r] (int32)
+    position_range_limit_min: -2147483648    # 0x607B sub2: Minimum position range limit [r] (int32)
 
 # ---------------------------------------------------------------------------
 # 🚃 Node 2 – Trolley joint
@@ -54,6 +40,8 @@
     profile_velocity: 30.0
     profile_acceleration: 30.0
     profile_deceleration: 30.0
+    position_range_limit_max: 2147483647    # 0x607B sub1: Maximum position range limit [r] (int32)
+    position_range_limit_min: -2147483648    # 0x607B sub2: Minimum position range limit [r] (int32)
 
 # ---------------------------------------------------------------------------
 # 🔄 Node 3 – Slewing joint
@@ -67,3 +55,5 @@
     profile_velocity: 30.0
     profile_acceleration: 30.0
     profile_deceleration: 30.0
+    position_range_limit_max: 2147483647    # 0x607B sub1: Maximum position range limit [r] (int32)
+    position_range_limit_min: -2147483648    # 0x607B sub2: Minimum position range limit [r] (int32)

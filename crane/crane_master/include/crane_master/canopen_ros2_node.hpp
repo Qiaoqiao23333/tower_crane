@@ -66,6 +66,7 @@
 #define OD_OPERATION_MODE        0x6060 // 🔧 Operation mode (write)
 #define OD_OPERATION_MODE_DISPLAY 0x6061 // 👁️ Operation mode display (read-only)
 #define OD_TARGET_POSITION       0x607A // 🎯 Target position
+#define OD_POSITION_RANGE_LIMIT  0x607B // 📐 Position range limit (sub1=max, sub2=min)
 #define OD_TARGET_VELOCITY       0x60FF // 🏃 Target velocity
 #define OD_ACTUAL_POSITION       0x6064 // 📍 Actual position
 #define OD_ACTUAL_VELOCITY       0x606C // 📈 Actual velocity
@@ -120,6 +121,7 @@ private:
     void set_profile_velocity(float velocity_deg_per_sec);               // 🏃 Set profile velocity
     void set_profile_acceleration(float acceleration_deg_per_sec2);      // ⬆️ Set profile acceleration
     void set_profile_deceleration(float deceleration_deg_per_sec2);      // ⬇️ Set profile deceleration
+    void set_position_range_limit(int32_t max_val, int32_t min_val);         // 📐 Set position range limit (0x607B)
     void set_profile_parameters(float velocity_deg_per_sec, float acceleration_deg_per_sec2, float deceleration_deg_per_sec2);  // 📏 Set profile parameters
     void set_control_word(uint16_t control_word);                        // 🎮 Set control word
     void set_target_velocity(int32_t velocity_units_per_sec);            // 🎯 Set target velocity
@@ -163,6 +165,8 @@ private:
     float profile_velocity_ = 30.0;                // 🏃 Default profile velocity (°/s)
     float profile_acceleration_ = 30.0;            // ⬆️ Default profile acceleration (°/s²)
     float profile_deceleration_ = 30.0;            // ⬇️ Default profile deceleration (°/s²)
+    int32_t position_range_limit_max_ = 2147483647;   // 📐 Max position range limit (0x607B:01) [position units]
+    int32_t position_range_limit_min_ = -2147483648;  // 📐 Min position range limit (0x607B:02) [position units]
     int can_socket_ = -1;                          // 🔌 CAN socket file descriptor
     uint16_t status_word_ = 0;                     // 📊 Current status word
     int32_t position_ = 0;                         // 📍 Current position (command units)

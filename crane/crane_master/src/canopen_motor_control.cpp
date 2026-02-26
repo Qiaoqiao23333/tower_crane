@@ -79,6 +79,9 @@ void CANopenROS2::initialize_node()
     // ⬇️ Set profile deceleration (from ROS2 parameter: profile_deceleration)
     set_profile_deceleration(profile_deceleration_);
     
+    // 📐 Set position range limit (0x607B sub1=max, sub2=min, from ROS2 parameters)
+    set_position_range_limit(position_range_limit_max_, position_range_limit_min_);
+    
     // ⏸️ Disable sync generator
     write_sdo(OD_CYCLE_PERIOD, 0x00, 0, 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -808,4 +811,26 @@ void CANopenROS2::set_velocity_pdo(float velocity_deg_per_sec)
     }
     
     RCLCPP_INFO(this->get_logger(), "✅ Velocity command sent: %.2f°/s (command units: %d)", velocity_deg_per_sec, velocity_units, velocity_deg_per_sec, velocity_units);
+}
+
+/**
+ * @brief 📐 Set position range limit (0x607B)
+ * @details Writes sub-index 1 (maximum) and sub-index 2 (minimum) position range limits
+ *          to the drive object dictionary. Units are position command units (same as 0x607A).
+ * @param max_val  Maximum position range limit [position units] → 0x607B:01
+ * @param min_val  Minimum position range limit [position units] → 0x607B:02
+ */
+void CANopenROS2::set_position_range_limit(int32_t max_val, int32_t min_val)
+{
+    // Write maximum position range limit → 0x607B sub-index 1
+    write_sdo(OD_POSITION_RANGE_LIMIT, 0x01, max_val, 4);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Write minimum position range limit → 0x607B sub-index 2
+    write_sdo(OD_POSITION_RANGE_LIMIT, 0x02, min_val, 4);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    RCLCPP_INFO(this->get_logger(),
+        "📐 Position range limit set: max=%d, min=%d (0x607B:01/02)",
+        max_val, min_val);
 }
