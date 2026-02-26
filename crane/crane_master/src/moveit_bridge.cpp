@@ -14,21 +14,21 @@
 #include "control_msgs/action/follow_joint_trajectory.hpp"
 #include "trajectory_msgs/msg/joint_trajectory_point.hpp"
 
-// 📐 辅助函数：角度转弧度 (用于旋转关节)
+// 📐 Helper function: degrees to radians (for revolute joints)
 static double deg2rad(double deg) {
     return deg * M_PI / 180.0;
 }
 
-// 📐 辅助函数：弧度转角度 (用于旋转关节)
+// 📐 Helper function: radians to degrees (for revolute joints)
 static double rad2deg(double rad) {
     return rad * 180.0 / M_PI;
 }
 
-// 📐 辅助函数：角度转米 (用于移动关节: Hoist, Trolley)
-// ⚠️ TODO: 用户需要根据实际卷扬机/丝杠参数修改此转换系数
-// 假设: 电机转动 1 度对应的直线移动距离 (米)
-static const double METERS_PER_DEGREE_HOIST = 0.001; // 示例值
-static const double METERS_PER_DEGREE_TROLLEY = 0.001; // 示例值
+// 📐 Helper function: degrees to meters (for prismatic joints: Hoist, Trolley)
+// ⚠️ TODO: User needs to modify this conversion coefficient based on actual hoist/lead screw parameters
+// Assumption: linear movement distance (meters) corresponding to motor rotation of 1 degree
+static const double METERS_PER_DEGREE_HOIST = 0.001; // Example value
+static const double METERS_PER_DEGREE_TROLLEY = 0.001; // Example value
 
 static double deg2meter(double deg, double ratio) {
     return deg * ratio;
@@ -46,17 +46,17 @@ public:
 
     CraneMoveItBridge() : Node("moveit_bridge") {
         // -----------------------------------------------------------------------
-        // 1. 配置部分 (Configuration)
+        // 1. Configuration Section
         // -----------------------------------------------------------------------
         
-        // 注意：这里的关节名称顺序必须与 ros2_controllers.yaml 中的配置保持一致
-        // 同时也需要与 MoveIt 配置包 (tower_crane_moveit_config) 中的 SRDF/URDF 一致
+        // Note: The joint name order here must match the configuration in ros2_controllers.yaml
+        // Also needs to match the SRDF/URDF in the MoveIt configuration package (tower_crane_moveit_config)
         joint_names_ = {"hook_joint", "trolley_joint", "slewing_joint"};
 
         // -----------------------------------------------------------------------
-        // 2. 订阅底层电机反馈 (Subscribers - From CANopen Nodes)
+        // 2. Subscribe to Low-level Motor Feedback (Subscribers - From CANopen Nodes)
         // -----------------------------------------------------------------------
-        // 输入单位：角度 (Degrees)
+        // Input unit: Degrees
         sub_hoist_pos_ = this->create_subscription<std_msgs::msg::Float32>(
             "/hoist/crane_position", 10, 
             [this](const std_msgs::msg::Float32::SharedPtr msg) { current_positions_deg_["hook_joint"] = msg->data; });
@@ -69,26 +69,26 @@ public:
             "/slewing/crane_position", 10, 
             [this](const std_msgs::msg::Float32::SharedPtr msg) { current_positions_deg_["slewing_joint"] = msg->data; });
 
-        // 初始化当前位置为 0
+        // Initialize current positions to 0
         for (const auto& name : joint_names_) {
             current_positions_deg_[name] = 0.0;
         }
 
         // -----------------------------------------------------------------------
-        // 3. 发布底层电机控制指令 (Publishers - To CANopen Nodes)
+        // 3. Publish Low-level Motor Control Commands (Publishers - To CANopen Nodes)
         // -----------------------------------------------------------------------
-        // 输出单位：角度 (Degrees)
+        // Output unit: Degrees
         pub_hoist_cmd_ = this->create_publisher<std_msgs::msg::Float32>("/hoist/target_position", 10);
         pub_trolley_cmd_ = this->create_publisher<std_msgs::msg::Float32>("/trolley/target_position", 10);
         pub_slewing_cmd_ = this->create_publisher<std_msgs::msg::Float32>("/slewing/target_position", 10);
 
         // -----------------------------------------------------------------------
-        // 4. 发布 Joint States 给 MoveIt (Publisher - To MoveIt)
+        // 4. Publish Joint States to MoveIt (Publisher - To MoveIt)
         // -----------------------------------------------------------------------
-        // 输出单位：弧度 (Radians)
+        // Output unit: Radians
         pub_joint_states_ = this->create_publisher<sensor_msgs::msg::JointState>("/joint_states", 10);
 
-        // 20Hz 定时器发布关节状态
+        // 20Hz timer to publish joint states
         timer_ = this->create_wall_timer(
             std::chrono::milliseconds(50), 
             std::bind(&CraneMoveItBridge::publish_joint_states, this));
@@ -96,13 +96,13 @@ public:
         // -----------------------------------------------------------------------
         // 5. Action Server (Command Interface from MoveIt)
         // -----------------------------------------------------------------------
-        // 注意：Action 名称 "/crane_arm_controller/follow_joint_trajectory" 
-        // 必须与 ros2_controllers.yaml 中定义的控制器命名空间匹配。
-        // 例如 YAML 中为:
+        // Note: Action name "/crane_arm_controller/follow_joint_trajectory" 
+        // must match the controller namespace defined in ros2_controllers.yaml.
+        // For example, if YAML has:
         // crane_arm_controller:
         //   ros__parameters:
         //     ...
-        // 则 Action Server 应为 /crane_arm_controller/follow_joint_trajectory
+        // Then Action Server should be /crane_arm_controller/follow_joint_trajectory
         action_server_ = rclcpp_action::create_server<FollowJointTrajectory>(
             this,
             "/forward_position_controller/follow_joint_trajectory",
@@ -111,15 +111,15 @@ public:
             std::bind(&CraneMoveItBridge::handle_accepted, this, std::placeholders::_1)
         );
 
-        RCLCPP_INFO(this->get_logger(), "✅ CraneMoveItBridge 初始化完成");
+        RCLCPP_INFO(this->get_logger(), "✅ CraneMoveItBridge initialization complete");
     }
 
 private:
-    // 数据成员
+    // Data members
     std::vector<std::string> joint_names_;
-    std::map<std::string, double> current_positions_deg_; // 存储最新的电机位置(角度)
+    std::map<std::string, double> current_positions_deg_; // Store latest motor positions (degrees)
 
-    // ROS 接口
+    // ROS interfaces
     rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr sub_hoist_pos_;
     rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr sub_trolley_pos_;
     rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr sub_slewing_pos_;
@@ -133,26 +133,26 @@ private:
     rclcpp_action::Server<FollowJointTrajectory>::SharedPtr action_server_;
 
     // -----------------------------------------------------------------------
-    // 关节状态发布逻辑
+    // Joint State Publishing Logic
     // -----------------------------------------------------------------------
     void publish_joint_states() {
         auto msg = sensor_msgs::msg::JointState();
         msg.header.stamp = this->now();
         msg.name = joint_names_;
 
-        // 将当前存储的角度转换为 MoveIt 需要的单位 (弧度 或 米)
+        // Convert currently stored angles to units required by MoveIt (radians or meters)
         for (const auto& name : joint_names_) {
             double raw_deg = current_positions_deg_[name];
             double val_converted = 0.0;
 
             if (name == "slewing_joint") {
-                // 旋转关节: 角度 -> 弧度
+                // Revolute joint: degrees -> radians
                 val_converted = deg2rad(raw_deg);
             } else if (name == "hook_joint") {
-                // 移动关节: 角度 -> 米
+                // Prismatic joint: degrees -> meters
                 val_converted = deg2meter(raw_deg, METERS_PER_DEGREE_HOIST);
             } else if (name == "trolley_joint") {
-                // 移动关节: 角度 -> 米
+                // Prismatic joint: degrees -> meters
                 val_converted = deg2meter(raw_deg, METERS_PER_DEGREE_TROLLEY);
             }
             
@@ -163,16 +163,16 @@ private:
     }
 
     // -----------------------------------------------------------------------
-    // Action Server 回调
+    // Action Server Callbacks
     // -----------------------------------------------------------------------
     rclcpp_action::GoalResponse handle_goal(
         const rclcpp_action::GoalUUID & uuid,
         std::shared_ptr<const FollowJointTrajectory::Goal> goal)
     {
         (void)uuid;
-        RCLCPP_INFO(this->get_logger(), "📋 收到目标请求，包含 %zu 个轨迹点", goal->trajectory.points.size());
+        RCLCPP_INFO(this->get_logger(), "📋 Received goal request with %zu trajectory points", goal->trajectory.points.size());
         
-        // 简单的验证：检查关节名称是否匹配
+        // Simple validation: check if joint names match
         for (const auto& name : goal->trajectory.joint_names) {
             bool found = false;
             for (const auto& my_joint : joint_names_) {
@@ -182,7 +182,7 @@ private:
                 }
             }
             if (!found) {
-                RCLCPP_WARN(this->get_logger(), "⚠️ 目标中包含未知关节: %s", name.c_str());
+                RCLCPP_WARN(this->get_logger(), "⚠️ Goal contains unknown joint: %s", name.c_str());
                 return rclcpp_action::GoalResponse::REJECT;
             }
         }
@@ -193,48 +193,48 @@ private:
         const std::shared_ptr<GoalHandleFJT> goal_handle)
     {
         (void)goal_handle;
-        RCLCPP_INFO(this->get_logger(), "⏹️ 收到取消目标请求");
+        RCLCPP_INFO(this->get_logger(), "⏹️ Received cancel goal request");
         return rclcpp_action::CancelResponse::ACCEPT;
     }
 
     void handle_accepted(const std::shared_ptr<GoalHandleFJT> goal_handle)
     {
-        // 在新线程中执行，避免阻塞
+        // Execute in new thread to avoid blocking
         std::thread{std::bind(&CraneMoveItBridge::execute, this, std::placeholders::_1), goal_handle}.detach();
     }
 
     // -----------------------------------------------------------------------
-    // 执行逻辑
+    // Execution Logic
     // -----------------------------------------------------------------------
     void execute(const std::shared_ptr<GoalHandleFJT> goal_handle)
     {
-        RCLCPP_INFO(this->get_logger(), "🎬 执行轨迹中...");
+        RCLCPP_INFO(this->get_logger(), "🎬 Executing trajectory...");
         const auto goal = goal_handle->get_goal();
         auto feedback = std::make_shared<FollowJointTrajectory::Feedback>();
         auto result = std::make_shared<FollowJointTrajectory::Result>();
 
         auto start_time = std::chrono::steady_clock::now();
 
-        // 建立目标关节名称到 trajectory 索引的映射
-        // MoveIt 发送的 joint_names 顺序可能与我们的 joint_names_ 不一致
+        // Build mapping from goal joint names to trajectory indices
+        // The joint_names order sent by MoveIt may not match our joint_names_
         std::vector<int> map_traj_to_local(goal->trajectory.joint_names.size(), -1);
         for (size_t i = 0; i < goal->trajectory.joint_names.size(); ++i) {
             std::string name = goal->trajectory.joint_names[i];
-            if (name == "hook_joint") map_traj_to_local[i] = 0; // 0 对应 hoist
-            else if (name == "trolley_joint") map_traj_to_local[i] = 1; // 1 对应 trolley
-            else if (name == "slewing_joint") map_traj_to_local[i] = 2; // 2 对应 slewing
+            if (name == "hook_joint") map_traj_to_local[i] = 0; // 0 corresponds to hoist
+            else if (name == "trolley_joint") map_traj_to_local[i] = 1; // 1 corresponds to trolley
+            else if (name == "slewing_joint") map_traj_to_local[i] = 2; // 2 corresponds to slewing
         }
 
         for (const auto & point : goal->trajectory.points) {
             if (goal_handle->is_canceling()) {
                 result->error_code = control_msgs::action::FollowJointTrajectory::Result::INVALID_GOAL;
                 goal_handle->canceled(result);
-                RCLCPP_INFO(this->get_logger(), "❌ 目标已取消");
+                RCLCPP_INFO(this->get_logger(), "❌ Goal canceled");
                 return;
             }
 
-            // 1. 时间同步
-            // 读取该点应该在何时执行 (time_from_start)
+            // 1. Time synchronization
+            // Read when this point should be executed (time_from_start)
             auto time_from_start = point.time_from_start;
             auto duration_ns = rclcpp::Duration(time_from_start).nanoseconds();
             
@@ -245,21 +245,21 @@ private:
                 std::this_thread::sleep_until(target_time);
             }
 
-            // 2. 发送控制指令
-            // 遍历轨迹点中的每个关节位置
+            // 2. Send control commands
+            // Iterate through each joint position in the trajectory point
             for (size_t i = 0; i < point.positions.size(); ++i) {
                 int type = map_traj_to_local[i];
-                double target_val = point.positions[i]; // 弧度 (Revolute) 或 米 (Prismatic)
+                double target_val = point.positions[i]; // Radians (Revolute) or meters (Prismatic)
                 double cmd_deg = 0.0;
                 
                 if (type == 0) { // Hoist (Hook) - Prismatic
-                    // 米 -> 角度
+                    // Meters -> degrees
                     cmd_deg = meter2deg(target_val, METERS_PER_DEGREE_HOIST);
                 } else if (type == 1) { // Trolley - Prismatic
-                    // 米 -> 角度
+                    // Meters -> degrees
                     cmd_deg = meter2deg(target_val, METERS_PER_DEGREE_TROLLEY);
                 } else if (type == 2) { // Slewing - Revolute
-                    // 弧度 -> 角度
+                    // Radians -> degrees
                     cmd_deg = rad2deg(target_val);
                 }
 
@@ -275,18 +275,18 @@ private:
                 }
             }
 
-            // 3. 反馈 (可选，简单起见这里只更新 header)
+            // 3. Feedback (optional, for simplicity only update header here)
             feedback->header.stamp = this->now();
             feedback->joint_names = goal->trajectory.joint_names;
-            feedback->actual.positions = point.positions; // 这里实际上应该填当前真实值
+            feedback->actual.positions = point.positions; // Should actually fill with current real values here
             goal_handle->publish_feedback(feedback);
         }
 
-        // 执行完毕
+        // Execution complete
         if (rclcpp::ok()) {
             result->error_code = control_msgs::action::FollowJointTrajectory::Result::SUCCESSFUL;
             goal_handle->succeed(result);
-            RCLCPP_INFO(this->get_logger(), "✅ 目标执行成功");
+            RCLCPP_INFO(this->get_logger(), "✅ Goal execution successful");
         }
     }
 };

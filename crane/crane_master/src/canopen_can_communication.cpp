@@ -258,7 +258,7 @@ void CANopenROS2::receive_can_frames()
     {
         if (errno != EAGAIN && errno != EWOULDBLOCK)
         {
-            RCLCPP_ERROR(this->get_logger(), "❌ Failed to receive CAN frame: %s", strerror(errno));
+            RCLCPP_ERROR(this->get_logger(), "😿 Failed to receive CAN frame: %s", strerror(errno));
         }
         return;
     }
@@ -327,7 +327,7 @@ void CANopenROS2::receive_can_frames()
                 // Check target reached bit
                 if (status_word & 0x0400)
                 {
-                    RCLCPP_INFO(this->get_logger(), "🎯 Target position reached");
+                    RCLCPP_INFO(this->get_logger(), "😽 Target position reached");
                 }
             }
             else if (index == OD_ACTUAL_POSITION && subindex == 0x00)  // Actual position
@@ -369,7 +369,7 @@ void CANopenROS2::receive_can_frames()
             // Check target reached bit
             if (status_word & 0x0400)
             {
-                RCLCPP_INFO(this->get_logger(), "🎯 Target position reached");
+                RCLCPP_INFO(this->get_logger(), "😽 Target position reached");
             }
         }
     }
