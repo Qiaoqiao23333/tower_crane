@@ -46,7 +46,7 @@ def launch_nodes(context):
     nodes_to_launch = []
     
     # Define node configurations (consistent with mapping in bus.yml)
-    # Node 1 (Hoist): namespace=hoist, gear_ratio=20.0
+    # Node 1 (Hoist): namespace=hoist, gear_ratio=0.05
     node1_config = {
         'package': 'crane_master',
         'executable': 'tower_crane',
@@ -56,11 +56,14 @@ def launch_nodes(context):
             'can_interface': can_interface_value,
             'node_id': '1',
             'gear_ratio': 0.05,
-            'auto_start': auto_start_value
+            'auto_start': auto_start_value,
+            'profile_velocity': 30.0,       # °/s
+            'profile_acceleration': 30.0,   # °/s²
+            'profile_deceleration': 30.0,   # °/s²
         }]
     }
 
-    # Node 2 (Trolley): namespace=trolley, gear_ratio=10.0
+    # Node 2 (Trolley): namespace=trolley, gear_ratio=0.1
     node2_config = {
         'package': 'crane_master',
         'executable': 'tower_crane',
@@ -70,11 +73,14 @@ def launch_nodes(context):
             'can_interface': can_interface_value,
             'node_id': '2',
             'gear_ratio': 0.1,
-            'auto_start': auto_start_value
+            'auto_start': auto_start_value,
+            'profile_velocity': 30.0,       # °/s
+            'profile_acceleration': 30.0,   # °/s²
+            'profile_deceleration': 30.0,   # °/s²
         }]
     }
 
-    # Node 3 (Slewing): namespace=slewing, gear_ratio=10.0
+    # Node 3 (Slewing): namespace=slewing, gear_ratio=0.1
     node3_config = {
         'package': 'crane_master',
         'executable': 'tower_crane',
@@ -84,7 +90,10 @@ def launch_nodes(context):
             'can_interface': can_interface_value,
             'node_id': '3',
             'gear_ratio': 0.1,
-            'auto_start': auto_start_value
+            'auto_start': auto_start_value,
+            'profile_velocity': 30.0,       # °/s
+            'profile_acceleration': 30.0,   # °/s²
+            'profile_deceleration': 30.0,   # °/s²
         }]
     }
     

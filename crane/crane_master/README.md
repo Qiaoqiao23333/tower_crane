@@ -9,7 +9,7 @@ crane Master is a ROS 2-based CANopen motor controller used to control motors th
 - ROS 2 topics and service interfaces
 - Real-time monitoring of motor status, position, and velocity
 - Support for motor initialization, start, stop, and reset
-- Profile parameter settings support (velocity, acceleration, deceleration)
+- Configurable profile parameters (velocity, acceleration, deceleration) via ROS2 parameters - no code recompilation required
 
 ## Installation
 
@@ -87,6 +87,9 @@ ros2 launch crane_master canopen_ros2.launch.py can_interface:=can0 node_id:=1 a
 
 # Launch all nodes
 ros2 launch crane_master canopen_ros2.launch.py can_interface:=can0 node_id:=all
+
+# Launch with custom profile parameters (e.g., slower motion for safety)
+ros2 launch crane_master canopen_ros2.launch.py node_id:=1 profile_velocity:=15.0 profile_acceleration:=20.0 profile_deceleration:=20.0
 ```
 
 ## Node ID Mapping
@@ -246,11 +249,31 @@ All services are namespace-specific. Replace `{namespace}` with `hoist`, `trolle
 | -------------- | ---- | ------------- | ----------- |
 | can_interface | string | "can0" | CAN interface name |
 | node_id | string | "1" | CANopen node ID ("1", "2", "3", or "all") |
-| gear_ratio | float | 1.0 | Gear ratio (automatically set: hoist=20.0, trolley=10.0, slewing=10.0) |
+| gear_ratio | float | 1.0 | Gear ratio (automatically set: hoist=0.05, trolley=0.1, slewing=0.1) |
+| target_units_per_rev | int | 10000 | Command units per output shaft revolution |
 | auto_start | bool | true | Whether to auto-start motor |
-| profile_velocity | int | 5 | Profile velocity (degrees/second) |
-| profile_acceleration | int | 5 | Profile acceleration (degrees/second²) |
-| profile_deceleration | int | 5 | Profile deceleration (degrees/second²) |
+| profile_velocity | float | 30.0 | Profile velocity (degrees/second). Configurable per-axis via launch file or runtime parameter override |
+| profile_acceleration | float | 30.0 | Profile acceleration (degrees/second²). Configurable per-axis via launch file or runtime parameter override |
+| profile_deceleration | float | 30.0 | Profile deceleration (degrees/second²). Configurable per-axis via launch file or runtime parameter override |
+
+### Configuring Profile Parameters
+
+Profile parameters control the motion characteristics of each motor axis. These can be configured:
+
+1. **At launch time** (recommended for permanent settings):
+   ```bash
+   ros2 launch crane_master canopen_ros2.launch.py node_id:=2 profile_velocity:=20.0 profile_acceleration:=25.0 profile_deceleration:=25.0
+   ```
+
+2. **At runtime** (for temporary adjustments):
+   ```bash
+   ros2 param set /trolley/canopen_ros2_node2 profile_velocity 15.0
+   ros2 param set /trolley/canopen_ros2_node2 profile_acceleration 20.0
+   ros2 param set /trolley/canopen_ros2_node2 profile_deceleration 20.0
+   ```
+
+3. **In the launch file** (for permanent per-axis configuration):
+   Edit `launch/canopen_ros2.launch.py` to set different values for each axis (hoist, trolley, slewing).
 
 ## Troubleshooting
 

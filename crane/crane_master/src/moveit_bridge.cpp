@@ -229,7 +229,7 @@ private:
             if (goal_handle->is_canceling()) {
                 result->error_code = control_msgs::action::FollowJointTrajectory::Result::INVALID_GOAL;
                 goal_handle->canceled(result);
-                RCLCPP_INFO(this->get_logger(), "❌ Goal canceled");
+                RCLCPP_INFO(this->get_logger(), "😾 Goal canceled");
                 return;
             }
 
@@ -286,7 +286,7 @@ private:
         if (rclcpp::ok()) {
             result->error_code = control_msgs::action::FollowJointTrajectory::Result::SUCCESSFUL;
             goal_handle->succeed(result);
-            RCLCPP_INFO(this->get_logger(), "✅ Goal execution successful");
+            RCLCPP_INFO(this->get_logger(), "😼👏 Goal execution successful");
         }
     }
 };

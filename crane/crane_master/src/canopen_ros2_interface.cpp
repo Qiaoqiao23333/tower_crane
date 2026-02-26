@@ -168,8 +168,8 @@ void CANopenROS2::handle_set_mode(const std::shared_ptr<std_srvs::srv::SetBool::
             // Switch to position mode
             RCLCPP_INFO(this->get_logger(), "📍 Switching to position mode...");
             
-            // 1. First set position mode parameters
-            set_profile_parameters(30, 30, 30);  // Velocity, acceleration, deceleration: 30°/s, 30°/s², 30°/s²
+            // 1. First set position mode parameters (from ROS2 parameters)
+            set_profile_parameters(profile_velocity_, profile_acceleration_, profile_deceleration_);
             
             // 2. Switch to position mode
             set_operation_mode(MODE_PROFILE_POSITION);
@@ -197,8 +197,8 @@ void CANopenROS2::handle_set_mode(const std::shared_ptr<std_srvs::srv::SetBool::
             // Switch to velocity mode
             RCLCPP_INFO(this->get_logger(), "🏃 Switching to velocity mode...");
             
-            // 1. First set velocity mode parameters
-            set_profile_velocity(30);  // Default velocity: 30°/s
+            // 1. First set velocity mode parameters (from ROS2 parameter: profile_velocity)
+            set_profile_velocity(profile_velocity_);
             
             // 2. Switch to velocity mode
             set_operation_mode(MODE_PROFILE_VELOCITY);

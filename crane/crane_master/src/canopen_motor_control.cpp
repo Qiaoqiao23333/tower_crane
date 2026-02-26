@@ -70,14 +70,14 @@ void CANopenROS2::initialize_node()
         RCLCPP_INFO(this->get_logger(), "🎛️ Operation mode after PDO setting: %d", mode);
     }
     
-    // 🏃 Set profile velocity (default: 30°/s)
-    set_profile_velocity(30);
+    // 🏃 Set profile velocity (from ROS2 parameter: profile_velocity)
+    set_profile_velocity(profile_velocity_);
     
-    // ⬆️ Set profile acceleration (default: 30°/s²)
-    set_profile_acceleration(30);
+    // ⬆️ Set profile acceleration (from ROS2 parameter: profile_acceleration)
+    set_profile_acceleration(profile_acceleration_);
     
-    // ⬇️ Set profile deceleration (default: 30°/s²)
-    set_profile_deceleration(30);
+    // ⬇️ Set profile deceleration (from ROS2 parameter: profile_deceleration)
+    set_profile_deceleration(profile_deceleration_);
     
     // ⏸️ Disable sync generator
     write_sdo(OD_CYCLE_PERIOD, 0x00, 0, 4);
