@@ -165,7 +165,7 @@ private:
     int32_t target_units_per_rev_ = 10000;         // 📊 Command units per output shaft revolution (default: 10,000)
     float units_per_degree_ = 0.0;                 // 📐 Cache: command units per degree
     float degrees_per_unit_ = 0.0;                 // 📐 Cache: degrees per command unit
-    float max_profile_velocity_ = 10.0;            // 📌 Max profile velocity limit [r/s] (0x607F)
+    float max_profile_velocity_ = 40.0;            // 📌 Max profile velocity limit [r/s] (0x607F)
     float profile_velocity_ = 30.0;                // 🏃 Default profile velocity (°/s)
     float profile_acceleration_ = 30.0;            // ⬆️ Default profile acceleration (°/s²)
     float profile_deceleration_ = 30.0;            // ⬇️ Default profile deceleration (°/s²)
