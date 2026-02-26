@@ -25,8 +25,9 @@
     profile_velocity: 30.0    # 🏃 Default profile velocity   [°/s]
     profile_acceleration: 30.0    # ⬆️ Default profile acceleration [°/s²]
     profile_deceleration: 30.0    # ⬇️ Default profile deceleration [°/s²]
-    position_range_limit_max: 2147483647    # 0x607B sub1: Maximum position range limit [r] (int32)
-    position_range_limit_min: -2147483648    # 0x607B sub2: Minimum position range limit [r] (int32)
+    quick_stop_deceleration: 600.0    # 🛑 0x6085: Quick stop deceleration [r/s²] (uint32)
+    position_range_limit_max: 2147483647    # 📐 0x607B sub1: Maximum position range limit [r] (int32)
+    position_range_limit_min: -2147483648    # 📐 0x607B sub2: Minimum position range limit [r] (int32)
 
 # ---------------------------------------------------------------------------
 # 🚃 Node 2 – Trolley joint
@@ -40,8 +41,9 @@
     profile_velocity: 30.0
     profile_acceleration: 30.0
     profile_deceleration: 30.0
-    position_range_limit_max: 2147483647    # 0x607B sub1: Maximum position range limit [r] (int32)
-    position_range_limit_min: -2147483648    # 0x607B sub2: Minimum position range limit [r] (int32)
+    quick_stop_deceleration: 600.0    # 🛑 0x6085: Quick stop deceleration [r/s²] (uint32)
+    position_range_limit_max: 2147483647
+    position_range_limit_min: -2147483648
 
 # ---------------------------------------------------------------------------
 # 🔄 Node 3 – Slewing joint
@@ -55,5 +57,6 @@
     profile_velocity: 30.0
     profile_acceleration: 30.0
     profile_deceleration: 30.0
-    position_range_limit_max: 2147483647    # 0x607B sub1: Maximum position range limit [r] (int32)
-    position_range_limit_min: -2147483648    # 0x607B sub2: Minimum position range limit [r] (int32)
+    quick_stop_deceleration: 600.0    # 🛑 0x6085: Quick stop deceleration [r/s²] (uint32)
+    position_range_limit_max: 2147483647
+    position_range_limit_min: -2147483648

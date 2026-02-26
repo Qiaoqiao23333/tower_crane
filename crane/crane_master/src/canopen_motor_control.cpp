@@ -79,6 +79,9 @@ void CANopenROS2::initialize_node()
     // ⬇️ Set profile deceleration (from ROS2 parameter: profile_deceleration)
     set_profile_deceleration(profile_deceleration_);
     
+    // 🛑 Set quick stop deceleration (from ROS2 parameter: quick_stop_deceleration)
+    set_quick_stop_deceleration(quick_stop_deceleration_);
+    
     // 📐 Set position range limit (0x607B sub1=max, sub2=min, from ROS2 parameters)
     set_position_range_limit(position_range_limit_max_, position_range_limit_min_);
     
@@ -833,4 +836,27 @@ void CANopenROS2::set_position_range_limit(int32_t max_val, int32_t min_val)
     RCLCPP_INFO(this->get_logger(),
         "📐 Position range limit set: max=%d, min=%d (0x607B:01/02)",
         max_val, min_val);
+}
+
+/**
+ * @brief 🛑 Set quick stop deceleration (0x6085)
+ * @details Writes the quick stop deceleration value to the drive object dictionary.
+ *          This value is used when a quick stop command is issued (e.g. fault or NMT stop).
+ *          Unit on the drive: position command units / s²  (same scaling as profile acceleration).
+ * @param deceleration_rev_per_sec2  Quick stop deceleration [r/s²]
+ */
+void CANopenROS2::set_quick_stop_deceleration(float deceleration_rev_per_sec2)
+{
+    // Convert r/s² to position command units/s²:
+    //   1 revolution = target_units_per_rev_ command units
+    //   command_units/s² = deceleration_rev_per_sec2 * target_units_per_rev_
+    uint32_t decel_units = static_cast<uint32_t>(
+        deceleration_rev_per_sec2 * static_cast<float>(target_units_per_rev_));
+
+    write_sdo(OD_QUICK_STOP_DECEL, 0x00, static_cast<int32_t>(decel_units), 4);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    RCLCPP_INFO(this->get_logger(),
+        "🛑 Quick stop deceleration set: %.2f r/s² (%u command units/s²) (0x6085)",
+        deceleration_rev_per_sec2, decel_units);
 }

@@ -12,6 +12,7 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     this->declare_parameter<float>("profile_velocity");
     this->declare_parameter<float>("profile_acceleration");
     this->declare_parameter<float>("profile_deceleration");
+    this->declare_parameter<float>("quick_stop_deceleration");
     this->declare_parameter<int>("position_range_limit_max");
     this->declare_parameter<int>("position_range_limit_min");
     
@@ -23,6 +24,7 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     profile_velocity_ = static_cast<float>(this->get_parameter("profile_velocity").as_double());
     profile_acceleration_ = static_cast<float>(this->get_parameter("profile_acceleration").as_double());
     profile_deceleration_ = static_cast<float>(this->get_parameter("profile_deceleration").as_double());
+    quick_stop_deceleration_ = static_cast<float>(this->get_parameter("quick_stop_deceleration").as_double());
     position_range_limit_max_ = static_cast<int32_t>(this->get_parameter("position_range_limit_max").as_int());
     position_range_limit_min_ = static_cast<int32_t>(this->get_parameter("position_range_limit_min").as_int());
     
@@ -171,6 +173,9 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
         RCLCPP_INFO(this->get_logger(), "⚠️ Unable to read or invalid gear ratio (0x6091), using configured value: %.2f", gear_ratio_, gear_ratio_);
     }
     
+    // Set quick stop deceleration (0x6085)
+    set_quick_stop_deceleration(quick_stop_deceleration_);
+
     // Set position range limit (0x607B sub1=max, sub2=min)
     set_position_range_limit(position_range_limit_max_, position_range_limit_min_);
 

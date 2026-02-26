@@ -73,6 +73,7 @@
 #define OD_PROFILE_VELOCITY      0x6081 // 🚀 Profile velocity
 #define OD_PROFILE_ACCELERATION  0x6083 // ⬆️ Profile acceleration
 #define OD_PROFILE_DECELERATION  0x6084 // ⬇️ Profile deceleration
+#define OD_QUICK_STOP_DECEL      0x6085 // 🛑 Quick stop deceleration
 
 // ==================== 🛡️ Safety limits (defined in EDS) ====================
 #define OD_MAX_MOTOR_SPEED       0x6080 // 🔒 Maximum motor speed (default: 5000 RPM)
@@ -121,6 +122,7 @@ private:
     void set_profile_velocity(float velocity_deg_per_sec);               // 🏃 Set profile velocity
     void set_profile_acceleration(float acceleration_deg_per_sec2);      // ⬆️ Set profile acceleration
     void set_profile_deceleration(float deceleration_deg_per_sec2);      // ⬇️ Set profile deceleration
+    void set_quick_stop_deceleration(float deceleration_rev_per_sec2);      // 🛑 Set quick stop deceleration (0x6085)
     void set_position_range_limit(int32_t max_val, int32_t min_val);         // 📐 Set position range limit (0x607B)
     void set_profile_parameters(float velocity_deg_per_sec, float acceleration_deg_per_sec2, float deceleration_deg_per_sec2);  // 📏 Set profile parameters
     void set_control_word(uint16_t control_word);                        // 🎮 Set control word
@@ -165,6 +167,7 @@ private:
     float profile_velocity_ = 30.0;                // 🏃 Default profile velocity (°/s)
     float profile_acceleration_ = 30.0;            // ⬆️ Default profile acceleration (°/s²)
     float profile_deceleration_ = 30.0;            // ⬇️ Default profile deceleration (°/s²)
+    float quick_stop_deceleration_ = 600.0;        // 🛑 Quick stop deceleration [r/s²] (0x6085)
     int32_t position_range_limit_max_ = 2147483647;   // 📐 Max position range limit (0x607B:01) [position units]
     int32_t position_range_limit_min_ = -2147483648;  // 📐 Min position range limit (0x607B:02) [position units]
     int can_socket_ = -1;                          // 🔌 CAN socket file descriptor
