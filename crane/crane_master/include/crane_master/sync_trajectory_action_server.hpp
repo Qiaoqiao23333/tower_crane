@@ -3,8 +3,8 @@
 
 /**
  * @file sync_trajectory_action_server.hpp
- * @brief 🔄 同步轨迹 Action Server 头文件
- * @details 实现多电机同步轨迹控制，支持 MoveIt 的 FollowJointTrajectory Action
+ * @brief 🔄 Sync trajectory Action Server header file
+ * @details Implements multi-motor synchronized trajectory control, supports MoveIt's FollowJointTrajectory Action
  */
 
 #include <rclcpp/rclcpp.hpp>
@@ -23,12 +23,12 @@
 #include <thread>
 #include <chrono>
 
-#define COB_SYNC 0x080  // 🔄 CANopen 同步帧 COB-ID
+#define COB_SYNC 0x080  // 🔄 CANopen sync frame COB-ID
 
 /**
  * @class SyncTrajectoryActionServer
- * @brief 🔄 同步轨迹 Action Server 类
- * @details 接收 MoveIt 的轨迹指令，同步控制多个电机运动
+ * @brief 🔄 Sync trajectory Action Server class
+ * @details Receives MoveIt trajectory commands, synchronously controls multiple motors
  */
 class SyncTrajectoryActionServer : public rclcpp::Node
 {
@@ -36,45 +36,45 @@ public:
     using FollowJointTrajectory = control_msgs::action::FollowJointTrajectory;
     using GoalHandleFJT = rclcpp_action::ServerGoalHandle<FollowJointTrajectory>;
 
-    SyncTrajectoryActionServer();   // 🛠️ 构造函数
-    ~SyncTrajectoryActionServer();  // 🗑️ 析构函数
+    SyncTrajectoryActionServer();   // 🛠️ Constructor
+    ~SyncTrajectoryActionServer();  // 🗑️ Destructor
 
 private:
-    // ==================== 🎯 Action Server 回调函数 ====================
+    // ==================== 🎯 Action Server callback functions ====================
     rclcpp_action::GoalResponse handle_goal(
         const rclcpp_action::GoalUUID & uuid,
-        std::shared_ptr<const FollowJointTrajectory::Goal> goal);  // 📋 处理目标请求
+        std::shared_ptr<const FollowJointTrajectory::Goal> goal);  // 📋 Handle goal request
     
     rclcpp_action::CancelResponse handle_cancel(
-        const std::shared_ptr<GoalHandleFJT> goal_handle);         // ❌ 处理取消请求
+        const std::shared_ptr<GoalHandleFJT> goal_handle);         // ❌ Handle cancel request
     
-    void handle_accepted(const std::shared_ptr<GoalHandleFJT> goal_handle);  // ✅ 处理接受的目标
+    void handle_accepted(const std::shared_ptr<GoalHandleFJT> goal_handle);  // ✅ Handle accepted goal
     
-    void execute(const std::shared_ptr<GoalHandleFJT> goal_handle);          // 🎬 执行轨迹
+    void execute(const std::shared_ptr<GoalHandleFJT> goal_handle);          // 🎬 Execute trajectory
 
-    // ==================== 📡 CAN 通信函数 ====================
-    void init_can_socket();   // 🔌 初始化 CAN 套接字
-    void send_sync_frame();   // 🔄 发送同步帧
+    // ==================== 📡 CAN communication functions ====================
+    void init_can_socket();   // 🔌 Initialize CAN socket
+    void send_sync_frame();   // 🔄 Send sync frame
 
-    // ==================== 📦 成员变量 ====================
-    rclcpp_action::Server<FollowJointTrajectory>::SharedPtr action_server_;  // 🎯 Action 服务器
+    // ==================== 📦 Member variables ====================
+    rclcpp_action::Server<FollowJointTrajectory>::SharedPtr action_server_;  // 🎯 Action server
     
-    // 📤 各电机的位置命令发布器
-    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr pub_slewing_;   // 🔄 回转电机
-    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr pub_trolley_;   // 🚤 小车电机
-    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr pub_hook_;      // 🎣 起升电机
+    // 📤 Position command publishers for each motor
+    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr pub_slewing_;   // 🔄 Slewing motor
+    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr pub_trolley_;   // 🚤 Trolley motor
+    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr pub_hook_;      // 🎣 Hoist motor
     
-    // 📥 各电机的当前位置订阅器
-    rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr sub_slewing_pos_;   // 🔄 回转位置
-    rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr sub_trolley_pos_;   // 🚤 小车位置
-    rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr sub_hook_pos_;      // 🎣 升降位置
+    // 📥 Current position subscribers for each motor
+    rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr sub_slewing_pos_;   // 🔄 Slewing position
+    rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr sub_trolley_pos_;   // 🚤 Trolley position
+    rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr sub_hook_pos_;      // 🎣 Hoist position
     
-    // 📍 当前位置存储
+    // 📍 Current position storage
     std::map<std::string, double> current_positions_;
     
-    // 📡 CAN 套接字
-    std::string can_interface_;   // 📟 CAN 接口名称
-    int can_socket_;              // 🔌 套接字文件描述符
+    // 📡 CAN socket
+    std::string can_interface_;   // 📟 CAN interface name
+    int can_socket_;              // 🔌 Socket file descriptor
 };
 
 #endif // SYNC_TRAJECTORY_ACTION_SERVER_HPP

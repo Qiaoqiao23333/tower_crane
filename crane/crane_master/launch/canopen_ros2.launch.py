@@ -4,49 +4,49 @@ from launch.actions import LogInfo, ExecuteProcess, DeclareLaunchArgument, Opaqu
 
 def generate_launch_description():
     return LaunchDescription([
-        # 声明参数
+        # Declare parameters
         DeclareLaunchArgument(
             'can_interface',
             default_value='can0',
-            description='📡 CAN 接口名称'
+            description='📡 CAN interface name'
         ),
         DeclareLaunchArgument(
             'node_id',
             default_value='all',
-            description='🆔 CANopen 节点 ID (all, 1, 2, or 3)，默认: all (启动所有节点)'
+            description='🆔 CANopen node ID (all, 1, 2, or 3), default: all (start all nodes)'
         ),
         DeclareLaunchArgument(
             'auto_start',
             default_value='true',
-            description='⚡ 是否自动启动电机'
+            description='⚡ Whether to auto-start motors'
         ),
         
-        # 使用OpaqueFunction来根据node_id动态创建节点
+        # Use OpaqueFunction to dynamically create nodes based on node_id
         OpaqueFunction(function=launch_nodes)
     ])
 
 def launch_nodes(context):
-    # 获取node_id的实际值
+    # Get actual values of node_id
     node_id_value = context.launch_configurations.get('node_id', 'all')
     can_interface_value = context.launch_configurations.get('can_interface', 'can0')
     auto_start_value = context.launch_configurations.get('auto_start', 'true')
     
-    # 检查CAN接口状态
+    # Check CAN interface status
     check_can = ExecuteProcess(
-        cmd=['bash', '-c', f'ip -details link show {can_interface_value} || echo "CAN接口不存在"'],
+        cmd=['bash', '-c', f'ip -details link show {can_interface_value} || echo "CAN interface does not exist"'],
         output='screen'
     )
     
-    # 列出节点、话题和服务
+    # List nodes, topics and services
     list_info = ExecuteProcess(
-        cmd=['bash', '-c', 'sleep 5 && echo "列出所有节点:" && ros2 node list && echo "列出所有话题:" && ros2 topic list && echo "列出所有服务:" && ros2 service list'],
+        cmd=['bash', '-c', 'sleep 5 && echo "List all nodes:" && ros2 node list && echo "List all topics:" && ros2 topic list && echo "List all services:" && ros2 service list'],
         output='screen'
     )
     
     nodes_to_launch = []
     
-    # 定义各节点配置（与bus.yml中的映射一致）
-    # Node 1 (起升/Hoist): namespace=hoist, gear_ratio=20.0
+    # Define node configurations (consistent with mapping in bus.yml)
+    # Node 1 (Hoist): namespace=hoist, gear_ratio=20.0
     node1_config = {
         'package': 'crane_master',
         'executable': 'tower_crane',
@@ -60,7 +60,7 @@ def launch_nodes(context):
         }]
     }
 
-    # Node 2 (小车/Trolley): namespace=trolley, gear_ratio=10.0
+    # Node 2 (Trolley): namespace=trolley, gear_ratio=10.0
     node2_config = {
         'package': 'crane_master',
         'executable': 'tower_crane',
@@ -74,7 +74,7 @@ def launch_nodes(context):
         }]
     }
 
-    # Node 3 (回转/Slewing): namespace=slewing, gear_ratio=10.0
+    # Node 3 (Slewing): namespace=slewing, gear_ratio=10.0
     node3_config = {
         'package': 'crane_master',
         'executable': 'tower_crane',
@@ -94,9 +94,9 @@ def launch_nodes(context):
         '3': node3_config
     }
 
-    # 根据node_id决定启动哪些节点
+    # Determine which nodes to launch based on node_id
     if node_id_value == 'all':
-        # 启动所有节点
+        # Launch all nodes
         for nid in ['1', '2', '3']:
             cfg = all_configs[nid]
             nodes_to_launch.append(
@@ -111,7 +111,7 @@ def launch_nodes(context):
                 )
             )
     elif node_id_value in ['1', '2', '3']:
-        # 只启动指定的节点
+        # Launch only the specified node
         cfg = all_configs[node_id_value]
         nodes_to_launch.append(
             Node(
@@ -140,7 +140,7 @@ def launch_nodes(context):
     )
     
     return [
-        LogInfo(msg=f"🏗️ 启动 CANopen ROS2 节点 (node_id={node_id_value})..."),
+        LogInfo(msg=f"🏗️ Starting CANopen ROS2 nodes (node_id={node_id_value})..."),
         check_can,
         *nodes_to_launch,
         sync_trajectory_server,

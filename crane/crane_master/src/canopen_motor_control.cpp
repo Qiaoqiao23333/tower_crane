@@ -2,101 +2,101 @@
 #include <cmath>
 
 /**
- * @brief 🚀 初始化 CANopen 节点
- * @details 复位节点、设置操作模式、配置轮廓参数
+ * @brief 🚀 Initialize CANopen node
+ * @details Reset node, set operation mode, configure profile parameters
  */
 void CANopenROS2::initialize_node()
 {
-    // ⏹️ 发送 NMT 停止命令
+    // ⏹️ Send NMT stop command
     send_nmt_command(NMT_STOP_REMOTE_NODE);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
-    // 🔄 发送 NMT 重置命令
+    // 🔄 Send NMT reset command
     send_nmt_command(NMT_RESET_NODE);
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
-    // ⚡ 先使能电机，再设置操作模式
-    // 🔌 关机 (Shutdown)
+    // ⚡ Enable motor first, then set operation mode
+    // 🔌 Shutdown
     write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_SHUTDOWN, 2);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
-    // ⚡ 准备开启 (Switch on)
+    // ⚡ Switch on
     write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_SWITCH_ON, 2);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
-    // ✅ 使能操作 (Enable operation)
+    // ✅ Enable operation
     write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_ENABLE_OPERATION, 2);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
-    // 📊 读取状态字，确认电机已使能
+    // 📊 Read status word to confirm motor is enabled
     int32_t status_word = read_sdo(OD_STATUS_WORD, 0x00);
-    RCLCPP_INFO(this->get_logger(), "📊 使能后状态字: 0x%04X", status_word);
+    RCLCPP_INFO(this->get_logger(), "📊 Status word after enable: 0x%04X", status_word);
     
-    // 🎛️ 设置操作模式为位置模式 (默认)
+    // 🎛️ Set operation mode to position mode (default)
     write_sdo(OD_OPERATION_MODE, 0x00, MODE_PROFILE_POSITION, 1);
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
-    // 🔍 验证操作模式
+    // 🔍 Verify operation mode
     int32_t mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
-    RCLCPP_INFO(this->get_logger(), "🎛️ 当前操作模式: %d", mode);
+    RCLCPP_INFO(this->get_logger(), "🎛️ Current operation mode: %d", mode);
     
-    // 如果 SDO 设置失败，尝试使用 PDO
+    // If SDO setting fails, try using PDO
     if (mode != MODE_PROFILE_POSITION)
     {
-        RCLCPP_WARN(this->get_logger(), "⚠️ 使用 SDO 设置操作模式失败，尝试使用 PDO");
+        RCLCPP_WARN(this->get_logger(), "⚠️ Failed to set operation mode using SDO, trying PDO");
         
-        // 📤 使用 PDO 设置操作模式
+        // 📤 Use PDO to set operation mode
         struct can_frame frame;
         frame.can_id = COB_RPDO1 + node_id_;
-        frame.can_dlc = 3;  // 控制字(2字节) + 操作模式(1字节)
+        frame.can_dlc = 3;  // Control word (2 bytes) + operation mode (1 byte)
         frame.data[0] = CONTROL_ENABLE_OPERATION & 0xFF;
         frame.data[1] = (CONTROL_ENABLE_OPERATION >> 8) & 0xFF;
         frame.data[2] = MODE_PROFILE_POSITION;
         
         if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
         {
-            RCLCPP_ERROR(this->get_logger(), "❌ 发送 PDO 操作模式失败");
+            RCLCPP_ERROR(this->get_logger(), "❌ Failed to send PDO operation mode");
         }
         else
         {
-            RCLCPP_INFO(this->get_logger(), "📤 PDO 操作模式已发送");
+            RCLCPP_INFO(this->get_logger(), "📤 PDO operation mode sent");
         }
         
         send_sync_frame();
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
         
-        // 🔍 再次验证操作模式
+        // 🔍 Verify operation mode again
         mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
-        RCLCPP_INFO(this->get_logger(), "🎛️ PDO 设置后操作模式: %d", mode);
+        RCLCPP_INFO(this->get_logger(), "🎛️ Operation mode after PDO setting: %d", mode);
     }
     
-    // 🏃 设置轮廓速度 (默认: 30°/s)
+    // 🏃 Set profile velocity (default: 30°/s)
     set_profile_velocity(30);
     
-    // ⬆️ 设置轮廓加速度 (默认: 30°/s²)
+    // ⬆️ Set profile acceleration (default: 30°/s²)
     set_profile_acceleration(30);
     
-    // ⬇️ 设置轮廓减速度 (默认: 30°/s²)
+    // ⬇️ Set profile deceleration (default: 30°/s²)
     set_profile_deceleration(30);
     
-    // ⏸️ 禁用同步生成器
+    // ⏸️ Disable sync generator
     write_sdo(OD_CYCLE_PERIOD, 0x00, 0, 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
-    // ⏱️ 设置通信周期为 1000 微秒
+    // ⏱️ Set communication cycle to 1000 microseconds
     write_sdo(OD_CYCLE_PERIOD, 0x00, 1000, 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
-    RCLCPP_INFO(this->get_logger(), "✅ 节点初始化完成");
+    RCLCPP_INFO(this->get_logger(), "✅ Node initialization complete");
 }
 
 /**
- * @brief 📋 配置 PDO 映射
- * @details 配置 TxPDO1 (状态字+位置), RxPDO1 (控制字+位置), RxPDO2 (控制字+速度)
+ * @brief 📋 Configure PDO mapping
+ * @details Configure TxPDO1 (status word+position), RxPDO1 (control word+position), RxPDO2 (control word+velocity)
  */
 void CANopenROS2::configure_pdo()
 {
-    RCLCPP_INFO(this->get_logger(), "📋 配置 PDO 映射...");
+    RCLCPP_INFO(this->get_logger(), "📋 Configuring PDO mapping...");
     
     // ⏸️ 进入预操作状态
     send_nmt_command(NMT_STOP_REMOTE_NODE);
