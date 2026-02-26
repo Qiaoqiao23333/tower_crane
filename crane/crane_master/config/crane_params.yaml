@@ -1,0 +1,69 @@
+# =============================================================================
+# 🏗️ Tower Crane CANopen ROS2 - Node Parameters
+# =============================================================================
+# This file defines all tunable parameters for each crane joint node.
+# Edit this file to change parameters without recompiling or using ros2 param.
+#
+# Parameters can also be changed at runtime via:
+#   ros2 param set /<namespace>/<node_name> <param> <value>
+#
+# Node mapping:
+#   Node 1 → /hoist/canopen_ros2_node1     (Hoist   joint, hoists the load up/down)
+#   Node 2 → /trolley/canopen_ros2_node2   (Trolley joint, moves load in/out)
+#   Node 3 → /slewing/canopen_ros2_node3   (Slewing joint, rotates the jib)
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# 🪝 Node 1 – Hoist joint
+# ---------------------------------------------------------------------------
+/hoist/canopen_ros2_node1:
+  ros__parameters:
+    # 📡 CAN bus interface (e.g. "can0", "can1")
+    can_interface: "can0"
+
+    # 🆔 CANopen node ID on the bus (must match bus.yml / drive DIP-switch)
+    node_id: "1"
+
+    # ⚙️ Physical gear reduction ratio  (motor_revolutions / output_shaft_revolutions)
+    #    e.g. 0.05 means 1 output revolution requires 20 motor revolutions
+    gear_ratio: 0.05
+
+    # 📊 Command units per output shaft revolution
+    #    Determined by the drive's encoder resolution × any internal scaling.
+    #    Default: 10000  (10 000 counts/rev)
+    target_units_per_rev: 10000
+
+    # 🏃 Default profile velocity   [°/s]
+    profile_velocity: 30.0
+
+    # ⬆️ Default profile acceleration [°/s²]
+    profile_acceleration: 30.0
+
+    # ⬇️ Default profile deceleration [°/s²]
+    profile_deceleration: 30.0
+
+# ---------------------------------------------------------------------------
+# 🚃 Node 2 – Trolley joint
+# ---------------------------------------------------------------------------
+/trolley/canopen_ros2_node2:
+  ros__parameters:
+    can_interface: "can0"
+    node_id: "2"
+    gear_ratio: 0.1
+    target_units_per_rev: 10000
+    profile_velocity: 30.0
+    profile_acceleration: 30.0
+    profile_deceleration: 30.0
+
+# ---------------------------------------------------------------------------
+# 🔄 Node 3 – Slewing joint
+# ---------------------------------------------------------------------------
+/slewing/canopen_ros2_node3:
+  ros__parameters:
+    can_interface: "can0"
+    node_id: "3"
+    gear_ratio: 0.1
+    target_units_per_rev: 10000
+    profile_velocity: 30.0
+    profile_acceleration: 30.0
+    profile_deceleration: 30.0
