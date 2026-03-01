@@ -22,12 +22,12 @@
     node_id: "1"    # 🆔 CANopen node ID on the bus (must match bus.yml / drive DIP-switch)
     gear_ratio: 20.0    # ⚙️ Physical gear reduction ratio  (motor_revolutions / output_shaft_revolutions)
     position_factor_numerator: 10000    # ⚖️ 0x6093 sub1: Position Factor Numerator – replaces 
-    position_factor_denominator: 360    # ⚖️ 0x6093 sub2: Position Factor Denominator
-    max_profile_velocity: 40.0    # 📌 0x607F: Max profile velocity limit [r/s] (uint32)
-    profile_velocity: 30.0    # 🏃 Default profile velocity   [°/s]
-    profile_acceleration: 30.0    # ⬆️ Default profile acceleration [°/s²]
-    profile_deceleration: 30.0    # ⬇️ Default profile deceleration [°/s²]
-    quick_stop_deceleration: 600.0    # 🛑 0x6085: Quick stop deceleration [r/s²] (uint32),  you need to know how tight the grap is, and how have it carry the load
+    position_factor_denominator: 1  # ⚖️ 0x6093 sub2: Position Factor Denominator
+    max_profile_velocity: 400.0    # 📌 0x607F: Max profile velocity limit [r/s] (uint32)
+    profile_velocity: 300.0    # 🏃 Default profile velocity   [°/s]
+    profile_acceleration: 300.0    # ⬆️ Default profile acceleration [°/s²]
+    profile_deceleration: 3000.0    # ⬇️ Default profile deceleration [°/s²]
+    quick_stop_deceleration: 1000.0    # 🛑 0x6085: Quick stop deceleration [r/s²] (uint32),  you need to know how tight the grap is, and how have it carry the load
     position_range_limit_max: 2147483647    # 📐 0x607B sub1: Maximum position range limit [r] (int32)
     position_range_limit_min: -2147483648    # 📐 0x607B sub2: Minimum position range limit [r] (int32)
 
