@@ -166,8 +166,8 @@ private:
     float gear_ratio_ = 1.0;                       // ⚙️ Physical gear reduction ratio
     uint32_t position_factor_numerator_ = 1;       // ⚖️ Position factor numerator   (0x6093:01)
     uint32_t position_factor_denominator_ = 1;     // ⚖️ Position factor denominator (0x6093:02)
-    float units_per_degree_ = 0.0;                 // 📐 Cache: command units per degree
-    float degrees_per_unit_ = 0.0;                 // 📐 Cache: degrees per command unit
+    double units_per_degree_ = 0.0;                 // 📐 Cache: command units per degree
+    double degrees_per_unit_ = 0.0;                 // 📐 Cache: degrees per command unit
     float max_profile_velocity_ = 40.0;            // 📌 Max profile velocity limit [r/s] (0x607F)
     float profile_velocity_ = 30.0;                // 🏃 Default profile velocity (°/s)
     float profile_acceleration_ = 30.0;            // ⬆️ Default profile acceleration (°/s²)

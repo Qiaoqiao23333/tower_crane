@@ -887,8 +887,8 @@ void CANopenROS2::set_quick_stop_deceleration(float deceleration_rev_per_sec2)
     // Convert r/s² to position command units/s²:
     //   1 revolution = position_factor_numerator_ / position_factor_denominator_ command units
     //   command_units/s² = deceleration_rev_per_sec2 * (num / den)
-    uint32_t decel_units = static_cast<uint32_t>(
-        deceleration_rev_per_sec2 * (static_cast<float>(position_factor_numerator_) / static_cast<float>(position_factor_denominator_)));
+    uint32_t decel_units = static_cast<uint32_t>(std::lround(
+        static_cast<double>(deceleration_rev_per_sec2) * (static_cast<double>(position_factor_numerator_) / static_cast<double>(position_factor_denominator_))));
 
     write_sdo(OD_QUICK_STOP_DECEL, 0x00, static_cast<int32_t>(decel_units), 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -910,8 +910,8 @@ void CANopenROS2::set_max_profile_velocity(float velocity_rev_per_sec)
 {
     // Convert r/s → command units/s
     //   1 revolution = position_factor_numerator_ / position_factor_denominator_ command units
-    uint32_t velocity_units = static_cast<uint32_t>(
-        velocity_rev_per_sec * (static_cast<float>(position_factor_numerator_) / static_cast<float>(position_factor_denominator_)));
+    uint32_t velocity_units = static_cast<uint32_t>(std::lround(
+        static_cast<double>(velocity_rev_per_sec) * (static_cast<double>(position_factor_numerator_) / static_cast<double>(position_factor_denominator_))));
 
     write_sdo(OD_MAX_PROFILE_VELOCITY, 0x00, static_cast<int32_t>(velocity_units), 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));

@@ -43,8 +43,8 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     //          units_per_degree_ = (10000/1*10)/360 = 277.778
     //          90° → 90 × 277.778 = 25000 units (2.5 motor revolutions)
     //          360° → 360 × 277.778 = 100000 units (10 motor revolutions)
-    units_per_degree_ = (static_cast<float>(position_factor_numerator_) / static_cast<float>(position_factor_denominator_) * gear_ratio_) / 360.0f;
-    degrees_per_unit_ = 360.0f / (static_cast<float>(position_factor_numerator_) / static_cast<float>(position_factor_denominator_) * gear_ratio_);
+    units_per_degree_ = (static_cast<double>(position_factor_numerator_) / static_cast<double>(position_factor_denominator_) * static_cast<double>(gear_ratio_)) / 360.0;
+    degrees_per_unit_ = 360.0 / (static_cast<double>(position_factor_numerator_) / static_cast<double>(position_factor_denominator_) * static_cast<double>(gear_ratio_));
     
     // Log the calculated values for debugging
     std::pair<uint32_t, uint32_t> gear_params = calculate_gear_ratio_params(gear_ratio_, position_factor_numerator_, position_factor_denominator_);

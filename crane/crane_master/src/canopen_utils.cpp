@@ -6,12 +6,12 @@
  * @brief 📐 Convert angle to position command units
  * @param angle Angle (degrees)
  * @return Position command units
- * @details Formula: (angle / 360°) × ((position_factor_num / position_factor_den) / gear_ratio_) = command units
- *          Example: 90° → (90/360) × (10000/10) = 0.25 × 1000 = 250 units
+ * @details Formula: (angle / 360°) × ((position_factor_num / position_factor_den) × gear_ratio_) = command units
+ *          Example (slewing): 360° → (360/360) × (10000/1 × 10) = 1 × 100000 = 100000 units
  */
 int32_t CANopenROS2::angle_to_position(float angle)
 {
-    int32_t position = static_cast<int32_t>(angle * units_per_degree_);
+    int32_t position = static_cast<int32_t>(std::lround(static_cast<double>(angle) * units_per_degree_));
     return position;
 }
 
@@ -19,12 +19,12 @@ int32_t CANopenROS2::angle_to_position(float angle)
  * @brief 📐 Convert position command units to angle
  * @param position Position command units
  * @return Angle (degrees)
- * @details Formula: position × (gear_ratio_ / (position_factor_num / position_factor_den)) × 360° = angle
- *          Example: 250 units → 250 × (10/10000) × 360 = 90°
+ * @details Formula: position × 360° / ((position_factor_num / position_factor_den) × gear_ratio_) = angle
+ *          Example (slewing): 100000 units → 100000 × 360 / (10000 × 10) = 360°
  */
 float CANopenROS2::position_to_angle(int32_t position)
 {
-    float angle = static_cast<float>(position) * degrees_per_unit_;
+    float angle = static_cast<float>(static_cast<double>(position) * degrees_per_unit_);
     return angle;
 }
 
@@ -36,7 +36,7 @@ float CANopenROS2::position_to_angle(int32_t position)
  */
 int32_t CANopenROS2::velocity_to_units(float velocity_deg_per_sec)
 {
-    int32_t velocity_units_per_sec = static_cast<int32_t>(velocity_deg_per_sec * units_per_degree_);
+    int32_t velocity_units_per_sec = static_cast<int32_t>(std::lround(static_cast<double>(velocity_deg_per_sec) * units_per_degree_));
     return velocity_units_per_sec;
 }
 
@@ -48,7 +48,7 @@ int32_t CANopenROS2::velocity_to_units(float velocity_deg_per_sec)
  */
 float CANopenROS2::units_to_velocity(int32_t velocity_units_per_sec)
 {
-    float velocity_deg_per_sec = static_cast<float>(velocity_units_per_sec) * degrees_per_unit_;
+    float velocity_deg_per_sec = static_cast<float>(static_cast<double>(velocity_units_per_sec) * degrees_per_unit_);
     return velocity_deg_per_sec;
 }
 
@@ -60,7 +60,7 @@ float CANopenROS2::units_to_velocity(int32_t velocity_units_per_sec)
  */
 int32_t CANopenROS2::acceleration_to_units(float acceleration_deg_per_sec2)
 {
-    int32_t acceleration_units_per_sec2 = static_cast<int32_t>(acceleration_deg_per_sec2 * units_per_degree_);
+    int32_t acceleration_units_per_sec2 = static_cast<int32_t>(std::lround(static_cast<double>(acceleration_deg_per_sec2) * units_per_degree_));
     return acceleration_units_per_sec2;
 }
 
