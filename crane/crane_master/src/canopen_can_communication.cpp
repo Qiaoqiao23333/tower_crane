@@ -66,7 +66,7 @@ void CANopenROS2::init_can_socket()
  */
 void CANopenROS2::send_nmt_command(uint8_t command)
 {
-    struct can_frame frame;
+    struct can_frame frame = {};
     frame.can_id = COB_NMT;
     frame.can_dlc = 2;
     frame.data[0] = command;
@@ -88,7 +88,7 @@ void CANopenROS2::send_nmt_command(uint8_t command)
  */
 void CANopenROS2::send_sync_frame()
 {
-    struct can_frame frame;
+    struct can_frame frame = {};
     frame.can_id = COB_SYNC;
     frame.can_dlc = 0;
     
@@ -111,7 +111,7 @@ void CANopenROS2::send_sync_frame()
  */
 void CANopenROS2::write_sdo(uint16_t index, uint8_t subindex, int32_t data, uint8_t size)
 {
-    struct can_frame frame;
+    struct can_frame frame = {};
     frame.can_id = COB_RSDO + node_id_;
     frame.can_dlc = 8;
     
@@ -159,7 +159,7 @@ void CANopenROS2::write_sdo(uint16_t index, uint8_t subindex, int32_t data, uint
  */
 int32_t CANopenROS2::read_sdo(uint16_t index, uint8_t subindex)
 {
-    struct can_frame frame;
+    struct can_frame frame = {};
     frame.can_id = COB_RSDO + node_id_;
     frame.can_dlc = 8;
     frame.data[0] = 0x40;                 // 📤 SDO upload request command
@@ -251,7 +251,7 @@ int32_t CANopenROS2::read_sdo(uint16_t index, uint8_t subindex)
  */
 void CANopenROS2::receive_can_frames()
 {
-    struct can_frame frame;
+    struct can_frame frame = {};
     ssize_t nbytes = read(can_socket_, &frame, sizeof(struct can_frame));
     
     if (nbytes < 0)

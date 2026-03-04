@@ -124,7 +124,7 @@ void SyncTrajectoryActionServer::send_sync_frame()
         return;
     }
     
-    struct can_frame frame;
+    struct can_frame frame = {};
     frame.can_id = COB_SYNC;
     frame.can_dlc = 0;  // SYNC frame has no data
     

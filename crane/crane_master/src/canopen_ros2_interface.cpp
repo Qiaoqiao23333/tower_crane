@@ -66,7 +66,7 @@ void CANopenROS2::publish_status()
 void CANopenROS2::position_callback(const std_msgs::msg::Float32::SharedPtr msg)
 {
     float angle = msg->data;
-    RCLCPP_INFO(this->get_logger(), "📍 Received target position: %.2f°", angle);
+    RCLCPP_INFO(this->get_logger(), "📍 Received target position: %.4f r (output shaft revolutions)", angle);
     
     // Add more debug information
     RCLCPP_INFO(this->get_logger(), "🔌 Current CAN socket: %d", can_socket_);
@@ -79,6 +79,23 @@ void CANopenROS2::position_callback(const std_msgs::msg::Float32::SharedPtr msg)
     // Read current operation mode
     int32_t mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
     RCLCPP_INFO(this->get_logger(), "👉🏼Current operation mode: %d", mode);
+    
+    // If drive is in fault state, try to clear and re-enable before moving
+    if (status_word & 0x0008)
+    {
+        RCLCPP_WARN(this->get_logger(), "⚠️ Drive in fault state (0x%04X), attempting recovery...", status_word);
+        clear_fault();
+        enable_motor();
+        
+        // Re-check status after recovery attempt
+        status_word = read_sdo(OD_STATUS_WORD, 0x00);
+        if (status_word & 0x0008)
+        {
+            RCLCPP_ERROR(this->get_logger(), "❌ Failed to clear fault (0x%04X), cannot execute position command", status_word);
+            return;
+        }
+        RCLCPP_INFO(this->get_logger(), "✅ Fault cleared, status word: 0x%04X", status_word);
+    }
     
     go_to_position(angle);
 }

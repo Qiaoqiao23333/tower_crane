@@ -38,10 +38,11 @@
 #define COB_TPDO1    0x180   // 📤 Transmit PDO1
 
 // ==================== 🎮 NMT Network Management commands ====================
-#define NMT_START_REMOTE_NODE    0x01   // ▶️ Start remote node
-#define NMT_STOP_REMOTE_NODE     0x02   // ⏹️ Stop remote node
-#define NMT_RESET_NODE           0x81   // 🔄 Reset node
-#define NMT_RESET_COMM           0x82   // 🔄 Reset communication
+#define NMT_START_REMOTE_NODE      0x01   // ▶️ Start remote node (→ Operational)
+#define NMT_STOP_REMOTE_NODE       0x02   // ⏹️ Stop remote node  (→ Stopped, SDO disabled!)
+#define NMT_ENTER_PRE_OPERATIONAL  0x80   // ⏸️ Enter pre-operational (→ Pre-op, SDO works, PDO disabled)
+#define NMT_RESET_NODE             0x81   // 🔄 Reset node
+#define NMT_RESET_COMM             0x82   // 🔄 Reset communication
 
 // ==================== ⚙️ CiA402 Control words ====================
 #define CONTROL_SHUTDOWN         0x06   // 🔌 Shutdown (prepare to switch to Switch On)
@@ -126,7 +127,7 @@ private:
     void set_profile_deceleration(float deceleration_deg_per_sec2);      // ⬇️ Set profile deceleration
     void set_quick_stop_deceleration(float deceleration_rev_per_sec2);      // 🛑 Set quick stop deceleration (0x6085)
     void set_position_range_limit(int32_t max_val, int32_t min_val);         // 📐 Set position range limit (0x607B)
-    void set_position_factor(uint32_t numerator, uint32_t denominator);      // ⚖️ Set position factor (0x6093)
+    void set_electronic_gear_ratio(uint32_t numerator, uint32_t denominator); // ⚙️ Set electronic gear ratio (0x6091)
     void set_profile_parameters(float velocity_deg_per_sec, float acceleration_deg_per_sec2, float deceleration_deg_per_sec2);  // 📏 Set profile parameters
     void set_control_word(uint16_t control_word);                        // 🎮 Set control word
     void set_target_velocity(int32_t velocity_units_per_sec);            // 🎯 Set target velocity
@@ -154,18 +155,14 @@ private:
     float units_to_velocity(int32_t velocity_units_per_sec);             // 📐 Convert command units to velocity
     int32_t acceleration_to_units(float acceleration_deg_per_sec2);      // 📐 Convert acceleration to command units
     
-    // ⚙️ Electronic gear ratio calculation - returns {Numerator, Denominator} corresponding to 0x6091:01 and 0x6091:02
-    std::pair<uint32_t, uint32_t> calculate_gear_ratio_params(float gear_ratio, uint32_t numerator, uint32_t denominator);
-    
     // 🚨 Error handling
     void check_and_clear_error();
 
     // ==================== 📦 Member variables ====================
     std::string can_interface_;                    // 📡 CAN interface name (e.g., "can0")
     uint8_t node_id_;                              // 🆔 CANopen node ID
-    float gear_ratio_ = 1.0;                       // ⚙️ Physical gear reduction ratio
-    uint32_t position_factor_numerator_ = 1;       // ⚖️ Position factor numerator   (0x6093:01)
-    uint32_t position_factor_denominator_ = 1;     // ⚖️ Position factor denominator (0x6093:02)
+    uint32_t gear_ratio_numerator_ = 10000;            // ⚙️ Electronic gear ratio numerator   (0x6091:01)
+    uint32_t gear_ratio_denominator_ = 1;          // ⚙️ Electronic gear ratio denominator (0x6091:02)
     double units_per_degree_ = 0.0;                 // 📐 Cache: command units per degree
     double degrees_per_unit_ = 0.0;                 // 📐 Cache: degrees per command unit
     float max_profile_velocity_ = 40.0;            // 📌 Max profile velocity limit [r/s] (0x607F)

@@ -67,6 +67,16 @@ install(TARGETS
   DESTINATION lib/${PROJECT_NAME}
 )
 
+# ==================== 🔬 Tests ====================
+add_executable(test_canopen_utils
+  test/test_canopen_utils.cpp
+)
+
+install(TARGETS
+  test_canopen_utils
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 # 安装launch文件
 install(DIRECTORY
   launch
