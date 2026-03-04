@@ -40,20 +40,34 @@ void CANopenROS2::initialize_node()
     int32_t mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
     RCLCPP_INFO(this->get_logger(), "🎛️ Current operation mode: %d", mode);
     
-    // If SDO setting fails, retry via SDO
-    // Note: Operation mode (0x6060) is NOT mapped in any RPDO, so PDO cannot be used here.
-    // RPDO1 = Control Word + Target Position; RPDO2 = Control Word + Target Velocity.
+    // 如果操作模式仍然不是位置模式，尝试使用PDO设置
     if (mode != MODE_PROFILE_POSITION)
     {
-        RCLCPP_WARN(this->get_logger(), "⚠️ Failed to set operation mode using SDO, retrying...");
+        RCLCPP_WARN(this->get_logger(), "⚠️ Failed to set operation mode using SDO, trying PDO");
         
+        // 使用PDO设置操作模式
+        struct can_frame frame;
+        frame.can_id = COB_RPDO1 + node_id_;
+        frame.can_dlc = 3;  // 控制字(2字节) + 操作模式(1字节)
+        frame.data[0] = CONTROL_ENABLE_OPERATION & 0xFF;  // 控制字低字节
+        frame.data[1] = (CONTROL_ENABLE_OPERATION >> 8) & 0xFF;  // 控制字高字节
+        frame.data[2] = MODE_PROFILE_POSITION;  // 操作模式
+        
+        if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
+        {
+            RCLCPP_ERROR(this->get_logger(), "Failed to send PDO operation mode");
+        }
+        else
+        {
+            RCLCPP_INFO(this->get_logger(), "PDO operation mode sent");
+        }
+        
+        send_sync_frame();
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        write_sdo(OD_OPERATION_MODE, 0x00, MODE_PROFILE_POSITION, 1);
-        std::this_thread::sleep_for(std::chrono::milliseconds(300));
         
         // 🔍 Verify operation mode again
         mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
-        RCLCPP_INFO(this->get_logger(), "🎛️ Operation mode after retry: %d", mode);
+        RCLCPP_INFO(this->get_logger(), "🎛️ Operation mode after PDO setting: %d", mode);
     }
     
     // ⚙️ Set electronic gear ratio (from ROS2 parameters: gear_ratio_numerator / denominator)
@@ -77,13 +91,12 @@ void CANopenROS2::initialize_node()
     // 📐 Set position range limit (0x607B sub1=max, sub2=min, from ROS2 parameters)
     set_position_range_limit(position_range_limit_max_, position_range_limit_min_);
     
-    // ⏸️ Disable internal SYNC generator (0x1006 = 0)
-    // The drive validates ALL active RPDOs on every internal SYNC pulse.
-    // At 1000µs the drive fires 1000 SYNCs/sec; during idle periods the host
-    // cannot refresh RPDOs fast enough, causing 0xFF31 (RPDO buffer empty).
-    // We rely exclusively on explicit send_sync_frame() calls — which are
-    // always preceded by RPDO1+RPDO2 sends — for reliable PDO processing.
+    // 禁用同步生成器
     write_sdo(OD_CYCLE_PERIOD, 0x00, 0, 4);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    // 设置通信周期为1000微秒
+    write_sdo(OD_CYCLE_PERIOD, 0x00, 1000, 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     RCLCPP_INFO(this->get_logger(), "✅ Node initialization complete");
