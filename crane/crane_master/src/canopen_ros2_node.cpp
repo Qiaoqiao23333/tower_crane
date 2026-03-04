@@ -20,6 +20,7 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     // Read parameters
     can_interface_ = this->get_parameter("can_interface").as_string();
     std::string node_id_str = this->get_parameter("node_id").as_string();
+    gear_ratio_ = this->get_parameter("gear_ratio").as_double();
     gear_ratio_numerator_   = static_cast<uint32_t>(this->get_parameter("gear_ratio_numerator").as_int());
     gear_ratio_denominator_ = static_cast<uint32_t>(this->get_parameter("gear_ratio_denominator").as_int());
     max_profile_velocity_ = static_cast<float>(this->get_parameter("max_profile_velocity").as_double());
@@ -30,23 +31,9 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     position_range_limit_max_ = static_cast<int32_t>(this->get_parameter("position_range_limit_max").as_int());
     position_range_limit_min_ = static_cast<int32_t>(this->get_parameter("position_range_limit_min").as_int());
     
-    // NOTE: units_per_degree_ / degrees_per_unit_ are kept for potential future use,
-    // but ALL position/velocity/acceleration functions now use a 1:1 mapping:
-    //   1 command unit = 1 driving-shaft (output) revolution
-    //
-    // Drive formula (DSY-C): Motor Position [r] = 0x607A × (6091:01 / 6091:02)
-    //   → 0x607A is in output-shaft revolutions; the drive's gear ratio converts to motor revs.
-    //   Example: gear_ratio_numerator=10000, gear_ratio_denominator=1 (10 000:1 gearbox)
-    //     send data=10.0 → 0x607A=10 → motor moves 10×10000 = 100 000 r → output shaft = 10 r
-    //
-    // units_per_degree_  = numerator / denominator / 360  (NOT used for position/velocity)
-    // degrees_per_unit_  = 360 * denominator / numerator  (NOT used for position/velocity)
-    units_per_degree_ = static_cast<double>(gear_ratio_numerator_) / static_cast<double>(gear_ratio_denominator_) / 360.0;
-    degrees_per_unit_ = 360.0 * static_cast<double>(gear_ratio_denominator_) / static_cast<double>(gear_ratio_numerator_);
-    
-    // Log the calculated values for debugging
-    RCLCPP_INFO(this->get_logger(), "⚙️ Electronic gear ratio (0x6091): %u/%u, Units/degree: %.6f", 
-               gear_ratio_numerator_, gear_ratio_denominator_, units_per_degree_);
+    // Drive handles all unit scaling via 0x6091 (electronic gear ratio). Software sends degrees directly.
+    RCLCPP_INFO(this->get_logger(), "⚙️ Gear ratio: %.2f, Writing to drive 0x6091: %u/%u (motor revs / shaft revs)",
+               gear_ratio_, gear_ratio_numerator_, gear_ratio_denominator_);
     
     // Debug: print read parameter values
     RCLCPP_INFO(this->get_logger(), "🔍 [DEBUG] Node name: %s, Read node_id parameter value: '%s'", 
@@ -162,22 +149,8 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     // Enable motor
     enable_motor();
     
-    // Read current gear ratio from drive for reference before overwriting
-    int32_t motor_revolutions = read_sdo(OD_GEAR_RATIO, 0x01);
-    int32_t shaft_revolutions = read_sdo(OD_GEAR_RATIO, 0x02);
-    
-    if (motor_revolutions > 0 && shaft_revolutions > 0)
-    {
-        RCLCPP_INFO(this->get_logger(), "⚙️ Current drive gear ratio (0x6091): Motor revolutions=%d, Shaft revolutions=%d", 
-                   motor_revolutions, shaft_revolutions);
-    }
-    else
-    {
-        RCLCPP_INFO(this->get_logger(), "⚠️ Unable to read current drive gear ratio (0x6091)");
-    }
-    
-    // Set electronic gear ratio (0x6091 sub1=numerator, sub2=denominator)
-    set_electronic_gear_ratio(gear_ratio_numerator_, gear_ratio_denominator_);
+    // Set electronic gear ratio (0x6091 sub1=motor_shaft_revolutions, sub2=drive_shaft_revolutions)
+    set_gear_ratio(gear_ratio_numerator_, gear_ratio_denominator_);
 
     // Set max profile velocity limit (0x607F)
     set_max_profile_velocity(max_profile_velocity_);

@@ -81,9 +81,7 @@
 #define OD_MAX_PROFILE_VELOCITY  0x607F // 🔒 Maximum profile velocity (default: 600,000)
 
 // ==================== ⚙️ Electronic gear ratio ====================
-// Many DSY motors need to be explicitly set to 1:1 (if not default)
-#define OD_GEAR_RATIO            0x6091 // ⚙️ Gear ratio (sub-index 01=numerator, 02=denominator)
-#define OD_POSITION_FACTOR       0x6093 // ⚖️ Position factor (sub1=numerator, sub2=denominator)
+#define OD_GEAR_RATIO            0x6091 // ⚙️ Gear ratio (sub1=motor_shaft_revolutions, sub2=drive_shaft_revolutions)
 
 // ==================== 💾 Save parameters ====================
 // If settings are modified, may need to save to EEPROM
@@ -127,7 +125,7 @@ private:
     void set_profile_deceleration(float deceleration_deg_per_sec2);      // ⬇️ Set profile deceleration
     void set_quick_stop_deceleration(float deceleration_rev_per_sec2);      // 🛑 Set quick stop deceleration (0x6085)
     void set_position_range_limit(int32_t max_val, int32_t min_val);         // 📐 Set position range limit (0x607B)
-    void set_electronic_gear_ratio(uint32_t numerator, uint32_t denominator); // ⚙️ Set electronic gear ratio (0x6091)
+    void set_gear_ratio(uint32_t numerator, uint32_t denominator);           // ⚙️ Set electronic gear ratio (0x6091)
     void set_profile_parameters(float velocity_deg_per_sec, float acceleration_deg_per_sec2, float deceleration_deg_per_sec2);  // 📏 Set profile parameters
     void set_control_word(uint16_t control_word);                        // 🎮 Set control word
     void set_target_velocity(int32_t velocity_units_per_sec);            // 🎯 Set target velocity
@@ -149,11 +147,12 @@ private:
                         std::shared_ptr<std_srvs::srv::SetBool::Response> response); // 🎛️ Handle mode set request
     
     // ==================== 🧮 Utility functions ====================
-    int32_t angle_to_position(float angle);                              // 📐 Convert angle to position command units
-    float position_to_angle(int32_t position);                           // 📐 Convert position command units to angle
-    int32_t velocity_to_units(float velocity_deg_per_sec);               // 📐 Convert velocity to command units
-    float units_to_velocity(int32_t velocity_units_per_sec);             // 📐 Convert command units to velocity
-    int32_t acceleration_to_units(float acceleration_deg_per_sec2);      // 📐 Convert acceleration to command units
+    // Drive handles all unit scaling via 0x6091 (gear ratio); these only cast between float and int32_t.
+    int32_t angle_to_position(float angle);
+    float position_to_angle(int32_t position);
+    int32_t velocity_to_units(float velocity_deg_per_sec);
+    float units_to_velocity(int32_t velocity_units_per_sec);
+    int32_t acceleration_to_units(float acceleration_deg_per_sec2);
     
     // 🚨 Error handling
     void check_and_clear_error();
@@ -161,10 +160,9 @@ private:
     // ==================== 📦 Member variables ====================
     std::string can_interface_;                    // 📡 CAN interface name (e.g., "can0")
     uint8_t node_id_;                              // 🆔 CANopen node ID
-    uint32_t gear_ratio_numerator_ = 10000;            // ⚙️ Electronic gear ratio numerator   (0x6091:01)
-    uint32_t gear_ratio_denominator_ = 1;          // ⚙️ Electronic gear ratio denominator (0x6091:02)
-    double units_per_degree_ = 0.0;                 // 📐 Cache: command units per degree
-    double degrees_per_unit_ = 0.0;                 // 📐 Cache: degrees per command unit
+    float gear_ratio_ = 1.0;                       // ⚙️ Physical gear reduction ratio (float, for logging)
+    uint32_t gear_ratio_numerator_ = 1;            // ⚙️ 0x6091:01 motor shaft revolutions (drive fixed: 1)
+    uint32_t gear_ratio_denominator_ = 10000;      // ⚙️ 0x6091:02 load axis resolution    (drive fixed: 10000 units = 1 motor rev)
     float max_profile_velocity_ = 40.0;            // 📌 Max profile velocity limit [r/s] (0x607F)
     float profile_velocity_ = 30.0;                // 🏃 Default profile velocity (°/s)
     float profile_acceleration_ = 30.0;            // ⬆️ Default profile acceleration (°/s²)

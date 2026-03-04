@@ -1,21 +1,9 @@
 #include "crane_master/sync_trajectory_action_server.hpp"
-#include <fcntl.h>
-#include <cstring>
 
 SyncTrajectoryActionServer::SyncTrajectoryActionServer()
-    : Node("sync_trajectory_action_server"),
-      can_socket_(-1)
+    : Node("sync_trajectory_action_server")
 {
-    // Declare and get parameters
-    this->declare_parameter<std::string>("can_interface", "can0");
-    can_interface_ = this->get_parameter("can_interface").as_string();
-    
-    RCLCPP_INFO(this->get_logger(), 
-        "🔄 Initializing sync trajectory Action Server, CAN interface: %s", 
-        can_interface_.c_str());
-    
-    // Initialize CAN socket for SYNC frames
-    init_can_socket();
+    RCLCPP_INFO(this->get_logger(), "🔄 Initializing sync trajectory Action Server");
     
     // Initialize current positions
     current_positions_["slewing_joint"] = 0.0;
@@ -65,77 +53,8 @@ SyncTrajectoryActionServer::SyncTrajectoryActionServer()
         "✅ Sync trajectory Action Server ready: /forward_position_controller/follow_joint_trajectory");
 }
 
-SyncTrajectoryActionServer::~SyncTrajectoryActionServer()
-{
-    if (can_socket_ >= 0) {
-        close(can_socket_);
-    }
-}
+SyncTrajectoryActionServer::~SyncTrajectoryActionServer() = default;
 
-void SyncTrajectoryActionServer::init_can_socket()
-{
-    // Create socket
-    can_socket_ = socket(PF_CAN, SOCK_RAW, CAN_RAW);
-    if (can_socket_ < 0) {
-        RCLCPP_ERROR(this->get_logger(), 
-            "❌ Failed to create CAN socket: %s", strerror(errno));
-        return;
-    }
-    
-    // Set socket to non-blocking mode
-    int flags = fcntl(can_socket_, F_GETFL, 0);
-    fcntl(can_socket_, F_SETFL, flags | O_NONBLOCK);
-    
-    // Get interface index
-    struct ifreq ifr;
-    std::strncpy(ifr.ifr_name, can_interface_.c_str(), IFNAMSIZ - 1);
-    ifr.ifr_name[IFNAMSIZ - 1] = '\0';
-    
-    if (ioctl(can_socket_, SIOCGIFINDEX, &ifr) < 0) {
-        RCLCPP_ERROR(this->get_logger(), 
-            "❌ Failed to get interface %s index: %s", 
-            can_interface_.c_str(), strerror(errno));
-        close(can_socket_);
-        can_socket_ = -1;
-        return;
-    }
-    
-    // Bind socket
-    struct sockaddr_can addr;
-    std::memset(&addr, 0, sizeof(addr));
-    addr.can_family = AF_CAN;
-    addr.can_ifindex = ifr.ifr_ifindex;
-    
-    if (bind(can_socket_, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        RCLCPP_ERROR(this->get_logger(), 
-            "❌ Failed to bind CAN socket: %s", strerror(errno));
-        close(can_socket_);
-        can_socket_ = -1;
-        return;
-    }
-    
-    RCLCPP_INFO(this->get_logger(), "✅ CAN socket initialized successfully");
-}
-
-void SyncTrajectoryActionServer::send_sync_frame()
-{
-    if (can_socket_ < 0) {
-        RCLCPP_WARN(this->get_logger(), "⚠️ CAN socket not initialized, cannot send SYNC");
-        return;
-    }
-    
-    struct can_frame frame = {};
-    frame.can_id = COB_SYNC;
-    frame.can_dlc = 0;  // SYNC frame has no data
-    
-    ssize_t bytes_written = write(can_socket_, &frame, sizeof(struct can_frame));
-    if (bytes_written != sizeof(struct can_frame)) {
-        RCLCPP_WARN(this->get_logger(), 
-            "❌ Failed to send SYNC frame: %s", strerror(errno));
-    } else {
-        RCLCPP_DEBUG(this->get_logger(), "🔄 SYNC frame sent (0x080)");
-    }
-}
 
 rclcpp_action::GoalResponse SyncTrajectoryActionServer::handle_goal(
     const rclcpp_action::GoalUUID & uuid,
@@ -254,14 +173,12 @@ void SyncTrajectoryActionServer::execute(
             }
         }
         
-        // Small delay to ensure commands are sent before SYNC
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
-        
-        // Send SYNC frame to synchronize all motors
-        send_sync_frame();
-        
-        RCLCPP_INFO(this->get_logger(), 
-            "📤 Commands sent and synchronized via SYNC frame");
+        // SYNC 帧由各从站节点内的定时器统一发送，此处不再直接操作 CAN 总线。
+        // 直接发送底层 CAN 帧会与各 CANopenROS2 节点的 CAN socket 产生竞态条件：
+        //   - 两个进程同时写同一 CAN 接口可能导致帧乱序；
+        //   - DDS 发布与 CAN write() 之间存在不确定延迟，无法保证 RPDO 先于 SYNC 到达。
+        // 因此此处仅通过 ROS2 话题发布目标位置，SYNC 时序交由底层统一管理。
+        RCLCPP_DEBUG(this->get_logger(), "📤 Position commands published to all motors");
         
         // Publish feedback
         feedback->header.stamp = this->now();

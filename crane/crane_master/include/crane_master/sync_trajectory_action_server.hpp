@@ -11,19 +11,11 @@
 #include <rclcpp_action/rclcpp_action.hpp>
 #include <control_msgs/action/follow_joint_trajectory.hpp>
 #include <std_msgs/msg/float32.hpp>
-#include <linux/can.h>
-#include <linux/can/raw.h>
-#include <net/if.h>
-#include <sys/ioctl.h>
-#include <sys/socket.h>
-#include <unistd.h>
 #include <string>
 #include <vector>
 #include <map>
 #include <thread>
 #include <chrono>
-
-#define COB_SYNC 0x080  // 🔄 CANopen sync frame COB-ID
 
 /**
  * @class SyncTrajectoryActionServer
@@ -52,10 +44,6 @@ private:
     
     void execute(const std::shared_ptr<GoalHandleFJT> goal_handle);          // 🎬 Execute trajectory
 
-    // ==================== 📡 CAN communication functions ====================
-    void init_can_socket();   // 🔌 Initialize CAN socket
-    void send_sync_frame();   // 🔄 Send sync frame
-
     // ==================== 📦 Member variables ====================
     rclcpp_action::Server<FollowJointTrajectory>::SharedPtr action_server_;  // 🎯 Action server
     
@@ -71,10 +59,6 @@ private:
     
     // 📍 Current position storage
     std::map<std::string, double> current_positions_;
-    
-    // 📡 CAN socket
-    std::string can_interface_;   // 📟 CAN interface name
-    int can_socket_;              // 🔌 Socket file descriptor
 };
 
 #endif // SYNC_TRAJECTORY_ACTION_SERVER_HPP

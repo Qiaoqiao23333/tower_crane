@@ -39,6 +39,11 @@ using namespace crane_master_test_helpers;
  *    - 输入多少度，就在驱动器对象 0x607A 中写多少「位置单位」
  *    - 例如：angle = 90.0f → 写入 90
  */
+
+// Unit conversion: drive handles all scaling via 0x6091 (electronic gear ratio).
+// These functions only perform the required type cast between the float-based
+// ROS interface and the int32_t-based CANopen commands.
+
 int32_t CANopenROS2::angle_to_position(float angle)
 {
     return angle_to_position_linear(angle);

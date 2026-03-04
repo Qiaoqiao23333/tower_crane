@@ -55,6 +55,8 @@ def launch_nodes(context):
     nodes_to_launch = []
 
     # Node 1 (Hoist): namespace=hoist, node_id=1
+    # node_id 在此处显式覆盖，防止三个节点同时加载 YAML 时因参数
+    # 命名空间解析失败而全部读到相同的默认值，引发 CANopen ID 冲突。
     node1_config = {
         'package':    'crane_master',
         'executable': 'tower_crane',
@@ -63,7 +65,8 @@ def launch_nodes(context):
         'parameters': [
             crane_params_yaml,                          # 📄 base: crane_params.yaml
             {'can_interface': can_interface_value,      # 🔧 CLI override
-             'auto_start':    auto_start_value},
+             'auto_start':    auto_start_value,
+             'node_id':       '1'},                    # 🆔 显式绑定 CANopen node ID
         ]
     }
 
@@ -76,7 +79,8 @@ def launch_nodes(context):
         'parameters': [
             crane_params_yaml,
             {'can_interface': can_interface_value,
-             'auto_start':    auto_start_value},
+             'auto_start':    auto_start_value,
+             'node_id':       '2'},                    # 🆔 显式绑定 CANopen node ID
         ]
     }
 
@@ -89,7 +93,8 @@ def launch_nodes(context):
         'parameters': [
             crane_params_yaml,
             {'can_interface': can_interface_value,
-             'auto_start':    auto_start_value},
+             'auto_start':    auto_start_value,
+             'node_id':       '3'},                    # 🆔 显式绑定 CANopen node ID
         ]
     }
 

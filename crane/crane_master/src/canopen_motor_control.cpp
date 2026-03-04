@@ -56,6 +56,9 @@ void CANopenROS2::initialize_node()
         RCLCPP_INFO(this->get_logger(), "🎛️ Operation mode after retry: %d", mode);
     }
     
+    // ⚙️ Set electronic gear ratio (from ROS2 parameters: gear_ratio_numerator / denominator)
+    set_gear_ratio(gear_ratio_numerator_, gear_ratio_denominator_);
+    
     // 📌 Set max profile velocity limit (from ROS2 parameter: max_profile_velocity)
     set_max_profile_velocity(max_profile_velocity_);
     
@@ -164,8 +167,10 @@ void CANopenROS2::configure_pdo()
     write_sdo(0x1600, 0x00, 0x02, 1);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
-    // 7. Set transmission type and enable RxPDO1
-    write_sdo(0x1400, 0x02, 0xFF, 1);
+    // 7. 最终确认传输类型为 0x01（同步）并使能 RxPDO1
+    // 0x01 = 每个 SYNC 脉冲处理一次 RPDO，避免异步模式（0xFF）下
+    // 驱动器在任意时刻消耗 RPDO 缓冲区导致的 0xFF31 错误。
+    write_sdo(0x1400, 0x02, 0x01, 1);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     write_sdo(0x1400, 0x01, rxpdo1_cob_id, 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -198,8 +203,9 @@ void CANopenROS2::configure_pdo()
     write_sdo(0x1601, 0x00, 0x02, 1);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
-    // 7. Set transmission type and Enable RxPDO2
-    write_sdo(0x1401, 0x02, 0xFF, 1);
+    // 7. 最终确认传输类型为 0x01（同步）并使能 RxPDO2
+    // 与 RxPDO1 保持一致，所有 RPDO 均在同一 SYNC 脉冲时被驱动器一次性处理。
+    write_sdo(0x1401, 0x02, 0x01, 1);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     write_sdo(0x1401, 0x01, rxpdo2_cob_id, 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -666,63 +672,35 @@ void CANopenROS2::set_target_velocity(int32_t velocity_units_per_sec)
 void CANopenROS2::go_to_position(float angle)
 {
     int32_t position = angle_to_position(angle);
-    position_ = position; // 更新缓存的当前目标位置
-    
-    // ── RPDO1: 准备目标位置 ──
+    position_ = position;  // 更新位置缓存，供 set_control_word() 复用
+
+    // ── RPDO1: Control Word (ENABLE_OPERATION) + Target Position ──────────
+    // 传输类型 0x01（同步）：驱动器在下一个外部 SYNC 脉冲时锁存此数据。
+    // 调用方负责在适当时机发送 SYNC（由定时器或上层轨迹服务器统一触发）。
+    // 此函数不发 SYNC、不阻塞、不做 NEW_SET_POINT 握手。
     struct can_frame frame = {};
-    frame.can_id = COB_RPDO1 + node_id_;
+    frame.can_id  = COB_RPDO1 + node_id_;
     frame.can_dlc = 6;
+    frame.data[0] = CONTROL_ENABLE_OPERATION & 0xFF;
+    frame.data[1] = (CONTROL_ENABLE_OPERATION >> 8) & 0xFF;
     frame.data[2] = position & 0xFF;
     frame.data[3] = (position >> 8) & 0xFF;
     frame.data[4] = (position >> 16) & 0xFF;
     frame.data[5] = (position >> 24) & 0xFF;
-    
-    // ── RPDO2: 准备0速度缓存 ──
+    write(can_socket_, &frame, sizeof(struct can_frame));
+
+    // ── RPDO2: 同步刷新，防止下一个 SYNC 触发 0xFF31（RPDO 缓冲区空）──
     struct can_frame rpdo2 = {};
-    rpdo2.can_id = COB_RPDO2 + node_id_;
+    rpdo2.can_id  = COB_RPDO2 + node_id_;
     rpdo2.can_dlc = 6;
-    // rpdo2.data[2..5] 默认为0
-    
-    // 1. 发送 Enable Operation (0x000F) -> 确保 bit 4 为低电平
-    frame.data[0] = CONTROL_ENABLE_OPERATION & 0xFF;
-    frame.data[1] = (CONTROL_ENABLE_OPERATION >> 8) & 0xFF;
-    rpdo2.data[0] = frame.data[0];
-    rpdo2.data[1] = frame.data[1];
-    write(can_socket_, &frame, sizeof(struct can_frame));
+    rpdo2.data[0] = CONTROL_ENABLE_OPERATION & 0xFF;
+    rpdo2.data[1] = (CONTROL_ENABLE_OPERATION >> 8) & 0xFF;
+    // data[2..5] 保持 0（目标速度 = 0）
     write(can_socket_, &rpdo2, sizeof(struct can_frame));
-    send_sync_frame();
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
-    
-    // 2. 发送 Enable Operation + New Setpoint (0x001F) -> 制造上升沿锁存位置
-    frame.data[0] = (CONTROL_ENABLE_OPERATION | CONTROL_NEW_SET_POINT) & 0xFF;
-    frame.data[1] = ((CONTROL_ENABLE_OPERATION | CONTROL_NEW_SET_POINT) >> 8) & 0xFF;
-    rpdo2.data[0] = frame.data[0];
-    rpdo2.data[1] = frame.data[1];
-    write(can_socket_, &frame, sizeof(struct can_frame));
-    write(can_socket_, &rpdo2, sizeof(struct can_frame));
-    send_sync_frame();
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
-    
-    // 3. 恢复 Enable Operation (0x000F) -> 撤销 bit 4，为下次指令做准备
-    frame.data[0] = CONTROL_ENABLE_OPERATION & 0xFF;
-    frame.data[1] = (CONTROL_ENABLE_OPERATION >> 8) & 0xFF;
-    rpdo2.data[0] = frame.data[0];
-    rpdo2.data[1] = frame.data[1];
-    write(can_socket_, &frame, sizeof(struct can_frame));
-    write(can_socket_, &rpdo2, sizeof(struct can_frame));
-    send_sync_frame();
 
-    RCLCPP_INFO(this->get_logger(), "📤 位置命令已通过原子级PDO发送");
-
-    // 监控目标到达...
-    int retry = 0;
-    while (retry < 50)
-    {
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        int32_t status_word = read_sdo(OD_STATUS_WORD, 0x00);
-        if (status_word & 0x0400) break;
-        retry++;
-    }
+    RCLCPP_DEBUG(this->get_logger(),
+        "📍 go_to_position: %.2f° -> %d units (RPDO1+RPDO2 已写入，等待外部 SYNC)",
+        angle, position);
 }
 
 void CANopenROS2::set_velocity(float velocity_deg_per_sec)
@@ -863,9 +841,11 @@ void CANopenROS2::set_position_range_limit(int32_t max_val, int32_t min_val)
  */
 void CANopenROS2::set_quick_stop_deceleration(float deceleration_rev_per_sec2)
 {
-    // 1 command unit = 1 output-shaft revolution → direct 1:1 cast.
+    // Convert r/s² to position command units/s²:
+    //   1 revolution = gear_ratio_numerator_ / gear_ratio_denominator_ command units
+    //   command_units/s² = deceleration_rev_per_sec2 * (num / den)
     uint32_t decel_units = static_cast<uint32_t>(std::lround(
-        static_cast<double>(deceleration_rev_per_sec2)));
+        static_cast<double>(deceleration_rev_per_sec2) * (static_cast<double>(gear_ratio_numerator_) / static_cast<double>(gear_ratio_denominator_))));
 
     write_sdo(OD_QUICK_STOP_DECEL, 0x00, static_cast<int32_t>(decel_units), 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -879,16 +859,16 @@ void CANopenROS2::set_quick_stop_deceleration(float deceleration_rev_per_sec2)
  * @brief 📌 Set maximum profile velocity (0x607F)
  * @details Writes the upper velocity limit to the drive. The drive will clamp
  *          any profile velocity (0x6081) command to this value.
- *          Unit: driving-shaft (output) revolutions/s.
- *          1 command unit = 1 driving-shaft revolution (same 1:1 scale as 0x607A / angle_to_position).
- *          The drive's 0x6091 gear ratio handles the internal motor-side scaling.
- * @param velocity_rev_per_sec  Max profile velocity [r/s] (output shaft)
+ *          Unit accepted here: r/s (revolutions per second of the output shaft).
+ *          Conversion: command_units/s = rev_per_sec × (gear_ratio_numerator_ / gear_ratio_denominator_)
+ * @param velocity_rev_per_sec  Max profile velocity [r/s]
  */
 void CANopenROS2::set_max_profile_velocity(float velocity_rev_per_sec)
 {
-    // 1 command unit = 1 output-shaft revolution → direct 1:1 cast.
+    // Convert r/s → command units/s
+    //   1 revolution = gear_ratio_numerator_ / gear_ratio_denominator_ command units
     uint32_t velocity_units = static_cast<uint32_t>(std::lround(
-        static_cast<double>(velocity_rev_per_sec)));
+        static_cast<double>(velocity_rev_per_sec) * (static_cast<double>(gear_ratio_numerator_) / static_cast<double>(gear_ratio_denominator_))));
 
     write_sdo(OD_MAX_PROFILE_VELOCITY, 0x00, static_cast<int32_t>(velocity_units), 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -900,17 +880,14 @@ void CANopenROS2::set_max_profile_velocity(float velocity_rev_per_sec)
 
 /**
  * @brief ⚙️ Set electronic gear ratio (0x6091)
- * @details Configures the drive's electronic gear ratio between the motor shaft
- *          revolutions and the driving shaft revolutions (CiA 402 object 0x6091).
+ * @details Writes the electronic gear ratio to the drive.
+ *          CiA 402: position_demand is scaled by (motor_shaft_revolutions / drive_shaft_revolutions).
+ *          Example: 10:1 physical gear → numerator=10, denominator=1.
  *
- *          CiA 402 sub-indices:
- *            0x6091:01 – Motor shaft revolutions (Numerator)
- *            0x6091:02 – Driving shaft revolutions (Denominator)
- *
- * @param numerator    0x6091:01  Motor shaft revolutions  (uint32)
- * @param denominator  0x6091:02  Driving shaft revolutions (uint32, must be ≠ 0)
+ * @param numerator    0x6091:01  motor shaft revolutions  (uint32, must be ≥ 1)
+ * @param denominator  0x6091:02  drive shaft revolutions  (uint32, must be ≥ 1)
  */
-void CANopenROS2::set_electronic_gear_ratio(uint32_t numerator, uint32_t denominator)
+void CANopenROS2::set_gear_ratio(uint32_t numerator, uint32_t denominator)
 {
     if (denominator == 0)
     {
@@ -919,11 +896,11 @@ void CANopenROS2::set_electronic_gear_ratio(uint32_t numerator, uint32_t denomin
         return;
     }
 
-    // Sub-index 1: Motor shaft revolutions (Numerator)
+    // Sub-index 1: motor shaft revolutions
     write_sdo(OD_GEAR_RATIO, 0x01, static_cast<int32_t>(numerator), 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    // Sub-index 2: Driving shaft revolutions (Denominator)
+    // Sub-index 2: drive shaft revolutions
     write_sdo(OD_GEAR_RATIO, 0x02, static_cast<int32_t>(denominator), 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
