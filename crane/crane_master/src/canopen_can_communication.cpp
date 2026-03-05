@@ -61,6 +61,34 @@ void CANopenROS2::init_can_socket()
 }
 
 /**
+ * @brief 🧠 统一处理状态字 (Status Word)
+ * @details 通过对比上一次的状态，进行边沿检测，避免重复刷屏日志
+ */
+ void CANopenROS2::process_status_word(uint16_t current_sw)
+ {
+     // 🎯 1. 检查 Target Reached (Bit 10) 的上升沿 (从 0 变 1)
+     if ((current_sw & 0x0400) && !(last_status_word_ & 0x0400))
+     {
+         RCLCPP_INFO(this->get_logger(), "😽 Target position reached");
+     }
+     
+     // 🏃‍♂️ 附加功能示例：检查 Target Reached 的下降沿 (从 1 变 0，说明又开始运动了)
+     // if (!(current_sw & 0x0400) && (last_status_word_ & 0x0400))
+     // {
+     //     RCLCPP_DEBUG(this->get_logger(), "🏃‍♂️ Moving to new target...");
+     // }
+ 
+     // 🚨 附加功能示例：检查 Fault (Bit 3) 报错
+     if ((current_sw & 0x0008) && !(last_status_word_ & 0x0008))
+     {
+         RCLCPP_ERROR(this->get_logger(), "🚨 Drive Fault Detected! Status Word: 0x%04X", current_sw);
+     }
+ 
+     // 💾 记录当前状态，供下一次循环比对
+     last_status_word_ = current_sw;
+ }
+
+/**
  * @brief 🎮 Send NMT command
  * @param command NMT command code (e.g., NMT_START_REMOTE_NODE, NMT_RESET_NODE, etc.)
  */
@@ -324,11 +352,12 @@ void CANopenROS2::receive_can_frames()
                 uint16_t status_word = data & 0xFFFF;
                 status_word_ = status_word;
                 
-                // Check target reached bit
-                if (status_word & 0x0400)
-                {
-                    RCLCPP_INFO(this->get_logger(), "😽 Target position reached");
-                }
+                // // Check target reached bit
+                // if (status_word & 0x0400)
+                // {
+                //     RCLCPP_INFO(this->get_logger(), "😽 Target position reached");
+                // }
+                process_status_word(status_word);
             }
             else if (index == OD_ACTUAL_POSITION && subindex == 0x00)  // Actual position
             {
@@ -355,6 +384,8 @@ void CANopenROS2::receive_can_frames()
             
             status_word_ = status_word;
             position_ = position;
+
+            process_status_word(status_word);
             
             float angle = position_to_angle(position);
             
@@ -365,12 +396,7 @@ void CANopenROS2::receive_can_frames()
                 pos_msg.data = angle;
                 position_pub_->publish(pos_msg);
             }
-            
-            // Check target reached bit
-            if (status_word & 0x0400)
-            {
-                RCLCPP_INFO(this->get_logger(), "😽 Target position reached");
-            }
+        
         }
     }
 }

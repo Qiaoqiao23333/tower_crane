@@ -187,6 +187,10 @@ private:
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr stop_service_;       // ⏹️ Stop service
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_service_;      // 🔄 Reset service
     rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr set_mode_service_;   // 🎛️ Mode set service
+
+    // ==================== 📟 Debug variables ====================
+    uint16_t last_status_word_ = 0x0000;           // 💾 记录上一次的状态字
+    void process_status_word(uint16_t current_sw); // 🧠 独立的状态字处理逻辑
     
     // ==================== 🔒 SDO wait mechanism ====================
     std::mutex sdo_mutex_;                         // 🔐 Mutex protecting SDO response variables
