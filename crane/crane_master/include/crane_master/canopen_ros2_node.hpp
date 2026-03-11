@@ -174,6 +174,7 @@ private:
     uint16_t status_word_ = 0;                     // 📊 Current status word
     int32_t position_ = 0;                         // 📍 Current position (command units)
     int32_t velocity_ = 0;                         // 🏃 Current velocity (command units)
+    uint8_t current_op_mode_ = MODE_PROFILE_POSITION;  // 🎛️ Cached operation mode for RPDO1 OpMode byte
     
     // ==================== 🤖 ROS2 interface ====================
     rclcpp::TimerBase::SharedPtr timer_;                                    // ⏱️ CAN frame receive timer

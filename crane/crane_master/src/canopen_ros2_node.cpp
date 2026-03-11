@@ -7,7 +7,7 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     // Declare parameters
     this->declare_parameter<std::string>("can_interface");
     this->declare_parameter<std::string>("node_id");
-    this->declare_parameter<float>("gear_ratio");
+    this->declare_parameter<double>("gear_ratio");
     this->declare_parameter<int>("gear_ratio_numerator");
     this->declare_parameter<int>("gear_ratio_denominator");
     this->declare_parameter<float>("max_profile_velocity");

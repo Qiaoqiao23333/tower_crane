@@ -376,27 +376,29 @@ void CANopenROS2::receive_can_frames()
     }
     else if (cob_id == COB_TPDO1)
     {
-        // 📥 Process TPDO1 response (status word + actual position)
-        if (frame.can_dlc >= 6)  // Status word (2 bytes) + actual position (4 bytes)
+        // 📥 Process TxPDO1 — layout depends on whether reconfiguration succeeded
+        if (frame.can_dlc >= 2)
         {
             uint16_t status_word = frame.data[0] | (frame.data[1] << 8);
-            int32_t position = frame.data[2] | (frame.data[3] << 8) | (frame.data[4] << 16) | (frame.data[5] << 24);
-            
             status_word_ = status_word;
-            position_ = position;
-
             process_status_word(status_word);
             
-            float angle = position_to_angle(position);
-            
-            // 📤 Publish position
-            if (position_pub_)
+            if (frame.can_dlc == 6)
             {
-                auto pos_msg = std_msgs::msg::Float32();
-                pos_msg.data = angle;
-                position_pub_->publish(pos_msg);
+                // Reconfigured TxPDO1: StatusWord(2) + ActualPosition(4) = 6 bytes
+                int32_t position = frame.data[2] | (frame.data[3] << 8) | (frame.data[4] << 16) | (frame.data[5] << 24);
+                position_ = position;
+                
+                float angle = position_to_angle(position);
+                if (position_pub_)
+                {
+                    auto pos_msg = std_msgs::msg::Float32();
+                    pos_msg.data = angle;
+                    position_pub_->publish(pos_msg);
+                }
             }
-        
+            // DLC 7 = default TxPDO1: SW(2) + DigitalInputs(4) + OpModeDisplay(1)
+            // Position not available here; comes from SDO polling in publish_status()
         }
     }
 }

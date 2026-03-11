@@ -46,12 +46,17 @@ void CANopenROS2::initialize_node()
         RCLCPP_WARN(this->get_logger(), "⚠️ Failed to set operation mode using SDO, trying PDO");
         
         // 使用PDO设置操作模式
-        struct can_frame frame;
+        struct can_frame frame = {};
         frame.can_id = COB_RPDO1 + node_id_;
-        frame.can_dlc = 3;  // 控制字(2字节) + 操作模式(1字节)
-        frame.data[0] = CONTROL_ENABLE_OPERATION & 0xFF;  // 控制字低字节
-        frame.data[1] = (CONTROL_ENABLE_OPERATION >> 8) & 0xFF;  // 控制字高字节
-        frame.data[2] = MODE_PROFILE_POSITION;  // 操作模式
+        frame.can_dlc = 7;  // Default RPDO1: CW(2) + TargetVel(4) + OpMode(1)
+        frame.data[0] = CONTROL_ENABLE_OPERATION & 0xFF;
+        frame.data[1] = (CONTROL_ENABLE_OPERATION >> 8) & 0xFF;
+        // Target velocity = 0
+        frame.data[2] = 0;
+        frame.data[3] = 0;
+        frame.data[4] = 0;
+        frame.data[5] = 0;
+        frame.data[6] = MODE_PROFILE_POSITION;
         
         if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
         {
@@ -152,76 +157,88 @@ void CANopenROS2::configure_pdo()
     write_sdo(0x1800, 0x01, txpdo1_cob_id, 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
-    // Configure RxPDO1
-    RCLCPP_INFO(this->get_logger(), "📥 begin to set  RxPDO1 (receive : control word  + target position)");
-    
-    // 1. Disable RxPDO1
+    // ── RPDO1: Force Configure Mapping (CW + TargetVelocity + OpMode = 7 bytes) ──
+    // Matches DSY-C default, but we enforce it to fix any persistent dirty state.
+    RCLCPP_INFO(this->get_logger(), "📥 Configuring RPDO1 Mapping...");
     uint32_t rxpdo1_cob_id = COB_RPDO1 + node_id_;
+    
+    // 1. Disable RPDO1
     write_sdo(0x1400, 0x01, rxpdo1_cob_id | 0x80000000, 4);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     
-    // 2. Set transmission type
+    // 2. Set transmission type (Synchronous)
     write_sdo(0x1400, 0x02, 0x01, 1);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     
-    // 3. Clear RxPDO1 mapping
+    // 3. Clear Mapping
     write_sdo(0x1600, 0x00, 0x00, 1);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     
-    // 4. Set mapping object: control word
+    // 4. Map Objects
+    // Sub1: Control Word (0x6040, 16 bit)
     write_sdo(0x1600, 0x01, 0x60400010, 4);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    // Sub2: Target Velocity (0x60FF, 32 bit)
+    write_sdo(0x1600, 0x02, 0x60FF0020, 4);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    // Sub3: Operation Mode (0x6060, 8 bit)
+    write_sdo(0x1600, 0x03, 0x60600008, 4);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     
-    // 5. Set mapping object: target position
-    write_sdo(0x1600, 0x02, 0x607A0020, 4);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    // 5. Set Mapping Count (3)
+    write_sdo(0x1600, 0x00, 0x03, 1);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     
-    // 6. Set RxPDO1 mapping object count to 2
-    write_sdo(0x1600, 0x00, 0x02, 1);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    
-    // 7. 最终确认传输类型为 0x01（同步）并使能 RxPDO1
-    // 0x01 = 每个 SYNC 脉冲处理一次 RPDO，避免异步模式（0xFF）下
-    // 驱动器在任意时刻消耗 RPDO 缓冲区导致的 0xFF31 错误。
-    write_sdo(0x1400, 0x02, 0x01, 1);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    // 6. Enable RPDO1
     write_sdo(0x1400, 0x01, rxpdo1_cob_id, 4);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     
-    // Configure RxPDO2 for Velocity Control
-    RCLCPP_INFO(this->get_logger(), "🏃 Configure RxPDO2 (for velocity control)");
+    // Read-back RPDO1 mapping for debugging
+    int32_t rpdo1_cnt  = read_sdo(0x1600, 0x00);
+    int32_t rpdo1_map1 = read_sdo(0x1600, 0x01);
+    int32_t rpdo1_map2 = read_sdo(0x1600, 0x02);
+    int32_t rpdo1_map3 = read_sdo(0x1600, 0x03);
+    RCLCPP_INFO(this->get_logger(), "📋 RPDO1 Active Mapping: Count=%d, [1]=0x%08X, [2]=0x%08X, [3]=0x%08X",
+                rpdo1_cnt, rpdo1_map1, rpdo1_map2, rpdo1_map3);
     
-    // 1. Disable RxPDO2 (COB-ID 0x300 + NodeID)
+    // ── RPDO2: Force Configure Mapping (TargetPosition + ProfileVelocity = 8 bytes) ──
+    RCLCPP_INFO(this->get_logger(), "📥 Configuring RPDO2 Mapping...");
     uint32_t rxpdo2_cob_id = 0x300 + node_id_;
-    write_sdo(0x1401, 0x01, rxpdo2_cob_id | 0x80000000, 4);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
-    // 2. Set transmission type
+    // 1. Disable RPDO2
+    write_sdo(0x1401, 0x01, rxpdo2_cob_id | 0x80000000, 4);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    
+    // 2. Set transmission type (Synchronous)
     write_sdo(0x1401, 0x02, 0x01, 1);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     
     // 3. Clear Mapping
     write_sdo(0x1601, 0x00, 0x00, 1);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     
-    // 4. Map Control Word (0x6040)
-    write_sdo(0x1601, 0x01, 0x60400010, 4);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    // 4. Map Objects
+    // Sub1: Target Position (0x607A, 32 bit)
+    write_sdo(0x1601, 0x01, 0x607A0020, 4);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    // Sub2: Profile Velocity (0x6081, 32 bit)
+    write_sdo(0x1601, 0x02, 0x60810020, 4);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     
-    // 5. Map Target Velocity (0x60FF) <-- This enables real-time velocity control
-    write_sdo(0x1601, 0x02, 0x60FF0020, 4);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    
-    // 6. Set number of entries to 2
+    // 5. Set Mapping Count (2)
     write_sdo(0x1601, 0x00, 0x02, 1);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     
-    // 7. 最终确认传输类型为 0x01（同步）并使能 RxPDO2
-    // 与 RxPDO1 保持一致，所有 RPDO 均在同一 SYNC 脉冲时被驱动器一次性处理。
-    write_sdo(0x1401, 0x02, 0x01, 1);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    // 6. Enable RPDO2
     write_sdo(0x1401, 0x01, rxpdo2_cob_id, 4);
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    
+    // Read-back RPDO2 mapping for debugging
+    int32_t rpdo2_cnt  = read_sdo(0x1601, 0x00);
+    int32_t rpdo2_map1 = read_sdo(0x1601, 0x01);
+    int32_t rpdo2_map2 = read_sdo(0x1601, 0x02);
+    RCLCPP_INFO(this->get_logger(), "📋 RPDO2 Active Mapping: Count=%d, [1]=0x%08X, [2]=0x%08X",
+                rpdo2_cnt, rpdo2_map1, rpdo2_map2);
     
     // 🛑 Disable RxPDO3 (COB-ID 0x400 + NodeID) to prevent 0xFF31 RPDO mismatch
     RCLCPP_INFO(this->get_logger(), "🛑 Disabling RxPDO3 and RxPDO4...");
@@ -526,83 +543,83 @@ void CANopenROS2::set_operation_mode(uint8_t mode)
 {
     RCLCPP_INFO(this->get_logger(), "🫵🏻 Starting to switch operation mode to: %d", mode);
     
-    // Step 1: First read current status word and mode
+    // Step 1: Read current status word and mode
     int32_t status_word = read_sdo(OD_STATUS_WORD, 0x00);
     int32_t current_mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
     RCLCPP_INFO(this->get_logger(), "👉🏻 Current status word: 0x%04X, current mode: %d", status_word, current_mode);
     
-    // If already in target mode, return directly
     if (current_mode == mode)
     {
         RCLCPP_INFO(this->get_logger(), "✅ Already in target mode: %d", mode);
+        current_op_mode_ = mode;
         return;
     }
     
-    // Step 2: Ensure motor is in "Ready to switch on" state (0x0021) or "Switched on" (0x0023)
-    // This is the state required to switch operation mode
-    if ((status_word & 0x006F) != 0x0021 && (status_word & 0x006F) != 0x0023)
-    {
-        RCLCPP_INFO(this->get_logger(), "⚠️ Motor is not in state that allows mode switching, converting state...");
-        
-        // First disable operation
-        write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_SHUTDOWN, 2);
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        
-        // Convert to "Ready to switch on"
-        write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_SWITCH_ON, 2);
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        
-        // Check status
-        status_word = read_sdo(OD_STATUS_WORD, 0x00);
-        RCLCPP_INFO(this->get_logger(), "👉🏻 Status word after state conversion: 0x%04X", status_word);
-    }
+    uint8_t old_mode = current_op_mode_;
     
-    // Step 3: Set operation mode (must be in "Ready to switch on" or "Switched on" state)
-    RCLCPP_INFO(this->get_logger(), "✍🏻 Set operation mode to: %d", mode);
+    // Update cached mode FIRST — every subsequent set_control_word() + SYNC
+    // will carry the new OpMode in the RPDO1 byte (0x6060 is PDO-mapped).
+    // The DSY-C drive prioritises RPDO-written values over SDO writes for
+    // PDO-mapped objects, so this is the primary mode-switching mechanism.
+    current_op_mode_ = mode;
+    
+    // Step 2: State machine transition via PDO
+    // (SDO writes to 0x6040 are ignored while RPDO1 is active on DSY-C)
+    set_control_word(CONTROL_SHUTDOWN);
+    send_sync_frame();
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    
+    set_control_word(CONTROL_SWITCH_ON);
+    send_sync_frame();
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    
+    // Belt-and-suspenders: also try SDO for 0x6060
     write_sdo(OD_OPERATION_MODE, 0x00, mode, 1);
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
     
-    // Check if operation mode was set successfully
+    // Verify mode
     current_mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
     RCLCPP_INFO(this->get_logger(), " 🫶🏻Operation mode after setting: %d", current_mode);
     
-    // If SDO setting fails, retry via SDO
-    // Note: Operation mode (0x6060) is NOT mapped in any RPDO, so PDO cannot be used here.
     if (current_mode != mode)
     {
-        RCLCPP_WARN(this->get_logger(), "⚠️ SDO mode setting failed, retrying...");
+        RCLCPP_WARN(this->get_logger(), "⚠️ Mode read-back mismatch, retrying...");
         
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        // Send another RPDO1+SYNC cycle with the new mode
+        set_control_word(CONTROL_ENABLE_OPERATION);
+        send_sync_frame();
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        
         write_sdo(OD_OPERATION_MODE, 0x00, mode, 1);
         std::this_thread::sleep_for(std::chrono::milliseconds(300));
         
-        // Check operation mode again
         current_mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
         RCLCPP_INFO(this->get_logger(), "📊 Operation mode after retry: %d", current_mode);
     }
     
-    // Step 4: If mode setting succeeds, re-enable motor to operation state
     if (current_mode == mode)
     {
         RCLCPP_INFO(this->get_logger(), "✅ Operation mode set successfully, re-enabling motor");
         
-        // State machine conversion: Shutdown -> Switch on -> Enable operation
-        write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_SHUTDOWN, 2);
+        set_control_word(CONTROL_SHUTDOWN);
+        send_sync_frame();
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         
-        write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_SWITCH_ON, 2);
+        set_control_word(CONTROL_SWITCH_ON);
+        send_sync_frame();
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         
-        write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_ENABLE_OPERATION, 2);
+        set_control_word(CONTROL_ENABLE_OPERATION);
+        send_sync_frame();
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
         
-        // Final confirmation
         status_word = read_sdo(OD_STATUS_WORD, 0x00);
         RCLCPP_INFO(this->get_logger(), "👉🏻 Final status word: 0x%04X", status_word);
         RCLCPP_INFO(this->get_logger(), "✅ Operation mode switch successful: %d", mode);
     }
     else
     {
+        current_op_mode_ = old_mode;  // Rollback on failure
         RCLCPP_ERROR(this->get_logger(), "❌ Operation mode switch failed, current mode: %d, expected mode: %d", 
                     current_mode, mode);
         RCLCPP_ERROR(this->get_logger(), "⚠️ Please check if motor supports mode %d, or refer to motor documentation", mode);
@@ -641,35 +658,38 @@ void CANopenROS2::set_profile_parameters(float velocity_rev_per_sec, float accel
 
 void CANopenROS2::set_control_word(uint16_t control_word)
 {
-    // ── RPDO1: Control Word (2 bytes) + Target Position (4 bytes) = 6 bytes
+    // ── RPDO1 (default mapping): CW(2) + TargetVelocity(4) + OpMode(1) = 7 bytes ──
     struct can_frame frame = {};
     frame.can_id = COB_RPDO1 + node_id_;
-    frame.can_dlc = 6;
-    frame.data[0] = control_word & 0xFF;  // 控制字低字节
-    frame.data[1] = (control_word >> 8) & 0xFF;  // 控制字高字节
-    
-    // 填充当前位置缓存，防止电机意外移动
-    frame.data[2] = position_ & 0xFF;
-    frame.data[3] = (position_ >> 8) & 0xFF;
-    frame.data[4] = (position_ >> 16) & 0xFF;
-    frame.data[5] = (position_ >> 24) & 0xFF;
+    frame.can_dlc = 7;
+    frame.data[0] = control_word & 0xFF;
+    frame.data[1] = (control_word >> 8) & 0xFF;
+    // Target velocity = 0 (hold still)
+    frame.data[2] = 0;
+    frame.data[3] = 0;
+    frame.data[4] = 0;
+    frame.data[5] = 0;
+    frame.data[6] = current_op_mode_;
     
     if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
     {
         RCLCPP_ERROR(this->get_logger(), "❌ 发送RPDO1控制字失败");
     }
     
-    // ── RPDO2: 必须同时刷新，防止下一次SYNC触发 0xFF31 错误 ──
+    // ── RPDO2 (default mapping): TargetPosition(4) + ProfileVelocity(4) = 8 bytes ──
     struct can_frame rpdo2 = {};
     rpdo2.can_id = COB_RPDO2 + node_id_;
-    rpdo2.can_dlc = 6;
-    rpdo2.data[0] = control_word & 0xFF;
-    rpdo2.data[1] = (control_word >> 8) & 0xFF;
-    // 目标速度填 0
-    rpdo2.data[2] = 0;
-    rpdo2.data[3] = 0;
+    rpdo2.can_dlc = 8;
+    // Target position = current cached position (hold still)
+    rpdo2.data[0] = position_ & 0xFF;
+    rpdo2.data[1] = (position_ >> 8) & 0xFF;
+    rpdo2.data[2] = (position_ >> 16) & 0xFF;
+    rpdo2.data[3] = (position_ >> 24) & 0xFF;
+    // Profile velocity = 0 (hold still)
     rpdo2.data[4] = 0;
     rpdo2.data[5] = 0;
+    rpdo2.data[6] = 0;
+    rpdo2.data[7] = 0;
     write(can_socket_, &rpdo2, sizeof(struct can_frame));
     
     RCLCPP_INFO(this->get_logger(), "🎮 控制字已发送: 0x%04X (RPDO1 & RPDO2 已同步)", control_word);
@@ -684,36 +704,150 @@ void CANopenROS2::set_target_velocity(int32_t velocity_units_per_sec)
 
 void CANopenROS2::go_to_position(float angle)
 {
+    RCLCPP_INFO(this->get_logger(), "📍 Moving to position: %.2f°", angle);
+    
+    // 1. Ensure we're in profile position mode
+    int32_t mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
+    if (mode != MODE_PROFILE_POSITION) {
+        RCLCPP_WARN(this->get_logger(), "⚠️ Wrong mode (%d), forcing switch to profile position mode (1)", mode);
+        set_operation_mode(MODE_PROFILE_POSITION);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    current_op_mode_ = MODE_PROFILE_POSITION;
+
     int32_t position = angle_to_position(angle);
-    position_ = position;  // 更新位置缓存，供 set_control_word() 复用
-
-    // ── RPDO1: Control Word (ENABLE_OPERATION) + Target Position ──────────
-    // 传输类型 0x01（同步）：驱动器在下一个外部 SYNC 脉冲时锁存此数据。
-    // 调用方负责在适当时机发送 SYNC（由定时器或上层轨迹服务器统一触发）。
-    // 此函数不发 SYNC、不阻塞、不做 NEW_SET_POINT 握手。
-    struct can_frame frame = {};
-    frame.can_id  = COB_RPDO1 + node_id_;
-    frame.can_dlc = 6;
-    frame.data[0] = CONTROL_ENABLE_OPERATION & 0xFF;
-    frame.data[1] = (CONTROL_ENABLE_OPERATION >> 8) & 0xFF;
-    frame.data[2] = position & 0xFF;
-    frame.data[3] = (position >> 8) & 0xFF;
-    frame.data[4] = (position >> 16) & 0xFF;
-    frame.data[5] = (position >> 24) & 0xFF;
-    write(can_socket_, &frame, sizeof(struct can_frame));
-
-    // ── RPDO2: 同步刷新，防止下一个 SYNC 触发 0xFF31（RPDO 缓冲区空）──
-    struct can_frame rpdo2 = {};
-    rpdo2.can_id  = COB_RPDO2 + node_id_;
-    rpdo2.can_dlc = 6;
-    rpdo2.data[0] = CONTROL_ENABLE_OPERATION & 0xFF;
-    rpdo2.data[1] = (CONTROL_ENABLE_OPERATION >> 8) & 0xFF;
-    // data[2..5] 保持 0（目标速度 = 0）
-    write(can_socket_, &rpdo2, sizeof(struct can_frame));
-
-    RCLCPP_DEBUG(this->get_logger(),
-        "📍 go_to_position: %.2f° -> %d units (RPDO1+RPDO2 已写入，等待外部 SYNC)",
-        angle, position);
+    position_ = position;  // Update cached position for set_control_word()
+    
+    // 2. Write target position via SDO as well (belt-and-suspenders)
+    write_sdo(OD_TARGET_POSITION, 0x00, position, 4);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    
+    // Helper lambda: send RPDO1 + RPDO2 + SYNC
+    // Default RPDO1: CW(2) + TargetVelocity(4) + OpMode(1) = 7 bytes
+    // Default RPDO2: TargetPosition(4) + ProfileVelocity(4) = 8 bytes
+    int32_t prof_vel = velocity_to_units(profile_velocity_);
+    auto send_rpdo_and_sync = [&](uint16_t control_word) {
+        // RPDO1: CW + TargetVelocity=0 + OpMode=1 (position mode)
+        struct can_frame rpdo1 = {};
+        rpdo1.can_id = COB_RPDO1 + node_id_;
+        rpdo1.can_dlc = 7;
+        rpdo1.data[0] = control_word & 0xFF;
+        rpdo1.data[1] = (control_word >> 8) & 0xFF;
+        // Target velocity = 0 (position mode uses profile velocity from RPDO2)
+        rpdo1.data[2] = 0;
+        rpdo1.data[3] = 0;
+        rpdo1.data[4] = 0;
+        rpdo1.data[5] = 0;
+        rpdo1.data[6] = MODE_PROFILE_POSITION;
+        write(can_socket_, &rpdo1, sizeof(struct can_frame));
+        
+        // RPDO2: TargetPosition + ProfileVelocity
+        struct can_frame rpdo2 = {};
+        rpdo2.can_id = COB_RPDO2 + node_id_;
+        rpdo2.can_dlc = 8;
+        rpdo2.data[0] = position & 0xFF;
+        rpdo2.data[1] = (position >> 8) & 0xFF;
+        rpdo2.data[2] = (position >> 16) & 0xFF;
+        rpdo2.data[3] = (position >> 24) & 0xFF;
+        rpdo2.data[4] = prof_vel & 0xFF;
+        rpdo2.data[5] = (prof_vel >> 8) & 0xFF;
+        rpdo2.data[6] = (prof_vel >> 16) & 0xFF;
+        rpdo2.data[7] = (prof_vel >> 24) & 0xFF;
+        write(can_socket_, &rpdo2, sizeof(struct can_frame));
+        
+        // SYNC: drive latches RPDO data on this pulse
+        send_sync_frame();
+    };
+    
+    // 3. CiA 402 "New Set Point" handshake (profile position mode)
+    //    The drive requires a rising edge on bit 4 to accept a new target position.
+    
+    // Step A: Send Enable Operation (0x0F) + target position, then SYNC
+    send_rpdo_and_sync(CONTROL_ENABLE_OPERATION);  // 0x0F
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    
+    // Step B: Rising edge — set New Set Point + Change Immediately (0x3F), then SYNC
+    //         0x3F = Enable Operation (0x0F) | New Set Point (0x10) | Change Immediately (0x20)
+    send_rpdo_and_sync(CONTROL_ENABLE_OPERATION | CONTROL_NEW_SET_POINT | (1 << 5));  // 0x3F
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    
+    // Step C: Wait for drive to acknowledge (Status Word bit 12 = Set-point Acknowledge)
+    int ack_retry = 0;
+    bool acknowledged = false;
+    while (ack_retry < 50) {
+        int32_t sw = read_sdo(OD_STATUS_WORD, 0x00);
+        if (sw & 0x1000) {  // Bit 12: Set-point Acknowledge
+            acknowledged = true;
+            RCLCPP_DEBUG(this->get_logger(), "✅ Drive acknowledged new set point (bit 12)");
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        ack_retry++;
+    }
+    
+    if (!acknowledged) {
+        RCLCPP_ERROR(this->get_logger(), "❌ Set-point acknowledge timeout — drive did not accept position command!");
+        return;
+    }
+    
+    // Step D: Clear New Set Point bit to complete handshake (0x0F), then SYNC
+    send_rpdo_and_sync(CONTROL_ENABLE_OPERATION);  // 0x0F
+    
+    RCLCPP_INFO(this->get_logger(), "📍 Position command accepted, target: %d units (%.2f°)", position, angle);
+    
+    // 4. Monitor until target is reached
+    //    IMPORTANT: Keep sending periodic RPDO + SYNC so the drive's synchronous
+    //    position controller continues to run.  RPDOs are type 0x01 (synchronous),
+    //    so the drive only updates its control loop on each SYNC pulse.  Without
+    //    periodic SYNCs the drive never completes the deceleration phase and the
+    //    motor coasts past the target indefinitely.
+    int retry = 0;
+    const int max_retries = 100;  // 100 × 200ms = 20s timeout
+    while (retry < max_retries)
+    {
+        // Refresh RPDO1 (control word + target position) + RPDO2 (control word +
+        // velocity=0) and send SYNC so the drive executes another control cycle.
+        send_rpdo_and_sync(CONTROL_ENABLE_OPERATION);  // 0x0F
+        
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        
+        int32_t sw = read_sdo(OD_STATUS_WORD, 0x00);
+        
+        // Check for fault during movement
+        if (sw & 0x0008) {
+            RCLCPP_ERROR(this->get_logger(), "❌ Fault detected during movement (status: 0x%04X)", sw);
+            check_and_clear_error();
+            break;
+        }
+        
+        int32_t actual_pos = read_sdo(OD_ACTUAL_POSITION, 0x00);
+        int32_t current_diff = std::abs(position - actual_pos);
+        
+        // Target Reached (bit 10) AND position close enough
+        if ((sw & 0x0400) && current_diff < 100)
+        {
+            RCLCPP_INFO(this->get_logger(), "✅ Target position reached and settled! Error: %d units", current_diff);
+            break;
+        }
+        
+        if (retry % 10 == 0) {
+            RCLCPP_DEBUG(this->get_logger(), "⏳ Waiting for target... (status: 0x%04X, diff: %d, retry %d/%d)",
+                         sw, current_diff, retry, max_retries);
+        }
+        retry++;
+    }
+    
+    if (retry >= max_retries) {
+        int32_t final_pos = read_sdo(OD_ACTUAL_POSITION, 0x00);
+        int32_t final_diff = std::abs(position - final_pos);
+        RCLCPP_WARN(this->get_logger(), "⏰ Timeout waiting for target position (final diff: %d units, ~%.2f°)",
+                   final_diff, position_to_angle(final_diff));
+        // Safety: halt the motor so it does not run indefinitely
+        RCLCPP_WARN(this->get_logger(), "🛑 Halting motor after timeout");
+        send_rpdo_and_sync(CONTROL_ENABLE_OPERATION | (1 << 8));  // Bit 8 = Halt
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        send_rpdo_and_sync(CONTROL_ENABLE_OPERATION);  // Clear halt, hold position
+    }
 }
 
 void CANopenROS2::set_velocity(float velocity_deg_per_sec)
@@ -768,6 +902,7 @@ void CANopenROS2::set_velocity_pdo(float velocity_deg_per_sec)
             // Continue trying to set velocity, but may fail
         }
     }
+    current_op_mode_ = MODE_PROFILE_VELOCITY;
     
     // Set profile velocity parameter (for velocity mode)
     set_profile_velocity(velocity_deg_per_sec);
@@ -775,36 +910,36 @@ void CANopenROS2::set_velocity_pdo(float velocity_deg_per_sec)
     // Convert to command units
     int32_t velocity_units = velocity_to_units(velocity_deg_per_sec);
     
-    // Ensure motor is in operation enabled state
+    // Ensure motor is in operation enabled state (use PDO since SDO writes
+    // to 0x6040 are ignored while RPDO1 is active on DSY-C)
     int32_t status_word = read_sdo(OD_STATUS_WORD, 0x00);
     uint16_t control_word = CONTROL_ENABLE_OPERATION;
     
     if ((status_word & 0x006F) != 0x0027)  // If not in "operation enabled" state
     {
         RCLCPP_INFO(this->get_logger(), "⚡ Motor not in operation state, enabling...");
-        // State machine conversion
-        write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_SHUTDOWN, 2);
+        set_control_word(CONTROL_SHUTDOWN);
+        send_sync_frame();
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_SWITCH_ON, 2);
+        set_control_word(CONTROL_SWITCH_ON);
+        send_sync_frame();
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_ENABLE_OPERATION, 2);
+        set_control_word(CONTROL_ENABLE_OPERATION);
+        send_sync_frame();
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
     
-    // Send control word and target velocity using RxPDO2 (real-time control)
+    // ── RPDO1 (default mapping): CW(2) + TargetVelocity(4) + OpMode=3(1) = 7 bytes ──
     struct can_frame frame = {};
-    frame.can_id = COB_RPDO2 + node_id_;
-    frame.can_dlc = 6;  // Control word (2 bytes) + target velocity (4 bytes)
-    
-    // Control word (0x6040) - 2 bytes
-    frame.data[0] = control_word & 0xFF;  // Control word low byte
-    frame.data[1] = (control_word >> 8) & 0xFF;  // Control word high byte
-    
-    // Target velocity (0x60FF) - 4 bytes (little-endian)
+    frame.can_id = COB_RPDO1 + node_id_;
+    frame.can_dlc = 7;
+    frame.data[0] = control_word & 0xFF;
+    frame.data[1] = (control_word >> 8) & 0xFF;
     frame.data[2] = velocity_units & 0xFF;
     frame.data[3] = (velocity_units >> 8) & 0xFF;
     frame.data[4] = (velocity_units >> 16) & 0xFF;
     frame.data[5] = (velocity_units >> 24) & 0xFF;
+    frame.data[6] = MODE_PROFILE_VELOCITY;
     
     if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
     {
@@ -814,7 +949,21 @@ void CANopenROS2::set_velocity_pdo(float velocity_deg_per_sec)
     {
         RCLCPP_DEBUG(this->get_logger(), "📤 Velocity PDO sent [node %d]: %.2f°/s (command units: %d)", 
                     node_id_, velocity_deg_per_sec, velocity_units);
-        // 🔄 Send SYNC frame to trigger PDO processing
+        
+        // ── RPDO2: TargetPos=current(4) + ProfileVel=0(4) to prevent 0xFF31 ──
+        struct can_frame rpdo2 = {};
+        rpdo2.can_id = COB_RPDO2 + node_id_;
+        rpdo2.can_dlc = 8;
+        rpdo2.data[0] = position_ & 0xFF;
+        rpdo2.data[1] = (position_ >> 8) & 0xFF;
+        rpdo2.data[2] = (position_ >> 16) & 0xFF;
+        rpdo2.data[3] = (position_ >> 24) & 0xFF;
+        rpdo2.data[4] = 0;
+        rpdo2.data[5] = 0;
+        rpdo2.data[6] = 0;
+        rpdo2.data[7] = 0;
+        write(can_socket_, &rpdo2, sizeof(struct can_frame));
+        
         send_sync_frame();
     }
     
@@ -854,17 +1003,15 @@ void CANopenROS2::set_position_range_limit(int32_t max_val, int32_t min_val)
  */
 void CANopenROS2::set_quick_stop_deceleration(float deceleration_rev_per_sec2)
 {
-    // Convert r/s² to position command units/s²:
-    //   1 revolution = gear_ratio_numerator_ / gear_ratio_denominator_ command units
-    //   command_units/s² = deceleration_rev_per_sec2 * (num / den)
-    uint32_t decel_units = static_cast<uint32_t>(std::lround(
-        static_cast<double>(deceleration_rev_per_sec2) * (static_cast<double>(gear_ratio_numerator_) / static_cast<double>(gear_ratio_denominator_))));
+    // Same 1:1 scale as acceleration_to_units:
+    // the drive's 0x6091 gear ratio handles motor-side scaling internally.
+    int32_t decel_units = acceleration_to_units(deceleration_rev_per_sec2);
 
-    write_sdo(OD_QUICK_STOP_DECEL, 0x00, static_cast<int32_t>(decel_units), 4);
+    write_sdo(OD_QUICK_STOP_DECEL, 0x00, decel_units, 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     RCLCPP_INFO(this->get_logger(),
-        "🛑 Quick stop deceleration set: %.2f r/s² (%u command units/s²) (0x6085)",
+        "🛑 Quick stop deceleration set: %.2f r/s² (%d command units/s²) (0x6085)",
         deceleration_rev_per_sec2, decel_units);
 }
 
@@ -878,16 +1025,15 @@ void CANopenROS2::set_quick_stop_deceleration(float deceleration_rev_per_sec2)
  */
 void CANopenROS2::set_max_profile_velocity(float velocity_rev_per_sec)
 {
-    // Convert r/s → command units/s
-    //   1 revolution = gear_ratio_numerator_ / gear_ratio_denominator_ command units
-    uint32_t velocity_units = static_cast<uint32_t>(std::lround(
-        static_cast<double>(velocity_rev_per_sec) * (static_cast<double>(gear_ratio_numerator_) / static_cast<double>(gear_ratio_denominator_))));
+    // Same 1:1 scale as set_profile_velocity / velocity_to_units:
+    // the drive's 0x6091 gear ratio handles motor-side scaling internally.
+    int32_t velocity_units = velocity_to_units(velocity_rev_per_sec);
 
-    write_sdo(OD_MAX_PROFILE_VELOCITY, 0x00, static_cast<int32_t>(velocity_units), 4);
+    write_sdo(OD_MAX_PROFILE_VELOCITY, 0x00, velocity_units, 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     RCLCPP_INFO(this->get_logger(),
-        "📌 Max profile velocity set: %.2f r/s (%u command units/s) (0x607F)",
+        "📌 Max profile velocity set: %.2f r/s (%d command units/s) (0x607F)",
         velocity_rev_per_sec, velocity_units);
 }
 
