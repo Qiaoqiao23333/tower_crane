@@ -28,7 +28,7 @@ def generate_launch_description():
         # 声明参数 (launch-arg overrides, empty means use YAML value)
         DeclareLaunchArgument(
             'can_interface',
-            default_value='',
+            default_value='can0',
             description='CAN接口名称 (override YAML value)'
         ),
         DeclareLaunchArgument(
