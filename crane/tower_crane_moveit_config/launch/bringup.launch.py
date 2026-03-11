@@ -1,138 +1,218 @@
 #!/usr/bin/env python3
 """
-Tower Crane Full System Bringup
+Tower Crane MoveIt Bringup — single entry-point for every launch scenario.
 
-Alternative launch file that brings up the complete crane system with crane_master nodes.
-Use this when you need the CANopen master nodes for motor control.
+Scenarios
+---------
+1. Simulation (mock hardware) + MoveIt + RViz  [DEFAULT]
+   ros2 launch tower_crane_moveit_config bringup.launch.py
 
-What it launches:
-  1. Robot State Publisher (loads robot model)
-  2. Robot Control (ros2_control + optional crane_master nodes)
-  3. Static Virtual Joint Transforms
-  4. MoveIt Move Group
-  5. RViz (optional)
+2. Real hardware + MoveIt + RViz
+   ros2 launch tower_crane_moveit_config bringup.launch.py can_interface_name:=can0
 
-Usage:
-  # Full bringup with crane_master and RViz
-  ros2 launch tower_crane_moveit_config bringup.launch.py
+3. MoveIt-only (hardware already running via crane_master + moveit_bridge)
+   ros2 launch tower_crane_moveit_config bringup.launch.py launch_hardware:=false
 
-  # Without crane_master (mock only)
-  ros2 launch tower_crane_moveit_config bringup.launch.py use_crane_master:=false
+4. Headless (no RViz)
+   ros2 launch tower_crane_moveit_config bringup.launch.py use_rviz:=false
 
-  # With real hardware
-  ros2 launch tower_crane_moveit_config bringup.launch.py can_interface_name:=can0
-
-Note: For most use cases, demo.launch.py is recommended as it's simpler.
-      Use this launch file when you specifically need crane_master nodes.
+Hardware type (mock vs real) is auto-detected from the CAN interface name:
+  vcan* → mock / simulation  (uses ros2_control with mock hardware)
+  can*  → real CANopen hardware (uses crane_master + moveit_bridge)
 """
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
-from launch.conditions import IfCondition
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    OpaqueFunction,
+)
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import (
+    Command,
+    FindExecutable,
+    LaunchConfiguration,
+    PathJoinSubstitution,
+)
+
+from launch_ros.actions import Node
+from launch_ros.descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
+from moveit_configs_utils import MoveItConfigsBuilder
+from moveit_configs_utils.launches import (
+    generate_move_group_launch,
+    generate_static_virtual_joint_tfs_launch,
+)
 
+
+# ---------------------------------------------------------------------------
+# Runtime setup (evaluated when the launch system resolves arguments)
+# ---------------------------------------------------------------------------
+def _launch_setup(context, *args, **kwargs):
+    can_interface = LaunchConfiguration("can_interface_name").perform(context)
+    launch_hw = LaunchConfiguration("launch_hardware").perform(context).lower() == "true"
+    rviz_enabled = LaunchConfiguration("use_rviz").perform(context).lower() == "true"
+
+    # Auto-detect real vs mock hardware
+    use_real_hardware = (
+        can_interface.startswith("can") and not can_interface.startswith("vcan")
+    )
+
+    # Build MoveIt configuration once
+    moveit_config = MoveItConfigsBuilder(
+        "tower_crane", package_name="tower_crane_moveit_config"
+    ).to_moveit_configs()
+
+    entities = []
+
+    # ==================================================================
+    # 1. Robot State Publisher  (only when we also launch hardware)
+    # ==================================================================
+    if launch_hw:
+        xacro_file = PathJoinSubstitution([
+            FindPackageShare("tower_crane_moveit_config"),
+            "config",
+            "tower_crane.urdf.xacro",
+        ])
+        robot_description_content = Command([
+            FindExecutable(name="xacro"), " ", xacro_file,
+        ])
+        entities.append(
+            Node(
+                package="robot_state_publisher",
+                executable="robot_state_publisher",
+                output="both",
+                parameters=[{
+                    "robot_description": ParameterValue(
+                        robot_description_content, value_type=str
+                    ),
+                }],
+            )
+        )
+
+    # ==================================================================
+    # 2. Hardware / Control bringup  (only when we also launch hardware)
+    # ==================================================================
+    if launch_hw:
+        if use_real_hardware:
+            # Launch crane_master CANopen nodes (hoist, trolley, slewing)
+            entities.append(
+                IncludeLaunchDescription(
+                    PythonLaunchDescriptionSource(
+                        PathJoinSubstitution([
+                            FindPackageShare("crane_master"),
+                            "launch",
+                            "canopen_ros2.launch.py",
+                        ])
+                    ),
+                    launch_arguments={
+                        "can_interface": LaunchConfiguration("can_interface_name"),
+                    }.items(),
+                )
+            )
+            # Launch moveit_bridge (translates MoveIt trajectories → motor commands)
+            entities.append(
+                Node(
+                    package="crane_master",
+                    executable="moveit_bridge",
+                    name="moveit_bridge",
+                    output="screen",
+                )
+            )
+        else:
+            entities.append(
+                IncludeLaunchDescription(
+                    PythonLaunchDescriptionSource(
+                        PathJoinSubstitution([
+                            FindPackageShare("tower_crane"),
+                            "launch",
+                            "simulation.launch.py",
+                        ])
+                    ),
+                    launch_arguments={
+                        "can_interface_name": LaunchConfiguration("can_interface_name"),
+                        "use_rviz": "false",
+                        "use_robot_state_publisher": "false",
+                    }.items(),
+                )
+            )
+
+    # ==================================================================
+    # 3. Static virtual-joint transforms
+    # ==================================================================
+    entities.extend(
+        generate_static_virtual_joint_tfs_launch(moveit_config).entities
+    )
+
+    # ==================================================================
+    # 4. MoveIt move_group
+    # ==================================================================
+    entities.extend(
+        generate_move_group_launch(moveit_config).entities
+    )
+
+    # ==================================================================
+    # 5. RViz with MoveIt Motion Planning panel  (optional)
+    # ==================================================================
+    if rviz_enabled:
+        # Avoid parameter-type conflict when RViz re-writes the param tree
+        joint_limits = moveit_config.joint_limits.get(
+            "robot_description_planning", {}
+        )
+        joint_limits.get("joint_limits", {}).pop("trolley_joint", None)
+
+        rviz_config = PathJoinSubstitution([
+            FindPackageShare("tower_crane_moveit_config"),
+            "config",
+            "moveit.rviz",
+        ])
+        entities.append(
+            Node(
+                package="rviz2",
+                executable="rviz2",
+                name="rviz2",
+                output="screen",
+                arguments=["-d", rviz_config],
+                parameters=[
+                    moveit_config.robot_description,
+                    moveit_config.robot_description_semantic,
+                    moveit_config.robot_description_kinematics,
+                    moveit_config.planning_pipelines,
+                    moveit_config.joint_limits,
+                ],
+            )
+        )
+
+    return entities
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
 def generate_launch_description():
-    declared_arguments = [
+    return LaunchDescription([
         DeclareLaunchArgument(
             "can_interface_name",
             default_value="vcan0",
-            description="CAN interface (e.g. vcan0 for mock, can0 for real)",
+            description=(
+                "CAN interface name. "
+                "vcan* → mock/simulation hardware, can* → real CANopen hardware."
+            ),
         ),
         DeclareLaunchArgument(
-            "auto_start",
+            "launch_hardware",
             default_value="true",
-            description="Whether crane_master nodes auto-start the motors (true/false)",
-        ),
-        DeclareLaunchArgument(
-            "use_crane_master",
-            default_value="true",
-            description="Start crane_master CANopen motor nodes (true/false)",
+            description=(
+                "Launch the hardware stack. "
+                "For real hardware: launches crane_master + moveit_bridge. "
+                "For mock: launches ros2_control simulation. "
+                "Set to false when hardware nodes are already running."
+            ),
         ),
         DeclareLaunchArgument(
             "use_rviz",
             default_value="true",
-            description="Start MoveIt RViz (true/false)",
+            description="Start RViz with MoveIt Motion Planning panel.",
         ),
-    ]
-
-    can_interface_name = LaunchConfiguration("can_interface_name")
-    auto_start = LaunchConfiguration("auto_start")
-    use_crane_master = LaunchConfiguration("use_crane_master")
-    use_rviz = LaunchConfiguration("use_rviz")
-
-    # ============================================================================
-    # STEP 1: Robot State Publisher - CRITICAL FIRST STEP
-    # ============================================================================
-    rsp = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            PathJoinSubstitution(
-                [FindPackageShare("tower_crane_moveit_config"), "launch", "rsp.launch.py"]
-            )
-        )
-    )
-
-    # ============================================================================
-    # STEP 2: Robot Control Bringup
-    # ============================================================================
-    # Launches ros2_control with simulation (fake slaves + CANopen master)
-    # Note: crane_master nodes are not included in simulation.launch.py
-    robot_control = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            PathJoinSubstitution(
-                [FindPackageShare("tower_crane"), "launch", "simulation.launch.py"]
-            )
-        ),
-        launch_arguments={
-            "can_interface_name": can_interface_name,
-            "use_rviz": "false",  # MoveIt RViz is launched separately below
-            # "use_joint_state_publisher_gui": "false",  # GUI disabled in simulation.launch.py
-            "use_robot_state_publisher": "false",  # RSP launched separately via rsp.launch.py
-        }.items(),
-    )
-
-    # ============================================================================
-    # STEP 3: Static Virtual Joint Transforms
-    # ============================================================================
-    static_virtual_joint_tfs = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            PathJoinSubstitution(
-                [
-                    FindPackageShare("tower_crane_moveit_config"),
-                    "launch",
-                    "static_virtual_joint_tfs.launch.py",
-                ]
-            )
-        )
-    )
-
-    # ============================================================================
-    # STEP 4: MoveIt Move Group
-    # ============================================================================
-    move_group = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            PathJoinSubstitution(
-                [FindPackageShare("tower_crane_moveit_config"), "launch", "move_group.launch.py"]
-            )
-        )
-    )
-
-    # ============================================================================
-    # STEP 5: RViz Visualization (Optional)
-    # ============================================================================
-    moveit_rviz = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            PathJoinSubstitution(
-                [FindPackageShare("tower_crane_moveit_config"), "launch", "moveit_rviz.launch.py"]
-            )
-        ),
-        condition=IfCondition(use_rviz),
-    )
-
-    # ============================================================================
-    # Return Launch Description
-    # ============================================================================
-    return LaunchDescription(
-        declared_arguments + [rsp, robot_control, static_virtual_joint_tfs, move_group, moveit_rviz]
-    )
+        OpaqueFunction(function=_launch_setup),
+    ])
