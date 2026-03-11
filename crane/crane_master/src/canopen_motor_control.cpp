@@ -122,8 +122,8 @@ void CANopenROS2::configure_pdo()
     write_sdo(0x1A00, 0x00, 0x02, 1);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
-    // 7. 设置传输类型并启用TxPDO1
-    write_sdo(0x1800, 0x02, 0xFF, 1);
+    // 7. 设置传输类型(同步)并启用TxPDO1
+    write_sdo(0x1800, 0x02, 0x01, 1);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     write_sdo(0x1800, 0x01, txpdo1_cob_id, 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -156,8 +156,8 @@ void CANopenROS2::configure_pdo()
     write_sdo(0x1600, 0x00, 0x02, 1);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
-    // 7. 设置传输类型并启用RxPDO1
-    write_sdo(0x1400, 0x02, 0xFF, 1);
+    // 7. 设置传输类型(同步)并启用RxPDO1
+    write_sdo(0x1400, 0x02, 0x01, 1);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     write_sdo(0x1400, 0x01, rxpdo1_cob_id, 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -190,8 +190,8 @@ void CANopenROS2::configure_pdo()
     write_sdo(0x1601, 0x00, 0x02, 1);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
-    // 7. Set transmission type and Enable RxPDO2
-    write_sdo(0x1401, 0x02, 0xFF, 1);
+    // 7. Set transmission type (synchronous) and Enable RxPDO2
+    write_sdo(0x1401, 0x02, 0x01, 1);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     write_sdo(0x1401, 0x01, rxpdo2_cob_id, 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
