@@ -169,15 +169,21 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
         RCLCPP_INFO(this->get_logger(), "无法读取或无效的减速比 (0x6091)，使用配置值: %.2f\nUnable to read or invalid gear ratio (0x6091), using configured value: %.2f", gear_ratio_, gear_ratio_);
     }
     
+    // 初始化速度计算的基准时间和位置
+    prev_position_time_ = this->now();
+    prev_position_ = position_;
+    
     // 现在所有初始化完成，创建定时器用于接收CAN帧
     timer_ = this->create_wall_timer(
         std::chrono::milliseconds(10),
         std::bind(&CANopenROS2::receive_can_frames, this));
     
-    // 创建状态定时器
+    // 创建状态定时器 (独立回调组，避免被其他阻塞回调影响)
+    status_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     status_timer_ = this->create_wall_timer(
         std::chrono::milliseconds(1000),
-        std::bind(&CANopenROS2::publish_status, this));
+        std::bind(&CANopenROS2::publish_status, this),
+        status_cb_group_);
 }
 
 CANopenROS2::~CANopenROS2()

@@ -35,6 +35,23 @@ void CANopenROS2::publish_status()
     auto pos_msg = std_msgs::msg::Float32();
     pos_msg.data = position_to_angle(position_);
     position_pub_->publish(pos_msg);
+    
+    // 发布速度 (通过位置差分计算，避免SDO阻塞)
+    rclcpp::Time now = this->now();
+    double dt = (now - prev_position_time_).seconds();
+    auto vel_msg = std_msgs::msg::Float32();
+    if (dt > 0.0)
+    {
+        float delta_deg = static_cast<float>(position_ - prev_position_) * degrees_per_unit_;
+        vel_msg.data = delta_deg / static_cast<float>(dt);
+    }
+    else
+    {
+        vel_msg.data = 0.0f;
+    }
+    prev_position_ = position_;
+    prev_position_time_ = now;
+    velocity_pub_->publish(vel_msg);
 }
 
 void CANopenROS2::position_callback(const std_msgs::msg::Float32::SharedPtr msg)
