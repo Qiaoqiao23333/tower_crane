@@ -9,12 +9,22 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     this->declare_parameter<std::string>("node_id", "1");
     this->declare_parameter<float>("gear_ratio", 1.0);
     this->declare_parameter<int>("target_units_per_rev", 10000);
+    this->declare_parameter<bool>("auto_start", true);
+    this->declare_parameter<float>("profile_velocity", 30.0);
+    this->declare_parameter<float>("profile_acceleration", 30.0);
+    this->declare_parameter<float>("profile_deceleration", 30.0);
+    this->declare_parameter<int>("cycle_period_us", 1000);
     
     // 读取参数
     can_interface_ = this->get_parameter("can_interface").as_string();
     std::string node_id_str = this->get_parameter("node_id").as_string();
     gear_ratio_ = this->get_parameter("gear_ratio").as_double();
     target_units_per_rev_ = this->get_parameter("target_units_per_rev").as_int();
+    auto_start_ = this->get_parameter("auto_start").as_bool();
+    profile_velocity_ = this->get_parameter("profile_velocity").as_double();
+    profile_acceleration_ = this->get_parameter("profile_acceleration").as_double();
+    profile_deceleration_ = this->get_parameter("profile_deceleration").as_double();
+    cycle_period_us_ = this->get_parameter("cycle_period_us").as_int();
     
     // 计算并缓存转换比例
     // Formula: (angle / 360°) × (target_units_per_rev_ / gear_ratio_) = command units
@@ -158,9 +168,6 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     {
         RCLCPP_INFO(this->get_logger(), "无法读取或无效的减速比 (0x6091)，使用配置值: %.2f\nUnable to read or invalid gear ratio (0x6091), using configured value: %.2f", gear_ratio_, gear_ratio_);
     }
-    
-    // 设置目标位置（例如，移动到90度）
-    go_to_position(0.0);
     
     // 现在所有初始化完成，创建定时器用于接收CAN帧
     timer_ = this->create_wall_timer(

@@ -1,0 +1,33 @@
+# =============================================================================
+# Crane Master Parameters Configuration
+# =============================================================================
+# This file contains all configurable parameters for the crane CANopen nodes.
+# Parameters are organized into:
+#   - common:   shared defaults for all nodes
+#   - hoist:    node 1 (起升) overrides
+#   - trolley:  node 2 (小车) overrides
+#   - slewing:  node 3 (回转) overrides
+# Per-node values override common values when both are specified.
+# =============================================================================
+
+common:
+  can_interface: "vcan0"
+  auto_start: true
+  target_units_per_rev: 10000
+  cycle_period_us: 1000           # Communication cycle period (microseconds)
+  profile_velocity: 30.0          # Default profile velocity (deg/s)
+  profile_acceleration: 30.0      # Default profile acceleration (deg/s²)
+  profile_deceleration: 30.0      # Default profile deceleration (deg/s²)
+
+hoist:
+  node_id: 1
+  gear_ratio: 0.05
+  profile_velocity: 60.0
+
+trolley:
+  node_id: 2
+  gear_ratio: 0.1
+
+slewing:
+  node_id: 3
+  gear_ratio: 0.1

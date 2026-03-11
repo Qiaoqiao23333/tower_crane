@@ -67,20 +67,20 @@ void CANopenROS2::initialize_node()
     }
     
     // 设置轮廓速度
-    set_profile_velocity(30);  // 默认速度：30°/s
+    set_profile_velocity(profile_velocity_);
     
     // 设置轮廓加速度
-    set_profile_acceleration(30);  // 默认加速度：30°/s²
+    set_profile_acceleration(profile_acceleration_);
     
     // 设置轮廓减速度
-    set_profile_deceleration(30);
+    set_profile_deceleration(profile_deceleration_);
     
     // 禁用同步生成器
     write_sdo(OD_CYCLE_PERIOD, 0x00, 0, 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
-    // 设置通信周期为1000微秒
-    write_sdo(OD_CYCLE_PERIOD, 0x00, 1000, 4);
+    // 设置通信周期
+    write_sdo(OD_CYCLE_PERIOD, 0x00, cycle_period_us_, 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     RCLCPP_INFO(this->get_logger(), "节点初始化完成\nNode initialization completed");

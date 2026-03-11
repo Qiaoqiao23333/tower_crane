@@ -148,6 +148,11 @@ private:
     int32_t target_units_per_rev_ = 10000;  // Default: 10,000 units per output shaft revolution
     float units_per_degree_ = 0.0;  // Cached: gear_ratio_ / target_units_per_rev_ / 360.0
     float degrees_per_unit_ = 0.0;  // Cached: target_units_per_rev_ / gear_ratio_ * 360.0
+    bool auto_start_ = true;
+    float profile_velocity_ = 30.0;         // deg/s
+    float profile_acceleration_ = 30.0;     // deg/s²
+    float profile_deceleration_ = 30.0;     // deg/s²
+    int32_t cycle_period_us_ = 1000;        // Communication cycle period (microseconds)
     int can_socket_ = -1;
     uint16_t status_word_ = 0;
     int32_t position_ = 0;
