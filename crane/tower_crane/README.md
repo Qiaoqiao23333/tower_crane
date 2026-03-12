@@ -1,46 +1,46 @@
 # Tower Crane Spherical Pendulum Dynamics Simulator
 
-## 📋 目录
+## 📋 Table of Contents
 
-1. [概述](#概述)
-2. [快速开始](#快速开始)
-3. [数学基础](#数学基础)
-4. [使用方法](#使用方法)
-5. [集成指南](#集成指南)
-6. [使用示例](#使用示例)
-7. [实现细节](#实现细节)
-8. [文件结构](#文件结构)
-9. [故障排除](#故障排除)
-10. [参考资源](#参考资源)
-
----
-
-## 概述
-
-本包提供了一个基于拉格朗日力学的高保真塔式起重机球形摆动力学模拟器。模拟器捕捉了真实起重机系统的核心行为：**小车加速度直接引起载荷摆动**。
-
-### 核心特性
-
-✅ **耦合动力学**：小车加速度直接影响载荷摆动（不仅仅是被动摆）  
-✅ **球形摆**：完整的3D摆动建模（X和Y方向的角度）  
-✅ **拉格朗日力学**：基于欧拉-拉格朗日方程的物理模拟  
-✅ **ROS2集成**：发布`JointState`消息用于RViz可视化  
-✅ **非线性与线性模式**：支持完整非线性和线性化方程  
-✅ **可配置参数**：质量、绳索长度、阻尼等可调  
-✅ **CANopen集成**：可与现有CANopen仿真系统无缝集成  
+1. [Overview](#overview)
+2. [Quick Start](#quick-start)
+3. [Mathematical Foundation](#mathematical-foundation)
+4. [Usage](#usage)
+5. [Integration Guide](#integration-guide)
+6. [Usage Examples](#usage-examples)
+7. [Implementation Details](#implementation-details)
+8. [File Structure](#file-structure)
+9. [Troubleshooting](#troubleshooting)
+10. [References](#references)
 
 ---
 
-## 快速开始
+## Overview
 
-### 安装依赖
+This package provides a high-fidelity tower crane spherical pendulum dynamics simulator based on Lagrangian mechanics. The simulator captures the core behavior of real crane systems: **trolley acceleration directly causes payload swing**.
+
+### Core Features
+
+✅ **Coupled Dynamics**: Trolley acceleration directly affects payload swing (not just a passive pendulum)  
+✅ **Spherical Pendulum**: Complete 3D swing modeling (angles in X and Y directions)  
+✅ **Lagrangian Mechanics**: Physics simulation based on Euler-Lagrange equations  
+✅ **ROS2 Integration**: Publishes `JointState` messages for RViz visualization  
+✅ **Nonlinear and Linear Modes**: Supports both full nonlinear and linearized equations  
+✅ **Configurable Parameters**: Adjustable mass, rope length, damping, etc.  
+✅ **CANopen Integration**: Seamlessly integrates with existing CANopen simulation systems  
+
+---
+
+## Quick Start
+
+### Install Dependencies
 
 ```bash
 sudo apt install ros-humble-rclpy ros-humble-sensor-msgs ros-humble-geometry-msgs
 sudo apt install python3-numpy python3-scipy python3-matplotlib
 ```
 
-### 构建包
+### Build Package
 
 ```bash
 cd /home/labcrane/appdata/ws_tower_crane
@@ -48,94 +48,94 @@ colcon build --packages-select tower_crane
 source install/setup.bash
 ```
 
-### 启动仿真
+### Launch Simulation
 
 ```bash
-# 启用摆动模拟
+# Enable pendulum dynamics simulation
 ros2 launch tower_crane simulation.launch.py use_pendulum_dynamics:=true
 ```
 
-您应该看到：
-- RViz窗口显示起重机模型
-- 终端输出显示物理参数
-- 每2秒实时状态更新
+You should see:
+- RViz window displaying the crane model
+- Terminal output showing physical parameters
+- Real-time status updates every 2 seconds
 
-### 控制起重机
+### Control the Crane
 
-在新终端中：
+In a new terminal:
 
 ```bash
 source /home/labcrane/appdata/ws_tower_crane/install/setup.bash
 
-# 发送加速度命令
+# Send acceleration command
 ros2 topic pub /target_acceleration std_msgs/Float64MultiArray "{data: [0.3]}"
 
-# 或运行自动化测试
+# Or run automated test
 ros2 run tower_crane crane_controller_test.py --ros-args -p mode:=sine
 ```
 
-### 监控状态
+### Monitor Status
 
 ```bash
-# 查看完整状态
+# View complete state
 ros2 topic echo /crane_state
 
-# 绘图可视化
+# Plot visualization
 ros2 run tower_crane state_plotter.py
 ```
 
 ---
 
-## 数学基础
+## Mathematical Foundation
 
-### 系统配置
+### System Configuration
 
-系统建模包括：
-- **小车位置**：`x`（沿吊臂移动， prismatic joint）
-- **载荷摆动角度**：`θ_x`, `θ_y`（球形摆）
-- **绳索长度**：`L`（可通过hook_joint变化）
-- **质量**：`M`（小车），`m`（载荷）
+The system modeling includes:
+- **Trolley position**: `x` (moves along the boom, prismatic joint)
+- **Payload swing angles**: `θ_x`, `θ_y` (spherical pendulum)
+- **Rope length**: `L` (can vary via hook_joint)
+- **Masses**: `M` (trolley), `m` (payload)
 
-**状态向量**：`[x, ẋ, θ_x, θ̇_x, θ_y, θ̇_y]`
+**State vector**: `[x, ẋ, θ_x, θ̇_x, θ_y, θ̇_y]`
 
-### 拉格朗日公式
+### Lagrangian Formulation
 
-拉格朗日量 `L = T - V` 描述系统能量：
+The Lagrangian `L = T - V` describes the system energy:
 
-**动能**：
+**Kinetic Energy**:
 ```
 T = ½(M+m)ẋ² + mLẋθ̇_x + ½mL²(θ̇_x² + θ̇_y²)
 ```
 
-**势能**：
+**Potential Energy**:
 ```
-V = mgL(1 - (θ_x² + θ_y²)/2)  [小角度近似]
+V = mgL(1 - (θ_x² + θ_y²)/2)  [small angle approximation]
 ```
 
-### 运动方程
+### Equations of Motion
 
-应用欧拉-拉格朗日方程 `d/dt(∂L/∂q̇ᵢ) - ∂L/∂qᵢ = Qᵢ`：
+Applying Euler-Lagrange equations `d/dt(∂L/∂q̇ᵢ) - ∂L/∂qᵢ = Qᵢ`:
 
-**小车动力学**：
+**Trolley Dynamics**:
 ```
 (M + m)ẍ + mLθ̈_x = F_control
 ```
 
-**摆动X动力学**（与小车耦合）：
+**Swing X Dynamics** (coupled with trolley):
 ```
 mL²θ̈_x + mLẍ + mgLθ_x = -c_x·θ̇_x
 ```
 
-**摆动Y动力学**：
+**Swing Y Dynamics**:
 ```
 mL²θ̈_y + mgLθ_y = -c_y·θ̇_y
 ```
 
-**关键洞察**：小车加速度`ẍ`出现在摆动方程中！这种耦合意味着任何小车运动**直接引起摆动**。
+**Key Insight**: Trolley acceleration `ẍ` appears in the swing equations! This coupling means any trolley motion **directly causes swing**.
 
-### 线性化解
+### Linearized Solution
 
-求解加速度（小角度近似）：
+Solving for accelerations (small angle approximation):
 
 ```
 θ̈_x = -(g/L)·θ_x - (ẍ/L) - (c_x/(mL²))·θ̇_x
@@ -143,46 +143,46 @@ mL²θ̈_y + mgLθ_y = -c_y·θ̇_y
 ẍ = F_control/(M+m) - mL·θ̈_x/(M+m)
 ```
 
-### 状态空间表示
+### State Space Representation
 
-**状态向量**：
+**State Vector**:
 ```
 s = [x, ẋ, θ_x, θ̇_x, θ_y, θ̇_y]ᵀ
 ```
 
-**状态方程**：
+**State Equations**:
 ```
-ṡ₁ = s₂                                          (小车速度)
-ṡ₂ = F/(M+m) - [m·L·θ̈_x]/(M+m)                 (小车加速度)
-ṡ₃ = s₄                                          (摆动_x速度)
-ṡ₄ = -[g/L]·s₃ - [s₂/L] - [c_x/(m·L²)]·s₄      (摆动_x加速度)
-ṡ₅ = s₆                                          (摆动_y速度)
-ṡ₆ = -[g/L]·s₅ - [c_y/(m·L²)]·s₆                (摆动_y加速度)
+ṡ₁ = s₂                                          (trolley velocity)
+ṡ₂ = F/(M+m) - [m·L·θ̈_x]/(M+m)                 (trolley acceleration)
+ṡ₃ = s₄                                          (swing_x velocity)
+ṡ₄ = -[g/L]·s₃ - [s₂/L] - [c_x/(m·L²)]·s₄      (swing_x acceleration)
+ṡ₅ = s₆                                          (swing_y velocity)
+ṡ₆ = -[g/L]·s₅ - [c_y/(m·L²)]·s₆                (swing_y acceleration)
 ```
 
-耦合体现在`ṡ₄`依赖于`s₂`（小车速度的导数）。
+The coupling is reflected in `ṡ₄` depending on `s₂` (derivative of trolley velocity).
 
 ---
 
-## 使用方法
+## Usage
 
-### 基本仿真
+### Basic Simulation
 
-启动带RViz的球形摆动力学模拟器：
+Launch the spherical pendulum dynamics simulator with RViz:
 
 ```bash
 ros2 launch tower_crane simulation.launch.py use_pendulum_dynamics:=true
 ```
 
-这将启动：
-- 物理仿真节点（`spherical_pendulum_dynamics`）
-- Robot state publisher（用于TF变换）
-- RViz（用于3D可视化）
-- CANopen和ROS2 control（完整系统）
+This will launch:
+- Physics simulation node (`spherical_pendulum_dynamics`)
+- Robot state publisher (for TF transforms)
+- RViz (for 3D visualization)
+- CANopen and ROS2 control (complete system)
 
-### 自定义参数
+### Custom Parameters
 
-使用自定义物理参数运行：
+Run with custom physical parameters:
 
 ```bash
 ros2 launch tower_crane simulation.launch.py \
@@ -193,142 +193,142 @@ ros2 launch tower_crane simulation.launch.py \
     damping_y:=0.2
 ```
 
-**可用参数**：
-- `use_pendulum_dynamics`: 启用/禁用摆动模拟（默认：false）
-- `payload_mass`: 载荷质量（kg，默认：5.0）
-- `trolley_mass`: 小车质量（kg，默认：0.568）
-- `rope_length`: 绳索长度（m，默认：1.9126）
-- `damping_x`: X轴摆动阻尼系数（默认：0.1）
-- `damping_y`: Y轴摆动阻尼系数（默认：0.1）
-- `simulation_dt`: 积分时间步长（s，默认：0.01）
-- `publish_rate`: 发布频率（Hz，默认：50.0）
-- `use_rviz`: 启动RViz（默认：true）
+**Available Parameters**:
+- `use_pendulum_dynamics`: Enable/disable swing simulation (default: false)
+- `payload_mass`: Payload mass (kg, default: 5.0)
+- `trolley_mass`: Trolley mass (kg, default: 0.568)
+- `rope_length`: Rope length (m, default: 1.9126)
+- `damping_x`: X-axis swing damping coefficient (default: 0.1)
+- `damping_y`: Y-axis swing damping coefficient (default: 0.1)
+- `simulation_dt`: Integration time step (s, default: 0.01)
+- `publish_rate`: Publishing frequency (Hz, default: 50.0)
+- `use_rviz`: Launch RViz (default: true)
 
-### 控制起重机
+### Control the Crane
 
-模拟器订阅多个命令话题：
+The simulator subscribes to multiple command topics:
 
-**选项A：Twist消息**（将`linear.x`解释为加速度）：
+**Option A: Twist Message** (interprets `linear.x` as acceleration):
 ```bash
 ros2 topic pub /cmd_vel geometry_msgs/Twist \
     "{linear: {x: 0.5, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}"
 ```
 
-**选项B：直接加速度命令**：
+**Option B: Direct Acceleration Command**:
 ```bash
 ros2 topic pub /target_acceleration std_msgs/Float64MultiArray \
     "{data: [0.5]}"
 ```
 
-**选项C：力命令**：
+**Option C: Force Command**:
 ```bash
 ros2 topic pub /control_force std_msgs/Float64MultiArray \
     "{data: [3.0]}"
 ```
 
-### 测试控制器
+### Test Controller
 
-运行预设测试场景：
+Run preset test scenarios:
 
-**阶跃输入**：
+**Step Input**:
 ```bash
 ros2 run tower_crane crane_controller_test.py --ros-args -p mode:=step
 ```
 
-**正弦运动**：
+**Sine Motion**:
 ```bash
 ros2 run tower_crane crane_controller_test.py --ros-args -p mode:=sine
 ```
 
-**梯形速度曲线**：
+**Trapezoidal Velocity Profile**:
 ```bash
 ros2 run tower_crane crane_controller_test.py --ros-args -p mode:=trapezoid
 ```
 
-### ROS2话题
+### ROS2 Topics
 
-**订阅的话题**：
+**Subscribed Topics**:
 
-| 话题 | 消息类型 | 说明 |
-|------|----------|------|
-| `/cmd_vel` | `geometry_msgs/Twist` | 速度/加速度命令 |
-| `/target_acceleration` | `std_msgs/Float64MultiArray` | 直接加速度命令 |
-| `/control_force` | `std_msgs/Float64MultiArray` | 施加在小车上的力 |
+| Topic | Message Type | Description |
+|------|-------------|-------------|
+| `/cmd_vel` | `geometry_msgs/Twist` | Velocity/acceleration command |
+| `/target_acceleration` | `std_msgs/Float64MultiArray` | Direct acceleration command |
+| `/control_force` | `std_msgs/Float64MultiArray` | Force applied to trolley |
 
-**发布的话题**：
+**Published Topics**:
 
-| 话题 | 消息类型 | 说明 |
-|------|----------|------|
-| `/joint_states_dynamics` | `sensor_msgs/JointState` | 关节位置/速度（动力学节点） |
-| `/joint_states_merged` | `sensor_msgs/JointState` | 合并后的关节状态（用于RViz） |
-| `/crane_state` | `std_msgs/Float64MultiArray` | 完整状态向量 [x, ẋ, θ_x, θ̇_x, θ_y, θ̇_y, F] |
+| Topic | Message Type | Description |
+|------|-------------|-------------|
+| `/joint_states_dynamics` | `sensor_msgs/JointState` | Joint positions/velocities (dynamics node) |
+| `/joint_states_merged` | `sensor_msgs/JointState` | Merged joint states (for RViz) |
+| `/crane_state` | `std_msgs/Float64MultiArray` | Complete state vector [x, ẋ, θ_x, θ̇_x, θ_y, θ̇_y, F] |
 
 ---
 
-## 集成指南
+## Integration Guide
 
-### 系统架构
+### System Architecture
 
-当启用摆动模拟时，系统架构如下：
+When swing simulation is enabled, the system architecture is as follows:
 
 ```
 ROS2 Control (CANopen)
     ↓
-/joint_states (slewing_joint, hook_joint等)
+/joint_states (slewing_joint, hook_joint, etc.)
     ↓
     ┌─────────────────┐
     │ Joint State     │
     │ Merger          │ ← /joint_states_dynamics (trolley_joint with physics)
     └─────────────────┘
     ↓
-/joint_states_merged (合并后的状态)
+/joint_states_merged (merged states)
     ↓
 Robot State Publisher → RViz
 ```
 
-**关键特性**：
-- `trolley_joint` 由摆动动力学节点控制（包含物理模拟）
-- 其他关节（`slewing_joint`, `hook_joint`）由ROS2 control控制
-- Joint State Merger自动合并两个来源的状态
+**Key Features**:
+- `trolley_joint` is controlled by the swing dynamics node (includes physics simulation)
+- Other joints (`slewing_joint`, `hook_joint`) are controlled by ROS2 control
+- Joint State Merger automatically merges states from both sources
 
-### 节点关系
+### Node Relationships
 
 1. **ROS2 Control Node** (`ros2_control_node`)
-   - 管理CANopen硬件接口
-   - 控制 `slewing_joint`, `hook_joint`
-   - 发布到 `/joint_states`
+   - Manages CANopen hardware interface
+   - Controls `slewing_joint`, `hook_joint`
+   - Publishes to `/joint_states`
 
 2. **Spherical Pendulum Dynamics Node** (`spherical_pendulum_dynamics`)
-   - 模拟载荷摆动物理
-   - 控制 `trolley_joint`（带物理模拟）
-   - 发布到 `/joint_states_dynamics`
+   - Simulates payload swing physics
+   - Controls `trolley_joint` (with physics simulation)
+   - Publishes to `/joint_states_dynamics`
 
 3. **Joint State Merger Node** (`joint_state_merger`)
-   - 合并两个来源的关节状态
-   - `trolley_joint` 来自动力学节点
-   - 其他关节来自ROS2 control
-   - 发布到 `/joint_states_merged`
+   - Merges joint states from two sources
+   - `trolley_joint` comes from dynamics node
+   - Other joints come from ROS2 control
+   - Publishes to `/joint_states_merged`
 
 4. **Robot State Publisher**
-   - 订阅 `/joint_states_merged`
-   - 计算TF变换
-   - 用于RViz可视化
+   - Subscribes to `/joint_states_merged`
+   - Computes TF transforms
+   - Used for RViz visualization
 
-### 使用场景
+### Usage Scenarios
 
-**场景1：纯CANopen控制（无摆动）**
+**Scenario 1: Pure CANopen Control (No Swing)**
 ```bash
 ros2 launch tower_crane simulation.launch.py use_pendulum_dynamics:=false
 ```
-适用于：测试CANopen通信、验证硬件接口
+Use for: Testing CANopen communication, validating hardware interface
 
-**场景2：CANopen + 摆动模拟**
+**Scenario 2: CANopen + Swing Simulation**
 ```bash
 ros2 launch tower_crane simulation.launch.py use_pendulum_dynamics:=true
 ```
-适用于：开发防摆控制算法、测试控制策略、研究载荷动力学
+Use for: Developing anti-swing control algorithms, testing control strategies, studying payload dynamics
 
-**场景3：自定义物理参数**
+**Scenario 3: Custom Physical Parameters**
 ```bash
 ros2 launch tower_crane simulation.launch.py \
     use_pendulum_dynamics:=true \
@@ -337,398 +337,398 @@ ros2 launch tower_crane simulation.launch.py \
     damping_x:=0.2
 ```
 
-### 合并逻辑
+### Merging Logic
 
-Joint State Merger的合并规则：
-1. `trolley_joint`: 始终使用动力学节点的值（包含物理模拟）
-2. 其他关节: 使用ROS2 control的值
-3. 如果某个关节只在一个来源中出现，使用该值
-4. 如果两个来源都没有，使用默认值0
+Joint State Merger merging rules:
+1. `trolley_joint`: Always use the value from the dynamics node (includes physics simulation)
+2. Other joints: Use values from ROS2 control
+3. If a joint appears in only one source, use that value
+4. If a joint appears in neither source, use default value 0
 
 ---
 
-## 使用示例
+## Usage Examples
 
-### 示例1：基本仿真演示
+### Example 1: Basic Simulation Demo
 
 ```bash
-# 终端1: 启动仿真器
+# Terminal 1: Launch simulator
 ros2 launch tower_crane simulation.launch.py use_pendulum_dynamics:=true
 
-# 终端2: 应用正弦运动
+# Terminal 2: Apply sine motion
 ros2 run tower_crane crane_controller_test.py --ros-args -p mode:=sine -p amplitude:=0.4
 
-# 终端3: 观察状态值
+# Terminal 3: Observe state values
 ros2 topic echo /crane_state
 ```
 
-### 示例2：阶跃响应分析
+### Example 2: Step Response Analysis
 
 ```bash
-# 终端1: 启动带已知参数的仿真器
+# Terminal 1: Launch simulator with known parameters
 ros2 launch tower_crane simulation.launch.py use_pendulum_dynamics:=true \
     payload_mass:=5.0 rope_length:=2.0 damping_x:=0.1
 
-# 终端2: 启动绘图器
+# Terminal 2: Launch plotter
 ros2 run tower_crane state_plotter.py
 
-# 终端3: 应用阶跃加速度
+# Terminal 3: Apply step acceleration
 ros2 topic pub /target_acceleration std_msgs/Float64MultiArray "{data: [0.5]}"
-# 等待5秒，然后停止
+# Wait 5 seconds, then stop
 ros2 topic pub /target_acceleration std_msgs/Float64MultiArray "{data: [0.0]}"
 ```
 
-**观察**：
-- 立即的小车加速度
-- 摆动角度在相反方向增加（耦合！）
-- 停止后，载荷继续摆动
-- 由于阻尼逐渐衰减
+**Observations**:
+- Immediate trolley acceleration
+- Swing angle increases in opposite direction (coupling!)
+- After stopping, payload continues to swing
+- Gradually decays due to damping
 
-### 示例3：受控运动到目标
+### Example 3: Controlled Motion to Target
 
 ```bash
-# 终端1: 仿真器
+# Terminal 1: Simulator
 ros2 launch tower_crane simulation.launch.py use_pendulum_dynamics:=true
 
-# 终端2: 运行PD控制器
+# Terminal 2: Run PD controller
 ros2 run tower_crane custom_controller_example.py \
     --ros-args -p target_position:=-1.5 -p Kp:=12.0 -p Kd:=6.0
 
-# 终端3: 可视化
+# Terminal 3: Visualization
 ros2 run tower_crane state_plotter.py
 ```
 
-### 示例4：频率响应研究
+### Example 4: Frequency Response Study
 
 ```bash
-# 终端1: 启动仿真器
+# Terminal 1: Launch simulator
 ros2 launch tower_crane simulation.launch.py use_pendulum_dynamics:=true \
     rope_length:=2.0 damping_x:=0.05
 
-# 终端2: 频率扫描
+# Terminal 2: Frequency sweep
 ros2 run tower_crane crane_controller_test.py \
     --ros-args -p mode:=sine -p frequency:=0.35
 ```
 
-**预期自然频率**：f ≈ (1/2π)√(g/L) = 0.35 Hz for L=2m
+**Expected Natural Frequency**: f ≈ (1/2π)√(g/L) = 0.35 Hz for L=2m
 
-### 示例5：理解耦合
+### Example 5: Understanding Coupling
 
-**实验**：
-1. 启动仿真器：`ros2 launch tower_crane simulation.launch.py use_pendulum_dynamics:=true`
-2. 应用阶跃加速度：`ros2 topic pub /target_acceleration std_msgs/Float64MultiArray "{data: [0.5]}"`
-3. 在RViz中观察：小车加速**并且**载荷向后摆动
-4. 停止加速度：`ros2 topic pub /target_acceleration std_msgs/Float64MultiArray "{data: [0.0]}"`
-5. 观察：载荷继续摆动（像摆一样）
+**Experiment**:
+1. Launch simulator: `ros2 launch tower_crane simulation.launch.py use_pendulum_dynamics:=true`
+2. Apply step acceleration: `ros2 topic pub /target_acceleration std_msgs/Float64MultiArray "{data: [0.5]}"`
+3. Observe in RViz: Trolley accelerates **and** payload swings backward
+4. Stop acceleration: `ros2 topic pub /target_acceleration std_msgs/Float64MultiArray "{data: [0.0]}"`
+5. Observe: Payload continues swinging (like a pendulum)
 
-这就是拉格朗日公式的**耦合动力学**！
+This is the **coupled dynamics** of the Lagrangian formulation!
 
 ---
 
-## 实现细节
+## Implementation Details
 
-### 数值积分
+### Numerical Integration
 
-模拟器使用`scipy.integrate.odeint`和Runge-Kutta方法求解ODE。默认时间步长为10ms（0.01s），为典型起重机动力学提供良好的精度。
+The simulator uses `scipy.integrate.odeint` and Runge-Kutta methods to solve ODEs. The default time step is 10ms (0.01s), providing good accuracy for typical crane dynamics.
 
-### 非线性 vs 线性模式
+### Nonlinear vs Linear Mode
 
-**非线性模式**（默认）：
-- 使用完整的三角函数
-- 对大角度（> 10°）更准确
-- 计算稍慢
-- 位于`dynamics()`方法（主部分）
+**Nonlinear Mode** (default):
+- Uses full trigonometric functions
+- More accurate for large angles (> 10°)
+- Slightly slower computation
+- Located in `dynamics()` method (main section)
 
-**线性模式**（可选）：
-- 小角度近似
-- 计算更快
-- 耦合机制更清晰
-- 位于`dynamics()`方法（注释部分）
+**Linear Mode** (optional):
+- Small angle approximation
+- Faster computation
+- Clearer coupling mechanism
+- Located in `dynamics()` method (commented section)
 
-要切换模式，编辑`spherical_pendulum_dynamics_node.py`中的`dynamics()`方法。
+To switch modes, edit the `dynamics()` method in `spherical_pendulum_dynamics_node.py`.
 
-### 阻尼模型
+### Damping Model
 
-阻尼建模为与角速度成正比的粘性阻尼：
+Damping is modeled as viscous damping proportional to angular velocity:
 
 ```
 τ_damping = -c·θ̇
 ```
 
-这代表：
-- 空气阻力
-- 绳索内部摩擦
-- 关节摩擦
+This represents:
+- Air resistance
+- Internal rope friction
+- Joint friction
 
-典型值：0.05 - 0.5（线性化形式中的无量纲）
+Typical values: 0.05 - 0.5 (dimensionless in linearized form)
 
-### 稳定性考虑
+### Stability Considerations
 
-如果出现以下情况，仿真可能变得不稳定：
-1. **时间步长太大**：减小`simulation_dt`
-2. **阻尼太低**：增加`damping_x`和`damping_y`
-3. **力太大**：限制控制输入
-4. **角度太大**：线性近似在约30°以上失效
+Simulation may become unstable if:
+1. **Time step too large**: Reduce `simulation_dt`
+2. **Damping too low**: Increase `damping_x` and `damping_y`
+3. **Force too large**: Limit control inputs
+4. **Angle too large**: Linear approximation fails above ~30°
 
-### 参数调优指南
+### Parameter Tuning Guide
 
-**载荷质量** (`payload_mass`)：
-- **效果**：更重的载荷有更多惯性，摆动频率更慢
-- **典型范围**：1-100 kg
-- **自然频率**：`ω = √(g/L)`（理想摆与质量无关）
+**Payload Mass** (`payload_mass`):
+- **Effect**: Heavier payloads have more inertia, slower swing frequency
+- **Typical range**: 1-100 kg
+- **Natural frequency**: `ω = √(g/L)` (ideal pendulum is mass-independent)
 
-**绳索长度** (`rope_length`)：
-- **效果**：更长的绳索 → 更低的自然频率，摆动更慢
-- **典型范围**：0.5-5.0 m
-- **自然频率**：`f = (1/2π)√(g/L)`
+**Rope Length** (`rope_length`):
+- **Effect**: Longer rope → lower natural frequency, slower swing
+- **Typical range**: 0.5-5.0 m
+- **Natural frequency**: `f = (1/2π)√(g/L)`
 
-示例：
-- L = 2m → f ≈ 0.35 Hz（周期 ~2.8s）
-- L = 5m → f ≈ 0.22 Hz（周期 ~4.5s）
+Examples:
+- L = 2m → f ≈ 0.35 Hz (period ~2.8s)
+- L = 5m → f ≈ 0.22 Hz (period ~4.5s)
 
-**阻尼系数** (`damping_x`, `damping_y`)：
-- **效果**：更高的阻尼 → 摆动衰减更快
-- **太低**：持续振荡，缓慢稳定
-- **太高**：过阻尼，响应迟缓
-- **典型范围**：0.05-0.5
-- **临界阻尼**：`c_crit = 2√(m·g·L)`
+**Damping Coefficients** (`damping_x`, `damping_y`):
+- **Effect**: Higher damping → faster swing decay
+- **Too low**: Sustained oscillations, slow stabilization
+- **Too high**: Overdamped, sluggish response
+- **Typical range**: 0.05-0.5
+- **Critical damping**: `c_crit = 2√(m·g·L)`
 
-**仿真时间步长** (`simulation_dt`)：
-- **效果**：更小的时间步长 → 更准确，更多计算
-- **典型范围**：0.001-0.02 s
-- **经验法则**：`dt < 1/(10·f_natural)`
+**Simulation Time Step** (`simulation_dt`):
+- **Effect**: Smaller time step → more accurate, more computation
+- **Typical range**: 0.001-0.02 s
+- **Rule of thumb**: `dt < 1/(10·f_natural)`
 
 ---
 
-## 文件结构
+## File Structure
 
 ```
 tower_crane/
 ├── src/
-│   ├── spherical_pendulum_dynamics_node.py  ⭐ 主仿真器
-│   ├── joint_state_merger_node.py          🔗 状态合并器
-│   ├── crane_controller_test.py            🎮 测试控制器
-│   └── (其他现有文件...)
+│   ├── spherical_pendulum_dynamics_node.py  ⭐ Main simulator
+│   ├── joint_state_merger_node.py          🔗 State merger
+│   ├── crane_controller_test.py            🎮 Test controller
+│   └── (other existing files...)
 ├── launch/
-│   └── simulation.launch.py                 🚀 Launch文件（带摆动选项）
+│   └── simulation.launch.py                 🚀 Launch file (with swing option)
 ├── examples/
-│   ├── custom_controller_example.py        📚 示例控制器
-│   └── state_plotter.py                     📊 可视化工具
+│   ├── custom_controller_example.py        📚 Example controller
+│   └── state_plotter.py                     📊 Visualization tool
 ├── urdf/
-│   └── Tower_crane_base.urdf               🤖 机器人描述
+│   └── Tower_crane_base.urdf               🤖 Robot description
 ├── config/
-│   └── ...                                  ⚙️ 配置文件
-└── README.md                                📖 本文档
+│   └── ...                                  ⚙️ Configuration files
+└── README.md                                📖 This document
 ```
 
-### 核心文件说明
+### Core File Descriptions
 
-**`spherical_pendulum_dynamics_node.py`**：
-- 实现完整的球形摆动力学
-- 基于拉格朗日力学
-- 状态空间：[x, ẋ, θ_x, θ̇_x, θ_y, θ̇_y]
-- 约400行代码，包含完整数学注释
+**`spherical_pendulum_dynamics_node.py`**:
+- Implements complete spherical pendulum dynamics
+- Based on Lagrangian mechanics
+- State space: [x, ẋ, θ_x, θ̇_x, θ_y, θ̇_y]
+- ~400 lines of code with complete mathematical comments
 
-**`joint_state_merger_node.py`**：
-- 合并ROS2 control和摆动动力学的关节状态
-- 避免topic冲突
-- 自动处理状态同步
+**`joint_state_merger_node.py`**:
+- Merges joint states from ROS2 control and swing dynamics
+- Avoids topic conflicts
+- Automatically handles state synchronization
 
-**`crane_controller_test.py`**：
-- 自动化测试控制器
-- 多种运动模式（step, sine, trapezoid）
-- 用于验证和演示
+**`crane_controller_test.py`**:
+- Automated test controller
+- Multiple motion modes (step, sine, trapezoid)
+- Used for validation and demonstration
 
-**`custom_controller_example.py`**：
-- PD控制器示例，带摆动补偿
-- 控制律：`F = Kp*(x_target - x) - Kd*ẋ - Ks*θ_x - Ksd*θ̇_x`
-- 完全注释，用于教育目的
+**`custom_controller_example.py`**:
+- PD controller example with swing compensation
+- Control law: `F = Kp*(x_target - x) - Kd*ẋ - Ks*θ_x - Ksd*θ̇_x`
+- Fully commented for educational purposes
 
-**`state_plotter.py`**：
-- 实时状态可视化
-- 9个子图：时间历史、相图、控制力
-- 需要matplotlib
+**`state_plotter.py`**:
+- Real-time state visualization
+- 9 subplots: time history, phase plots, control force
+- Requires matplotlib
 
 ---
 
-## 故障排除
+## Troubleshooting
 
-### 问题1：看不到摆动效果
+### Issue 1: No Swing Effect Visible
 
-**检查**：
+**Check**:
 ```bash
-# 确认动力学节点在运行
+# Confirm dynamics node is running
 ros2 node list | grep spherical_pendulum
 
-# 确认话题在发布
+# Confirm topics are publishing
 ros2 topic hz /joint_states_dynamics
 ros2 topic hz /joint_states_merged
 
-# 检查状态
+# Check state
 ros2 topic echo /crane_state
 ```
 
-**解决**：
-- 确保 `use_pendulum_dynamics:=true`
-- 发送控制命令触发运动
-- 检查参数设置是否合理
+**Solution**:
+- Ensure `use_pendulum_dynamics:=true`
+- Send control commands to trigger motion
+- Check if parameter settings are reasonable
 
-### 问题2：关节状态不更新
+### Issue 2: Joint States Not Updating
 
-**检查**：
+**Check**:
 ```bash
-# 查看merger节点日志
+# View merger node logs
 ros2 node info /joint_state_merger
 
-# 检查两个输入话题
+# Check both input topics
 ros2 topic echo /joint_states
 ros2 topic echo /joint_states_dynamics
 ```
 
-**解决**：
-- 确保两个输入话题都有数据
-- 检查merger节点是否正常启动
-- 查看节点日志中的错误信息
+**Solution**:
+- Ensure both input topics have data
+- Check if merger node started normally
+- View error messages in node logs
 
-### 问题3：RViz中看不到模型
+### Issue 3: Model Not Visible in RViz
 
-**检查**：
+**Check**:
 ```bash
-# 确认robot_state_publisher在运行
+# Confirm robot_state_publisher is running
 ros2 node list | grep robot_state_publisher
 
-# 检查TF树
+# Check TF tree
 ros2 run tf2_tools view_frames
 ```
 
-**解决**：
-- 确保 `use_robot_state_publisher:=true`
-- 检查URDF文件是否正确加载
-- 确认 `/joint_states_merged` 有数据
+**Solution**:
+- Ensure `use_robot_state_publisher:=true`
+- Check if URDF file is loaded correctly
+- Confirm `/joint_states_merged` has data
 
-### 问题4：仿真不稳定
+### Issue 4: Simulation Unstable
 
-**解决**：
-- 减小时间步长：`simulation_dt:=0.005`
-- 增加阻尼：`damping_x:=0.5 damping_y:=0.5`
-- 检查控制命令：确保力/加速度合理
+**Solution**:
+- Reduce time step: `simulation_dt:=0.005`
+- Increase damping: `damping_x:=0.5 damping_y:=0.5`
+- Check control commands: Ensure forces/accelerations are reasonable
 
-### 问题5：载荷不摆动
+### Issue 5: Payload Not Swinging
 
-**检查**：
-- 验证控制命令是否被接收：`ros2 topic echo /cmd_vel`
-- 检查小车是否移动：`ros2 topic echo /crane_state`
-- 确保耦合激活（检查dynamics()方法）
+**Check**:
+- Verify control commands are received: `ros2 topic echo /cmd_vel`
+- Check if trolley is moving: `ros2 topic echo /crane_state`
+- Ensure coupling is activated (check dynamics() method)
 
-### 问题6：包未找到
+### Issue 6: Package Not Found
 
 ```bash
 source /home/labcrane/appdata/ws_tower_crane/install/setup.bash
 ```
 
-### 问题7：RViz中没有可视化
+### Issue 7: No Visualization in RViz
 
-- 检查robot_state_publisher是否运行：`ros2 node list`
-- 验证joint_states是否发布：`ros2 topic list | grep joint`
+- Check if robot_state_publisher is running: `ros2 node list`
+- Verify joint_states are published: `ros2 topic list | grep joint`
 
 ---
 
-## 参考资源
+## References
 
-### 理论参考
+### Theoretical References
 
-**论文**：
+**Papers**:
 - "Nonlinear optimal control of a 3D overhead crane" (various authors)
 - Time-optimal control of overhead cranes with hoisting of the load
 - Robust control of a rotary crane
 - Anti-sway control of overhead cranes with payload hoisting
 
-**书籍**：
+**Books**:
 - "Lagrangian Dynamics" - Dare A. Wells
 - "Nonlinear Systems" - Hassan K. Khalil
 - "Crane Dynamics" - Various authors in mechanical engineering literature
 
-**在线资源**：
+**Online Resources**:
 - ROS2 Documentation: https://docs.ros.org
 - SciPy Documentation: https://docs.scipy.org
 - Classical Mechanics Lecture Notes (MIT OpenCourseWare)
 
-### 核心概念
+### Core Concepts
 
-- 广义坐标和拉格朗日量 `L = T - V`
-- 欧拉-拉格朗日方程：`d/dt(∂L/∂q̇ᵢ) - ∂L/∂qᵢ = Qᵢ`
-- 通过非完整约束的耦合
-- 用于线性化的小角度近似
+- Generalized coordinates and Lagrangian `L = T - V`
+- Euler-Lagrange equations: `d/dt(∂L/∂q̇ᵢ) - ∂L/∂qᵢ = Qᵢ`
+- Coupling through nonholonomic constraints
+- Small angle approximation for linearization
 
-### 验证和测试
+### Validation and Testing
 
-**预期行为**：
-1. **自由振荡**：无控制输入时，载荷应以自然频率振荡
-2. **阶跃响应**：阶跃加速度 → 立即小车运动 + 引起的摆动
-3. **耦合**：小车在+X方向加速 → 摆动角度在-X方向（相反方向）
-4. **能量守恒**：无阻尼和无输入时，总能量应守恒
+**Expected Behavior**:
+1. **Free Oscillation**: Without control input, payload should oscillate at natural frequency
+2. **Step Response**: Step acceleration → immediate trolley motion + induced swing
+3. **Coupling**: Trolley accelerates in +X direction → swing angle in -X direction (opposite)
+4. **Energy Conservation**: Without damping and input, total energy should be conserved
 
-**测试程序**：
+**Test Procedures**:
 
-**测试1：自然频率**
+**Test 1: Natural Frequency**
 ```bash
 ros2 launch tower_crane simulation.launch.py use_pendulum_dynamics:=true rope_length:=2.0
 ros2 topic pub --once /control_force std_msgs/Float64MultiArray "{data: [10.0]}"
-# 从state_plotter测量周期
-# 预期：T ≈ 2π√(L/g) = 2π√(2/9.81) ≈ 2.84 s
+# Measure period from state_plotter
+# Expected: T ≈ 2π√(L/g) = 2π√(2/9.81) ≈ 2.84 s
 ```
 
-**测试2：耦合验证**
+**Test 2: Coupling Verification**
 ```bash
 ros2 launch tower_crane simulation.launch.py use_pendulum_dynamics:=true
 ros2 topic pub /target_acceleration std_msgs/Float64MultiArray "{data: [0.5]}"
-# 观察：theta_x应该变为负值（与加速度方向相反）
+# Observe: theta_x should become negative (opposite to acceleration direction)
 ros2 topic echo /crane_state
 ```
 
 ---
 
-## 性能特征
+## Performance Characteristics
 
-**计算时间**（典型）：
-- 动力学步骤（非线性）：~0.5 ms
-- 动力学步骤（线性）：~0.2 ms
-- 50 Hz总周期：~1-2 ms
+**Computation Time** (typical):
+- Dynamics step (nonlinear): ~0.5 ms
+- Dynamics step (linear): ~0.2 ms
+- 50 Hz total cycle: ~1-2 ms
 
-**实时能力**：是（测试到100 Hz发布率）
+**Real-time Capability**: Yes (tested up to 100 Hz publishing rate)
 
-**内存使用**：~50 MB（包括Python开销）
-
----
-
-## 未来增强
-
-潜在改进：
-- [ ] 添加风扰动模拟
-- [ ] 实现摩擦和关节限制
-- [ ] 添加载荷质量估计
-- [ ] 与MPC/最优控制器集成
-- [ ] 可变绳索长度动力学
-- [ ] 多个载荷配置
-- [ ] Gazebo集成用于完整3D可视化
+**Memory Usage**: ~50 MB (including Python overhead)
 
 ---
 
-## 许可证
+## Future Enhancements
 
-Apache 2.0（与ROS2一致）
-
----
-
-## 联系和支持
-
-如有问题或疑问：
-1. 首先阅读本文档
-2. 检查示例以了解使用模式
-3. 查看实现细节以了解技术信息
-4. 联系包维护者
+Potential improvements:
+- [ ] Add wind disturbance simulation
+- [ ] Implement friction and joint limits
+- [ ] Add payload mass estimation
+- [ ] Integrate with MPC/optimal controllers
+- [ ] Variable rope length dynamics
+- [ ] Multiple payload configurations
+- [ ] Gazebo integration for full 3D visualization
 
 ---
 
-**祝您仿真愉快！** 🏗️📐🎯
+## License
+
+Apache 2.0 (consistent with ROS2)
+
+---
+
+## Contact and Support
+
+For questions or issues:
+1. First read this document
+2. Check examples to understand usage patterns
+3. Review implementation details for technical information
+4. Contact package maintainer
+
+---
+
+**Happy Simulating!** 🏗️📐🎯
 
