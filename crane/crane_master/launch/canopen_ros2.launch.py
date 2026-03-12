@@ -25,30 +25,30 @@ def merge_params(common, node_section):
 
 def generate_launch_description():
     return LaunchDescription([
-        # 声明参数 (launch-arg overrides, empty means use YAML value)
+        # Declare parameters (launch-arg overrides, empty means use YAML value)
         DeclareLaunchArgument(
             'can_interface_name',
             default_value='can0',
-            description='CAN接口名称 (override YAML value)'
+            description='CAN interface name (override YAML value)'
         ),
         DeclareLaunchArgument(
             'node_id',
             default_value='all',
-            description='CANopen节点ID (all, 1, 2, or 3). Default: all (launch all nodes)'
+            description='CANopen node ID (all, 1, 2, or 3). Default: all (launch all nodes)'
         ),
         DeclareLaunchArgument(
             'auto_start',
             default_value='',
-            description='是否自动启动电机 (override YAML value)'
+            description='Whether to auto-start motor (override YAML value)'
         ),
 
-        # 使用OpaqueFunction来根据node_id动态创建节点
+        # Use OpaqueFunction to dynamically create nodes based on node_id
         OpaqueFunction(function=launch_nodes)
     ])
 
 
 def launch_nodes(context):
-    # 加载YAML配置
+    # Load YAML configuration
     params = load_crane_params()
     common = params.get('common', {})
 
@@ -64,15 +64,15 @@ def launch_nodes(context):
 
     can_interface_value = common.get('can_interface_name', 'vcan0')
 
-    # 检查CAN接口状态
+    # Check CAN interface status
     check_can = ExecuteProcess(
-        cmd=['bash', '-c', f'ip -details link show {can_interface_value} || echo "CAN接口不存在"'],
+        cmd=['bash', '-c', f'ip -details link show {can_interface_value} || echo "CAN interface does not exist"'],
         output='screen'
     )
 
-    # 列出节点、话题和服务
+    # List nodes, topics and services
     list_info = ExecuteProcess(
-        cmd=['bash', '-c', 'sleep 5 && echo "列出所有节点:" && ros2 node list && echo "列出所有话题:" && ros2 topic list && echo "列出所有服务:" && ros2 service list'],
+        cmd=['bash', '-c', 'sleep 5 && echo "Listing all nodes:" && ros2 node list && echo "Listing all topics:" && ros2 topic list && echo "Listing all services:" && ros2 service list'],
         output='screen'
     )
 

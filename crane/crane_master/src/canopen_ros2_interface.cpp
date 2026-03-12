@@ -2,41 +2,41 @@
 
 void CANopenROS2::publish_status()
 {
-    // 发布状态信息
+    // Publish status information
     auto status_msg = std_msgs::msg::String();
     
-    // 根据状态字解析状态
-    std::string status_str = "未知";
-    if (status_word_ & 0x0008)  // 故障
+    // Decode status word into human-readable string
+    std::string status_str = "Unknown";
+    if (status_word_ & 0x0008)  // fault
     {
-        status_str = "故障";
+        status_str = "Fault";
     }
-    else if ((status_word_ & 0x006F) == 0x0027)  // 操作已启用
+    else if ((status_word_ & 0x006F) == 0x0027)  // operation enabled
     {
-        status_str = "操作已启用";
+        status_str = "Operation enabled";
     }
-    else if ((status_word_ & 0x006F) == 0x0023)  // 已开启
+    else if ((status_word_ & 0x006F) == 0x0023)  // switched on
     {
-        status_str = "已开启";
+        status_str = "Switched on";
     }
-    else if ((status_word_ & 0x006F) == 0x0021)  // 准备开启
+    else if ((status_word_ & 0x006F) == 0x0021)  // ready to switch on
     {
-        status_str = "准备开启";
+        status_str = "Ready to switch on";
     }
-    else if ((status_word_ & 0x004F) == 0x0040)  // 禁止开启
+    else if ((status_word_ & 0x004F) == 0x0040)  // operation inhibit
     {
-        status_str = "禁止开启";
+        status_str = "Operation inhibit";
     }
     
     status_msg.data = status_str;
     status_pub_->publish(status_msg);
     
-    // 发布位置
+    // Publish position
     auto pos_msg = std_msgs::msg::Float32();
     pos_msg.data = position_to_angle(position_);
     position_pub_->publish(pos_msg);
     
-    // 发布速度 (通过位置差分计算，避免SDO阻塞)
+    // Publish velocity (computed via position difference to avoid SDO blocking)
     rclcpp::Time now = this->now();
     double dt = (now - prev_position_time_).seconds();
     auto vel_msg = std_msgs::msg::Float32();
@@ -57,19 +57,19 @@ void CANopenROS2::publish_status()
 void CANopenROS2::position_callback(const std_msgs::msg::Float32::SharedPtr msg)
 {
     float angle = msg->data;
-    RCLCPP_INFO(this->get_logger(), "收到目标位置: %.2f°\nReceived target position: %.2f°", angle, angle);
+    RCLCPP_INFO(this->get_logger(), "Received target position: %.2f°", angle);
     
-    // 添加更多调试信息
-    RCLCPP_INFO(this->get_logger(), "当前CAN套接字: %d\nCurrent CAN socket: %d", can_socket_, can_socket_);
-    RCLCPP_INFO(this->get_logger(), "当前节点ID: %d\nCurrent node ID: %d", node_id_, node_id_);
+    // Additional debug information
+    RCLCPP_INFO(this->get_logger(), "Current CAN socket: %d", can_socket_);
+    RCLCPP_INFO(this->get_logger(), "Current node ID: %d", node_id_);
     
-    // 读取当前状态字
+    // Read current status word
     int32_t status_word = read_sdo(OD_STATUS_WORD, 0x00);
-    RCLCPP_INFO(this->get_logger(), "当前状态字: 0x%04X\nCurrent status word: 0x%04X", status_word, status_word);
+    RCLCPP_INFO(this->get_logger(), "Current status word: 0x%04X", status_word);
     
-    // 读取当前操作模式
+    // Read current operation mode
     int32_t mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
-    RCLCPP_INFO(this->get_logger(), "当前操作模式: %d", mode);
+    RCLCPP_INFO(this->get_logger(), "Current operation mode: %d", mode);
     
     go_to_position(angle);
 }
@@ -77,22 +77,22 @@ void CANopenROS2::position_callback(const std_msgs::msg::Float32::SharedPtr msg)
 void CANopenROS2::velocity_callback(const std_msgs::msg::Float32::SharedPtr msg)
 {
     float velocity = msg->data;
-    RCLCPP_INFO(this->get_logger(), "收到目标速度: %.2f°/s\nReceived target velocity: %.2f°/s", velocity, velocity);
+    RCLCPP_INFO(this->get_logger(), "Received target velocity: %.2f°/s", velocity);
     
-    // 尝试使用PDO设置速度
+    // Try to set velocity using PDO
     set_velocity_pdo(velocity);
 }
 
 void CANopenROS2::handle_start(const std::shared_ptr<std_srvs::srv::Trigger::Request>,
                  std::shared_ptr<std_srvs::srv::Trigger::Response> response)
 {
-    RCLCPP_INFO(this->get_logger(), "收到启动请求\nReceived start request");
+    RCLCPP_INFO(this->get_logger(), "Received start request");
     
     try
     {
         initialize_motor();
         response->success = true;
-        response->message = "crane电机已启动";
+        response->message = "Crane motor started";
     }
     catch (const std::exception& e)
     {
@@ -104,13 +104,13 @@ void CANopenROS2::handle_start(const std::shared_ptr<std_srvs::srv::Trigger::Req
 void CANopenROS2::handle_stop(const std::shared_ptr<std_srvs::srv::Trigger::Request>,
                 std::shared_ptr<std_srvs::srv::Trigger::Response> response)
 {
-    RCLCPP_INFO(this->get_logger(), "收到停止请求\nReceived stop request");
+    RCLCPP_INFO(this->get_logger(), "Received stop request");
     
     try
     {
         stop_motor();
         response->success = true;
-        response->message = "crane电机已停止";
+        response->message = "Crane motor stopped";
     }
     catch (const std::exception& e)
     {
@@ -122,19 +122,19 @@ void CANopenROS2::handle_stop(const std::shared_ptr<std_srvs::srv::Trigger::Requ
 void CANopenROS2::handle_reset(const std::shared_ptr<std_srvs::srv::Trigger::Request>,
                  std::shared_ptr<std_srvs::srv::Trigger::Response> response)
 {
-    RCLCPP_INFO(this->get_logger(), "收到重置请求\nReceived reset request");
+    RCLCPP_INFO(this->get_logger(), "Received reset request");
     
     try
     {
-        // 发送NMT重置命令
+        // Send NMT reset command
         send_nmt_command(NMT_RESET_NODE);
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
         
-        // 重新初始化电机
+        // Reinitialize motor
         initialize_motor();
         
         response->success = true;
-        response->message = "crane电机已重置";
+        response->message = "Crane motor reset";
     }
     catch (const std::exception& e)
     {
@@ -146,37 +146,37 @@ void CANopenROS2::handle_reset(const std::shared_ptr<std_srvs::srv::Trigger::Req
 void CANopenROS2::handle_set_mode(const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
                     std::shared_ptr<std_srvs::srv::SetBool::Response> response)
 {
-    RCLCPP_INFO(this->get_logger(), "收到设置模式请求: %s\nReceived set mode request: %s", request->data ? "位置模式" : "速度模式", request->data ? "Position mode" : "Velocity mode");
+    RCLCPP_INFO(this->get_logger(), "Received set mode request: %s", request->data ? "Position mode" : "Velocity mode");
     
     try
     {
-        // 读取当前操作模式
+        // Read current operation mode
         int32_t mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
-        RCLCPP_INFO(this->get_logger(), "当前操作模式: %d\nCurrent operation mode: %d", mode, mode);
+        RCLCPP_INFO(this->get_logger(), "Current operation mode: %d", mode);
         
-        // 无论当前模式如何，都设置相应的参数
+        // Set appropriate parameters regardless of current mode
         if (request->data)
         {
-            // 设置位置模式参数
+            // Configure position mode parameters
             set_profile_parameters(profile_velocity_, profile_acceleration_, profile_deceleration_);
             
-            // 设置目标位置为当前位置，防止电机立即运动
+            // Set target position to current position to prevent immediate motion
             int32_t current_position = read_sdo(OD_ACTUAL_POSITION, 0x00);
             write_sdo(OD_TARGET_POSITION, 0x00, current_position, 4);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             
-            response->message = "已设置位置模式参数";
+            response->message = "Position mode parameters configured";
         }
         else
         {
-            // 设置速度模式参数
+            // Configure velocity mode parameters
             set_profile_velocity(profile_velocity_);
             
-            // 设置目标速度为0，防止电机立即运动
-            write_sdo(0x60FF, 0x00, 0, 4);  // 0x60FF是目标速度对象
+            // Set target velocity to 0 to prevent immediate motion
+            write_sdo(0x60FF, 0x00, 0, 4);  // 0x60FF is target velocity object
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             
-            response->message = "已设置速度模式参数";
+            response->message = "Velocity mode parameters configured";
         }
         
         response->success = true;

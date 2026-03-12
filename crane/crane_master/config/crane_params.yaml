@@ -4,14 +4,14 @@
 # This file contains all configurable parameters for the crane CANopen nodes.
 # Parameters are organized into:
 #   - common:   shared defaults for all nodes
-#   - hoist:    node 1 (起升) overrides
-#   - trolley:  node 2 (小车) overrides
-#   - slewing:  node 3 (回转) overrides
+#   - hoist:    node 1 hoist overrides
+#   - trolley:  node 2 trolley overrides
+#   - slewing:  node 3 slewing overrides
 # Per-node values override common values when both are specified.
 # =============================================================================
 
 common:
-  can_interface: "can0"
+  can_interface_name: "can0"
   auto_start: true
   target_units_per_rev: 10000
   cycle_period_us: 1000           # Communication cycle period (microseconds)
