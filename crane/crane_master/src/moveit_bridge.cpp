@@ -258,8 +258,7 @@ private:
                     // meters -> degrees
                     cmd_deg = meter2deg(target_val, METERS_PER_DEGREE_TROLLEY);
                 } else if (type == 2) { // Slewing - revolute
-                    // radians -> degrees
-                    cmd_deg = rad2deg(target_val);
+                    cmd_deg = target_val;
                 }
 
                 std_msgs::msg::Float32 msg;
