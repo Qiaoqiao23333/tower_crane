@@ -76,14 +76,14 @@ def launch_nodes(context):
         output='screen'
     )
 
-    # 定义各节点配置（从YAML加载 + common合并）
+    # Define node configurations (load from YAML + common merge)
     axis_defs = {
         'hoist':   {'name': 'canopen_ros2_node1', 'namespace': 'hoist'},
         'trolley': {'name': 'canopen_ros2_node2', 'namespace': 'trolley'},
         'slewing': {'name': 'canopen_ros2_node3', 'namespace': 'slewing'},
     }
 
-    # node_id → axis key 映射
+    # node_id → axis key mapping
     nid_to_axis = {}
     for axis_key in axis_defs:
         section = params.get(axis_key, {})
@@ -115,7 +115,7 @@ def launch_nodes(context):
 
     nodes_to_launch = []
 
-    # 根据node_id决定启动哪些节点
+    # Determine which nodes to launch based on node_id
     if node_id_value == 'all':
         for nid in sorted(all_configs.keys()):
             cfg = all_configs[nid]
@@ -145,10 +145,10 @@ def launch_nodes(context):
         )
     else:
         valid = list(all_configs.keys()) + ['all']
-        raise ValueError(f"Invalid node_id: {node_id_value}. Must be one of {valid}")
+        raise ValueError(f"👎 Invalid node_id: {node_id_value}. Must be one of {valid}")
 
     return [
-        LogInfo(msg=f"启动CANopenROS2节点 (node_id={node_id_value})..."),
+        LogInfo(msg=f"👊👊👊 Launching CANopenROS2 nodes (node_id={node_id_value})..."),
         check_can,
         *nodes_to_launch,
         list_info

@@ -7,7 +7,7 @@ void CANopenROS2::init_can_socket()
     can_socket_ = socket(PF_CAN, SOCK_RAW, CAN_RAW);
     if (can_socket_ < 0)
     {
-        RCLCPP_ERROR(this->get_logger(), "Failed to create CAN socket");
+        RCLCPP_ERROR(this->get_logger(), "😩 Failed to create CAN socket");
         return;
     }
     
@@ -16,7 +16,7 @@ void CANopenROS2::init_can_socket()
     strcpy(ifr.ifr_name, can_interface_.c_str());
     if (ioctl(can_socket_, SIOCGIFINDEX, &ifr) < 0)
     {
-        RCLCPP_ERROR(this->get_logger(), "Failed to get CAN interface index");
+        RCLCPP_ERROR(this->get_logger(), "😩 Failed to get CAN interface index");
         close(can_socket_);
         can_socket_ = -1;
         return;
@@ -28,7 +28,7 @@ void CANopenROS2::init_can_socket()
     addr.can_ifindex = ifr.ifr_ifindex;
     if (bind(can_socket_, (struct sockaddr *)&addr, sizeof(addr)) < 0)
     {
-        RCLCPP_ERROR(this->get_logger(), "Failed to bind CAN socket");
+        RCLCPP_ERROR(this->get_logger(), "😩 Failed to bind CAN socket");
         close(can_socket_);
         can_socket_ = -1;
         return;
@@ -38,7 +38,7 @@ void CANopenROS2::init_can_socket()
     int flags = fcntl(can_socket_, F_GETFL, 0);
     if (flags < 0)
     {
-        RCLCPP_ERROR(this->get_logger(), "Failed to get socket flags");
+        RCLCPP_ERROR(this->get_logger(), "😩 Failed to get socket flags");
         close(can_socket_);
         can_socket_ = -1;
         return;
@@ -47,13 +47,13 @@ void CANopenROS2::init_can_socket()
     flags |= O_NONBLOCK;
     if (fcntl(can_socket_, F_SETFL, flags) < 0)
     {
-        RCLCPP_ERROR(this->get_logger(), "Failed to set non-blocking mode");
+        RCLCPP_ERROR(this->get_logger(), "😩 Failed to set non-blocking mode");
         close(can_socket_);
         can_socket_ = -1;
         return;
     }
     
-    RCLCPP_INFO(this->get_logger(), "CAN socket initialized successfully");
+    RCLCPP_INFO(this->get_logger(), "👍👍👍 CAN socket initialized successfully");
 }
 
 void CANopenROS2::send_nmt_command(uint8_t command)
@@ -66,11 +66,11 @@ void CANopenROS2::send_nmt_command(uint8_t command)
     
     if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
     {
-        RCLCPP_ERROR(this->get_logger(), "Failed to send NMT command");
+        RCLCPP_ERROR(this->get_logger(), "😩 Failed to send NMT command");
     }
     else
     {
-        RCLCPP_INFO(this->get_logger(), "NMT command sent: 0x%02X", command);
+        RCLCPP_INFO(this->get_logger(), "⏩ NMT command sent: 0x%02X", command);
     }
 }
 
@@ -82,11 +82,11 @@ void CANopenROS2::send_sync_frame()
     
     if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
     {
-        RCLCPP_ERROR(this->get_logger(), "Failed to send sync frame");
+        RCLCPP_ERROR(this->get_logger(), "😩 Failed to send sync frame");
     }
     else
     {
-        RCLCPP_DEBUG(this->get_logger(), "Sync frame sent");
+        RCLCPP_DEBUG(this->get_logger(), "🔊🔊🔊 Sync frame sent");
     }
 }
 
@@ -122,11 +122,11 @@ void CANopenROS2::write_sdo(uint16_t index, uint8_t subindex, int32_t data, uint
     
     if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
     {
-        RCLCPP_ERROR(this->get_logger(), "Failed to write SDO [Node ID=%d]: Index=0x%04X, Subindex=0x%02X", node_id_, index, subindex);
+        RCLCPP_ERROR(this->get_logger(), "😩 Failed to write SDO [Node ID=%d]: Index=0x%04X, Subindex=0x%02X", node_id_, index, subindex);
     }
     else
     {
-        RCLCPP_DEBUG(this->get_logger(), "SDO written [Node ID=%d]: Index=0x%04X, Subindex=0x%02X, Data=0x%08X", node_id_, index, subindex, data);
+        RCLCPP_DEBUG(this->get_logger(), "🤝🤝🤝 SDO written [Node ID=%d]: Index=0x%04X, Subindex=0x%02X, Data=0x%08X", node_id_, index, subindex, data);
     }
 }
 
@@ -155,11 +155,11 @@ int32_t CANopenROS2::read_sdo(uint16_t index, uint8_t subindex)
     
     if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
     {
-        RCLCPP_ERROR(this->get_logger(), "Failed to send SDO read request [Node ID=%d]: Index=0x%04X, Subindex=0x%02X", node_id_, index, subindex);
+        RCLCPP_ERROR(this->get_logger(), "😩 Failed to send SDO read request [Node ID=%d]: Index=0x%04X, Subindex=0x%02X", node_id_, index, subindex);
         return -1;
     }
     
-    RCLCPP_DEBUG(this->get_logger(), "Sent SDO read request [Node ID=%d]: Index=0x%04X, Subindex=0x%02X, waiting for response COB-ID=0x%03X", 
+    RCLCPP_DEBUG(this->get_logger(), "🤝🤝🤝 Sent SDO read request [Node ID=%d]: Index=0x%04X, Subindex=0x%02X, waiting for response COB-ID=0x%03X", 
                  node_id_, index, subindex, COB_TSDO + node_id_);
     
     // Wait for response, up to 500 ms
@@ -199,7 +199,7 @@ int32_t CANopenROS2::read_sdo(uint16_t index, uint8_t subindex)
     
     if (!response_received)
     {
-        RCLCPP_WARN(this->get_logger(), "SDO read timeout [Node ID=%d]: Index=0x%04X, Subindex=0x%02X (waited %d times, total %d ms)", 
+        RCLCPP_WARN(this->get_logger(), "😅 SDO read timeout [Node ID=%d]: Index=0x%04X, Subindex=0x%02X (waited %d times, total %d ms)", 
                    node_id_, index, subindex, retry, retry * 10);
         return 0;
     }
@@ -211,7 +211,7 @@ int32_t CANopenROS2::read_sdo(uint16_t index, uint8_t subindex)
         result = sdo_read_value_;
     }
     
-    RCLCPP_DEBUG(this->get_logger(), "SDO read successful [Node ID=%d]: Index=0x%04X, Subindex=0x%02X, Value=0x%08X (%d)", 
+    RCLCPP_DEBUG(this->get_logger(), "🤝🤝🤝 SDO read successful [Node ID=%d]: Index=0x%04X, Subindex=0x%02X, Value=0x%08X (%d)", 
                  node_id_, index, subindex, result, result);
     
     return result;
@@ -226,7 +226,7 @@ void CANopenROS2::receive_can_frames()
     {
         if (errno != EAGAIN && errno != EWOULDBLOCK)
         {
-            RCLCPP_ERROR(this->get_logger(), "Failed to receive CAN frame: %s", strerror(errno));
+            RCLCPP_ERROR(this->get_logger(), "😩 Failed to receive CAN frame: %s", strerror(errno));
         }
         return;
     }
@@ -240,7 +240,7 @@ void CANopenROS2::receive_can_frames()
         return;  // not our node
     }
     
-    RCLCPP_DEBUG(this->get_logger(), "Received CAN frame: ID=0x%03X, DLC=%d, Data=0x%02X%02X%02X%02X%02X%02X%02X%02X",
+    RCLCPP_DEBUG(this->get_logger(), "🔊🔊🔊 Received CAN frame: ID=0x%03X, DLC=%d, Data=0x%02X%02X%02X%02X%02X%02X%02X%02X",
         frame.can_id, frame.can_dlc,
         frame.data[0], frame.data[1], frame.data[2], frame.data[3],
         frame.data[4], frame.data[5], frame.data[6], frame.data[7]);
@@ -253,7 +253,7 @@ void CANopenROS2::receive_can_frames()
         uint16_t index = frame.data[1] | (frame.data[2] << 8);
         uint8_t subindex = frame.data[3];
         
-        RCLCPP_DEBUG(this->get_logger(), "Received SDO response [Node ID=%d]: COB-ID=0x%03X, Command=0x%02X, Index=0x%04X, Subindex=0x%02X", 
+        RCLCPP_DEBUG(this->get_logger(), "🤝🤝🤝 Received SDO response [Node ID=%d]: COB-ID=0x%03X, Command=0x%02X, Index=0x%04X, Subindex=0x%02X", 
                      node_id_, frame.can_id, command, index, subindex);
         
         // Protect shared variables with mutex
@@ -262,14 +262,14 @@ void CANopenROS2::receive_can_frames()
         if (command == 0x80)  // SDO abort
         {
             uint32_t abort_code = frame.data[4] | (frame.data[5] << 8) | (frame.data[6] << 16) | (frame.data[7] << 24);
-            RCLCPP_ERROR(this->get_logger(), "SDO abort [Node ID=%d]: Index=0x%04X, Subindex=0x%02X, Error code=0x%08X", node_id_, index, subindex, abort_code);
+            RCLCPP_ERROR(this->get_logger(), "😩 SDO abort [Node ID=%d]: Index=0x%04X, Subindex=0x%02X, Error code=0x%08X", node_id_, index, subindex, abort_code);
             
             // If this is the SDO response we are waiting for
             if (!sdo_response_received_ && index == expected_sdo_index_ && subindex == expected_sdo_subindex_)
             {
                 sdo_read_value_ = 0;  // return 0 on error
                 sdo_response_received_ = true;
-                RCLCPP_DEBUG(this->get_logger(), "SDO abort response matched, setting flag");
+                RCLCPP_DEBUG(this->get_logger(), "🤝🤝🤝 SDO abort response matched, setting flag");
             }
         }
         else 
@@ -282,7 +282,7 @@ void CANopenROS2::receive_can_frames()
             {
                 sdo_read_value_ = data;
                 sdo_response_received_ = true;
-                RCLCPP_DEBUG(this->get_logger(), "SDO response matched, setting flag and data: 0x%08X (%d)", data, data);
+                RCLCPP_DEBUG(this->get_logger(), "🤝🤝🤝 SDO response matched, setting flag and data: 0x%08X (%d)", data, data);
             }
             
             // Also handle specific SDO updates for status monitoring
@@ -294,7 +294,7 @@ void CANopenROS2::receive_can_frames()
                 // Check target reached bit
                 if (status_word & 0x0400)
                 {
-                    RCLCPP_INFO(this->get_logger(), "Target position reached");
+                    RCLCPP_INFO(this->get_logger(), "🎯 Target position reached");
                 }
             }
             else if (index == OD_ACTUAL_POSITION && subindex == 0x00)  // actual position
@@ -336,7 +336,7 @@ void CANopenROS2::receive_can_frames()
             // Check target reached bit
             if (status_word & 0x0400)
             {
-                RCLCPP_INFO(this->get_logger(), "Target position reached");
+                RCLCPP_INFO(this->get_logger(), "🎯 Target position reached");
             }
         }
     }
