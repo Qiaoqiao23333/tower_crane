@@ -27,7 +27,7 @@ def generate_launch_description():
     return LaunchDescription([
         # 声明参数 (launch-arg overrides, empty means use YAML value)
         DeclareLaunchArgument(
-            'can_interface',
+            'can_interface_name',
             default_value='can0',
             description='CAN接口名称 (override YAML value)'
         ),
@@ -53,16 +53,16 @@ def launch_nodes(context):
     common = params.get('common', {})
 
     # Launch-arg overrides (non-empty values take precedence over YAML)
-    can_interface_override = context.launch_configurations.get('can_interface', '')
+    can_interface_override = context.launch_configurations.get('can_interface_name', '')
     auto_start_override = context.launch_configurations.get('auto_start', '')
     node_id_value = context.launch_configurations.get('node_id', 'all')
 
     if can_interface_override:
-        common['can_interface'] = can_interface_override
+        common['can_interface_name'] = can_interface_override
     if auto_start_override:
         common['auto_start'] = auto_start_override.lower() in ('true', '1', 'yes')
 
-    can_interface_value = common.get('can_interface', 'vcan0')
+    can_interface_value = common.get('can_interface_name', 'vcan0')
 
     # 检查CAN接口状态
     check_can = ExecuteProcess(
@@ -101,7 +101,7 @@ def launch_nodes(context):
             'name': meta['name'],
             'namespace': meta['namespace'],
             'parameters': [{
-                'can_interface':        str(merged['can_interface']),
+                'can_interface_name':        str(merged['can_interface_name']),
                 'node_id':             str(merged['node_id']),
                 'gear_ratio':          float(merged['gear_ratio']),
                 'target_units_per_rev': int(merged.get('target_units_per_rev', 10000)),

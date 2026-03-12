@@ -5,7 +5,7 @@
 CANopenROS2::CANopenROS2() : Node("canopen_ros2")
 {
     // 声明参数
-    this->declare_parameter<std::string>("can_interface", "can0");
+    this->declare_parameter<std::string>("can_interface_name", "can0");
     this->declare_parameter<std::string>("node_id", "1");
     this->declare_parameter<float>("gear_ratio", 1.0);
     this->declare_parameter<int>("target_units_per_rev", 10000);
@@ -16,7 +16,7 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     this->declare_parameter<int>("cycle_period_us", 1000);
     
     // 读取参数
-    can_interface_ = this->get_parameter("can_interface").as_string();
+    can_interface_ = this->get_parameter("can_interface_name").as_string();
     std::string node_id_str = this->get_parameter("node_id").as_string();
     gear_ratio_ = this->get_parameter("gear_ratio").as_double();
     target_units_per_rev_ = this->get_parameter("target_units_per_rev").as_int();
