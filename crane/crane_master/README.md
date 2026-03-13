@@ -83,10 +83,10 @@ ros2 launch crane_master canopen_ros2.launch.py
 ### 2. Launch with custom parameters
 ```bash
 # Launch specific node (node_id: 1=hoist, 2=trolley, 3=slewing)
-ros2 launch crane_master canopen_ros2.launch.py can_interface:=can0 node_id:=1 auto_start:=true
+ros2 launch crane_master canopen_ros2.launch.py can_interface_name:=can0 node_id:=1 auto_start:=true
 
 # Launch all nodes
-ros2 launch crane_master canopen_ros2.launch.py can_interface:=can0 node_id:=all
+ros2 launch crane_master canopen_ros2.launch.py can_interface_name:=can0 node_id:=all
 ```
 
 ## Node ID Mapping
@@ -244,7 +244,7 @@ All services are namespace-specific. Replace `{namespace}` with `hoist`, `trolle
 
 | Parameter Name | Type | Default Value | Description |
 | -------------- | ---- | ------------- | ----------- |
-| can_interface | string | "can0" | CAN interface name |
+| can_interface_name | string | "can0" | CAN interface name |
 | node_id | string | "1" | CANopen node ID ("1", "2", "3", or "all") |
 | gear_ratio | float | 1.0 | Gear ratio (automatically set: hoist=20.0, trolley=10.0, slewing=10.0) |
 | auto_start | bool | true | Whether to auto-start motor |
