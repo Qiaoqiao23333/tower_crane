@@ -21,13 +21,21 @@ common:
 
 hoist:
   node_id: 1
-  gear_ratio: 0.0125
-  profile_velocity: 60.0
+  gear_ratio: 0.025 # 10*4
+  profile_velocity: 200.0          # Default profile velocity (deg/s)
+  profile_acceleration: 30.0      # Default profile acceleration (deg/s²)
+  profile_deceleration: 30.0      # Default profile deceleration (deg/s²)
 
 trolley:
   node_id: 2
-  gear_ratio: 0.1
+  gear_ratio: 0.25
+  profile_velocity: 200.0          # Default profile velocity (deg/s)
+  profile_acceleration: 30.0      # Default profile acceleration (deg/s²)
+  profile_deceleration: 30.0      # Default profile deceleration (deg/s²)
 
 slewing:
   node_id: 3
-  gear_ratio: 0.1
+  gear_ratio: 0.0007 # 20*7
+  profile_velocity: 30.0          # Default profile velocity (deg/s)
+  profile_acceleration: 30.0      # Default profile acceleration (deg/s²)
+  profile_deceleration: 30.0      # Default profile deceleration (deg/s²)
