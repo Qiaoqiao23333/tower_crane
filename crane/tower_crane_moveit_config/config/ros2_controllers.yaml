@@ -30,7 +30,7 @@ forward_position_controller:
     state_publish_rate: 50.0
     action_monitor_rate: 20.0
     allow_partial_joints_goal: false
-    open_loop_control: true  # Important for mock hardware
+    open_loop_control: false  # Must be false so mock hardware state mirrors commands
     allow_integration_in_goal_trajectories: true
     # Very relaxed tolerances for simulation/testing with mock hardware
     constraints:

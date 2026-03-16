@@ -25,10 +25,11 @@ static double rad2deg(double rad) {
 }
 
 // Helper: degrees to meters (for prismatic joints: Hoist, Trolley)
-// TODO: adjust these coefficients according to the actual hoist/lead screw parameters
-// Assumption: motor rotation of 1 degree corresponds to this linear travel (meters)
-static const double METERS_PER_DEGREE_HOIST = 0.001; // example value
-static const double METERS_PER_DEGREE_TROLLEY = 0.001; // example value
+// NOTE: for the hoist we now treat the numeric value as 1:1 (no scaling) between
+//       motor "degrees" and the MoveIt linear unit used for the joint.
+//       Adjust here if you later need a physical conversion again.
+static const double METERS_PER_DEGREE_HOIST = 1.0;    // hoist: 1:1 mapping
+static const double METERS_PER_DEGREE_TROLLEY = 1.0;  // trolley: 1:1 mapping
 
 static double deg2meter(double deg, double ratio) {
     return deg * ratio;
@@ -233,8 +234,8 @@ private:
                 return;
             }
 
-            // 1. 时间同步
-            // 读取该点应该在何时执行 (time_from_start)
+            // 1. time synchronization
+            // read the time should be executed for this point (time_from_start)
             auto time_from_start = point.time_from_start;
             auto duration_ns = rclcpp::Duration(time_from_start).nanoseconds();
             
@@ -258,6 +259,7 @@ private:
                     // meters -> degrees
                     cmd_deg = meter2deg(target_val, METERS_PER_DEGREE_TROLLEY);
                 } else if (type == 2) { // Slewing - revolute
+                    // 1:1 mapping between MoveIt value and motor "degrees"
                     cmd_deg = target_val;
                 }
 
@@ -276,11 +278,11 @@ private:
             // 3. Feedback (simple: update header and echo desired positions)
             feedback->header.stamp = this->now();
             feedback->joint_names = goal->trajectory.joint_names;
-            feedback->actual.positions = point.positions; // 这里实际上应该填当前真实值
+            feedback->actual.positions = point.positions; // here should be the actual values
             goal_handle->publish_feedback(feedback);
         }
 
-        // 执行完毕
+        // finished
         if (rclcpp::ok()) {
             result->error_code = control_msgs::action::FollowJointTrajectory::Result::SUCCESSFUL;
             goal_handle->succeed(result);

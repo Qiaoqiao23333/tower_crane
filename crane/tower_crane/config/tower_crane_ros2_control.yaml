@@ -27,7 +27,7 @@ forward_position_controller:
     state_interfaces:
       - position
     allow_partial_joints_goal: false
-    open_loop_control: true
+    open_loop_control: false
     allow_nonzero_initial_positions: true
     # constraints:
     #   goal_time: 2.0

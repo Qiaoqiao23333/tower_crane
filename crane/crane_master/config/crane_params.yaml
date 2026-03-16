@@ -21,7 +21,7 @@ common:
 
 hoist:
   node_id: 1
-  gear_ratio: 0.05
+  gear_ratio: 0.0125
   profile_velocity: 60.0
 
 trolley:

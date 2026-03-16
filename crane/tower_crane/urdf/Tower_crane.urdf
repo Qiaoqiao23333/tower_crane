@@ -237,43 +237,35 @@
       velocity="0.5" />
   </joint>
   
-  <ros2_control name="canopen_ros2_control/CanopenSystem" type="system">
+  <ros2_control name="tower_crane_mock_system" type="system">
     <hardware>
       <plugin>mock_components/GenericSystem</plugin>
-      <param name="mock_sensor_commands">false</param>
+      <param name="disable_commands">false</param>
+      <param name="calculate_dynamics">false</param>
     </hardware>
 
     <joint name="slewing_joint">
       <command_interface name="position"/>
-      <state_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
       <state_interface name="velocity"/>
-      <param name="device_name">slewing_joint</param>
-      <limit>
-        <min>-3.14</min>
-        <max>3.14</max>
-      </limit>
     </joint>
 
     <joint name="trolley_joint">
       <command_interface name="position"/>
-      <state_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
       <state_interface name="velocity"/>
-      <param name="device_name">trolley_joint</param>
-      <limit>
-        <min>-1.0</min>
-        <max>0.5</max>
-      </limit>
     </joint>
 
     <joint name="hook_joint">
       <command_interface name="position"/>
-      <state_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
       <state_interface name="velocity"/>
-      <param name="device_name">hook_joint</param>
-      <limit>
-        <min>0</min>
-        <max>2</max>
-      </limit>
     </joint>
   </ros2_control>
 
