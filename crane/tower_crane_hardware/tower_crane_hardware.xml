@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<library path="tower_crane_transmission_system">
+  <class
+    name="tower_crane_hardware/TowerCraneTransmissionSystem"
+    type="tower_crane_hardware::TowerCraneTransmissionSystem"
+    base_class_type="hardware_interface::SystemInterface">
+    <description>Tower crane ros2_control hardware plugin</description>
+  </class>
+</library>

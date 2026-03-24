@@ -25,7 +25,7 @@ def merge_params(common, node_section):
 
 def generate_launch_description():
     return LaunchDescription([
-        # Declare parameters (launch-arg overrides, empty means use YAML value)
+        # Declare parameters (launch-arg overrides, empty means use YAML value) ## canv0 is virtual
         DeclareLaunchArgument(
             'can_interface_name',
             default_value='can0',

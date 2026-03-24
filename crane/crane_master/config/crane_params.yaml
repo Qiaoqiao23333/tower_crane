@@ -15,19 +15,29 @@ common:
   auto_start: true
   target_units_per_rev: 10000
   cycle_period_us: 1000           # Communication cycle period (microseconds)
-  profile_velocity: 30.0          # Default profile velocity (deg/s)
-  profile_acceleration: 30.0      # Default profile acceleration (deg/s²)
-  profile_deceleration: 30.0      # Default profile deceleration (deg/s²)
-
-hoist:
-  node_id: 1
-  gear_ratio: 0.0125
-  profile_velocity: 60.0
-
-trolley:
-  node_id: 2
-  gear_ratio: 0.1
+  profile_velocity: 3.0          # Default profile velocity (deg/s)
+  profile_acceleration: 1.0      # Default profile acceleration (deg/s²)
+  profile_deceleration: 1.0      # Default profile deceleration (deg/s²)
 
 slewing:
   node_id: 3
-  gear_ratio: 0.1
+  gear_ratio: 0.007143      ## 1/(20*7) (Gearbox*biggear)
+
+
+trolley:
+  node_id: 2
+  gear_ratio: 0.1        #### 1/(10) (pulleyratio)
+  profile_velocity: 90.0
+  profile_acceleration: 30.0      # Default profile acceleration (deg/s²)
+  profile_deceleration: 30.0 
+
+hoist:
+  node_id: 1
+  gear_ratio: 0.025       #### 1/(10*4) (Gearbox*biggear)
+  profile_velocity: 120.0
+  profile_acceleration: 30.0      # Default profile acceleration (deg/s²)
+  profile_deceleration: 30.0 
+
+
+
+

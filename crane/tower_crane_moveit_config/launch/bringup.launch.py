@@ -164,7 +164,7 @@ def _launch_setup(context, *args, **kwargs):
         rviz_config = PathJoinSubstitution([
             FindPackageShare("tower_crane_moveit_config"),
             "config",
-            "moveit.rviz",
+            "moveit_v2.rviz",
         ])
         entities.append(
             Node(
@@ -193,7 +193,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
             "can_interface_name",
-            default_value="vcan0",
+            default_value="can0",
             description=(
                 "CAN interface name. "
                 "vcan* → mock/simulation hardware, can* → real CANopen hardware."
