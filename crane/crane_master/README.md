@@ -19,35 +19,6 @@ crane Master is a ROS 2-based CANopen motor controller used to control motors th
 - CAN interface (e.g., USB-CAN adapter)
 - Motors supporting CANopen protocol
 
-### Build and Install
-
-1. Create workspace
-
-   ```bash
-   mkdir -p ~/crane_ws/src
-   cd ~/crane_ws/src
-   ```
-
-2. Clone repository
-
-   ```bash
-   git clone https://github.com/Qiaoqiao23333/crane_master.git
-   ```
-
-3. Build
-
-   ```bash
-   cd ~/crane_ws
-   colcon build --packages-select crane_master
-   ```
-
-4. Launch node
-
-   ```bash
-   source install/setup.bash
-   ros2 launch crane_master crane_master.launch.py
-   ```
-
 ## Configure CAN Interface
 
 ### 1. Load CAN modules
