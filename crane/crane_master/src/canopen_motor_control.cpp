@@ -171,7 +171,8 @@ void CANopenROS2::configure_pdo()
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     // 2. Set transmission type
-    write_sdo(0x1401, 0x02, 0x01, 1);
+    // Keep RPDO2 asynchronous so velocity commands work without a continuous SYNC producer.
+    write_sdo(0x1401, 0x02, 0xFF, 1);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     // 3. Clear mapping
@@ -190,8 +191,8 @@ void CANopenROS2::configure_pdo()
     write_sdo(0x1601, 0x00, 0x02, 1);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
-    // 7. Set transmission type (synchronous) and enable RxPDO2
-    write_sdo(0x1401, 0x02, 0x01, 1);
+    // 7. Keep RxPDO2 asynchronous and enable it.
+    write_sdo(0x1401, 0x02, 0xFF, 1);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     write_sdo(0x1401, 0x01, rxpdo2_cob_id, 4);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -769,6 +770,11 @@ void CANopenROS2::set_velocity_pdo(float velocity_deg_per_sec)
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
     
+    // Write the target velocity via SDO as a compatibility fallback.
+    // Some drives accept 0x60FF reliably through SDO even when PDO timing is finicky.
+    write_sdo(OD_TARGET_VELOCITY, 0x00, velocity_units, 4);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
     // send control word and target velocity using RxPDO2 (real-time control)
     struct can_frame frame;
     frame.can_id = COB_RPDO2 + node_id_;
@@ -790,8 +796,9 @@ void CANopenROS2::set_velocity_pdo(float velocity_deg_per_sec)
     }
     else
     {
+        send_sync_frame();
         RCLCPP_DEBUG(this->get_logger(), "🦸‍♀️ ✍️ Velocity PDO sent [Node ID=%d]: %.2f°/s (Command units: %d)", 
-                    node_id_, velocity_deg_per_sec, velocity_units;
+                    node_id_, velocity_deg_per_sec, velocity_units);
     }
     
     RCLCPP_INFO(this->get_logger(), "👣 🤟Velocity command sent: %.2f°/s (Command units: %d)", velocity_deg_per_sec, velocity_units);

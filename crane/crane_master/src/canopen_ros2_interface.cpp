@@ -70,6 +70,15 @@ void CANopenROS2::position_callback(const std_msgs::msg::Float32::SharedPtr msg)
     // Read current operation mode
     int32_t mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
     RCLCPP_INFO(this->get_logger(), "Current operation mode: %d", mode);
+
+    if (mode != MODE_PROFILE_POSITION)
+    {
+        RCLCPP_WARN(
+            this->get_logger(),
+            "Ignoring target_position because drive is not in position mode. Current mode: %d",
+            mode);
+        return;
+    }
     
     go_to_position(angle);
 }
@@ -150,33 +159,48 @@ void CANopenROS2::handle_set_mode(const std::shared_ptr<std_srvs::srv::SetBool::
     
     try
     {
-        // Read current operation mode
+        const uint8_t target_mode = request->data ? MODE_PROFILE_POSITION : MODE_PROFILE_VELOCITY;
+        const char * target_mode_name = request->data ? "Position mode" : "Velocity mode";
+
+        // Read current operation mode before switching.
         int32_t mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
-        RCLCPP_INFO(this->get_logger(), "Current operation mode: %d", mode);
+        RCLCPP_INFO(this->get_logger(), "Current operation mode before switch: %d", mode);
+
+        set_operation_mode(target_mode);
+
+        // Verify the drive actually accepted the new mode.
+        mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
+        RCLCPP_INFO(this->get_logger(), "Current operation mode after switch: %d", mode);
+        if (mode != target_mode)
+        {
+            response->success = false;
+            response->message =
+                std::string("Failed to switch to ") + target_mode_name +
+                ", current mode is " + std::to_string(mode);
+            return;
+        }
         
-        // Set appropriate parameters regardless of current mode
+        // Apply mode-specific defaults after a successful switch.
         if (request->data)
         {
-            // Configure position mode parameters
             set_profile_parameters(profile_velocity_, profile_acceleration_, profile_deceleration_);
             
-            // Set target position to current position to prevent immediate motion
+            // Hold the current position so the drive does not move immediately after switching.
             int32_t current_position = read_sdo(OD_ACTUAL_POSITION, 0x00);
             write_sdo(OD_TARGET_POSITION, 0x00, current_position, 4);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             
-            response->message = "Position mode parameters configured";
+            response->message = "Switched to position mode";
         }
         else
         {
-            // Configure velocity mode parameters
             set_profile_velocity(profile_velocity_);
             
-            // Set target velocity to 0 to prevent immediate motion
-            write_sdo(0x60FF, 0x00, 0, 4);  // 0x60FF is target velocity object
+            // Force zero target velocity to avoid sudden motion after switching.
+            write_sdo(OD_TARGET_VELOCITY, 0x00, 0, 4);
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             
-            response->message = "Velocity mode parameters configured";
+            response->message = "Switched to velocity mode";
         }
         
         response->success = true;
