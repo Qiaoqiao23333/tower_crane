@@ -696,14 +696,14 @@ void CANopenROS2::go_to_position(float angle)
 
 void CANopenROS2::set_velocity(float velocity_deg_per_sec)
 {
-    RCLCPP_INFO(this->get_logger(), "🦿 Setting velocity: %.2f°/s", velocity_deg_per_sec, velocity_deg_per_sec);
+    RCLCPP_INFO(this->get_logger(), "🦿 Setting velocity: %.2f°/s", velocity_deg_per_sec);
     
     // read the current operation mode
     int32_t mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
     
     if (mode != MODE_PROFILE_VELOCITY)
     {
-        RCLCPP_WARN(this->get_logger(), "👀 Not in velocity mode, cannot set velocity. Current mode: %d", mode, mode);
+        RCLCPP_WARN(this->get_logger(), "👀 Not in velocity mode, cannot set velocity. Current mode: %d", mode);
         return;
     }
     
@@ -717,16 +717,16 @@ void CANopenROS2::set_velocity(float velocity_deg_per_sec)
     // enable operation
     write_sdo(OD_CONTROL_WORD, 0x00, CONTROL_ENABLE_OPERATION, 2);
     
-    RCLCPP_INFO(this->get_logger(), "🦿 Velocity set: %.2f°/s (Command units: %d)", velocity_deg_per_sec, velocity_units, velocity_deg_per_sec, velocity_units);
+    RCLCPP_INFO(this->get_logger(), "🦿 Velocity set: %.2f°/s (Command units: %d)", velocity_deg_per_sec, velocity_units);
 }
 
 void CANopenROS2::set_velocity_pdo(float velocity_deg_per_sec)
 {
-    RCLCPP_INFO(this->get_logger(), "✍️ Setting velocity using PDO: %.2f°/s", velocity_deg_per_sec, velocity_deg_per_sec);
+    RCLCPP_INFO(this->get_logger(), "✍️ Setting velocity using PDO: %.2f°/s", velocity_deg_per_sec);
     
     // read the current operation mode
     int32_t mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
-    RCLCPP_INFO(this->get_logger(), "🤞 Current operation mode: %d", mode, mode);
+    RCLCPP_INFO(this->get_logger(), "🤞 Current operation mode: %d", mode);
     
     // if the current mode is not velocity mode, need to switch to velocity mode
     if (mode != MODE_PROFILE_VELOCITY)
@@ -738,11 +738,11 @@ void CANopenROS2::set_velocity_pdo(float velocity_deg_per_sec)
         
         // check the mode again
         mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
-        RCLCPP_INFO(this->get_logger(), "🤝 Operation mode after switch: %d", mode, mode);
+        RCLCPP_INFO(this->get_logger(), "🤝 Operation mode after switch: %d", mode);
         
         if (mode != MODE_PROFILE_VELOCITY)
         {
-            RCLCPP_ERROR(this->get_logger(), "🫸🫸Unable to switch to velocity mode, current mode: %d. Velocity setting may fail.", mode, mode);
+            RCLCPP_ERROR(this->get_logger(), "🫸🫸Unable to switch to velocity mode, current mode: %d. Velocity setting may fail.", mode);
             // try to set velocity again, but may fail
         }
     }
@@ -786,14 +786,13 @@ void CANopenROS2::set_velocity_pdo(float velocity_deg_per_sec)
     
     if (write(can_socket_, &frame, sizeof(struct can_frame)) != sizeof(struct can_frame))
     {
-        RCLCPP_ERROR(this->get_logger(), "🙅‍♀️ 🙅‍♀️ Failed to send velocity PDO [Node ID=%d]", node_id_, node_id_);
+        RCLCPP_ERROR(this->get_logger(), "🙅‍♀️ 🙅‍♀️ Failed to send velocity PDO [Node ID=%d]", node_id_);
     }
     else
     {
         RCLCPP_DEBUG(this->get_logger(), "🦸‍♀️ ✍️ Velocity PDO sent [Node ID=%d]: %.2f°/s (Command units: %d)", 
-                    node_id_, velocity_deg_per_sec, velocity_units,
-                    node_id_, velocity_deg_per_sec, velocity_units);
+                    node_id_, velocity_deg_per_sec, velocity_units;
     }
     
-    RCLCPP_INFO(this->get_logger(), "👣 🤟Velocity command sent: %.2f°/s (Command units: %d)", velocity_deg_per_sec, velocity_units, velocity_deg_per_sec, velocity_units);
+    RCLCPP_INFO(this->get_logger(), "👣 🤟Velocity command sent: %.2f°/s (Command units: %d)", velocity_deg_per_sec, velocity_units);
 }

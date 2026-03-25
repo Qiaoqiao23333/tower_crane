@@ -97,7 +97,7 @@ void CANopenROS2::handle_start(const std::shared_ptr<std_srvs::srv::Trigger::Req
     catch (const std::exception& e)
     {
         response->success = false;
-        response->message = "启动失败: " + std::string(e.what());
+        response->message = "luanch failed: " + std::string(e.what());
     }
 }
 
@@ -115,7 +115,7 @@ void CANopenROS2::handle_stop(const std::shared_ptr<std_srvs::srv::Trigger::Requ
     catch (const std::exception& e)
     {
         response->success = false;
-        response->message = "停止失败: " + std::string(e.what());
+        response->message = "stop failed: " + std::string(e.what());
     }
 }
 
@@ -139,7 +139,7 @@ void CANopenROS2::handle_reset(const std::shared_ptr<std_srvs::srv::Trigger::Req
     catch (const std::exception& e)
     {
         response->success = false;
-        response->message = "重置失败: " + std::string(e.what());
+        response->message = "reset failed: " + std::string(e.what());
     }
 }
 
@@ -184,7 +184,7 @@ void CANopenROS2::handle_set_mode(const std::shared_ptr<std_srvs::srv::SetBool::
     catch (const std::exception& e)
     {
         response->success = false;
-        response->message = "设置模式参数失败: " + std::string(e.what());
+        response->message = "set mode parameters failed: " + std::string(e.what());
     }
 }
 
