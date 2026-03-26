@@ -597,6 +597,361 @@ void CANopenROS2::set_target_velocity(int32_t velocity_units_per_sec)
     RCLCPP_INFO(this->get_logger(), "👍👍👍 Target velocity set (command units): %d", velocity_units_per_sec);
 }
 
+void CANopenROS2::ensure_operation_enabled()
+{
+    int32_t status_word = read_sdo(OD_STATUS_WORD, 0x00);
+    if ((status_word & 0x006F) == 0x0027)
+    {
+        return;
+    }
+
+    RCLCPP_INFO(this->get_logger(), "Motor is not operation enabled (status=0x%04X), enabling before homing", status_word);
+    enable_motor();
+}
+
+int32_t CANopenROS2::configure_homing_parameters()
+{
+    const int32_t homing_fast_units = velocity_to_units(homing_fast_velocity_);
+    const int32_t homing_slow_units = velocity_to_units(homing_slow_velocity_);
+    const int32_t homing_accel_units = acceleration_to_units(homing_acceleration_);
+
+    write_sdo(OD_HOMING_METHOD, 0x00, homing_method_, 1);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    write_sdo(OD_HOMING_SPEED, 0x01, homing_fast_units, 4);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    write_sdo(OD_HOMING_SPEED, 0x02, homing_slow_units, 4);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    write_sdo(OD_HOMING_ACCELERATION, 0x00, homing_accel_units, 4);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    const int32_t method_feedback = read_sdo(OD_HOMING_METHOD, 0x00);
+
+    RCLCPP_INFO(
+        this->get_logger(),
+        "Homing parameters configured: method=%d (feedback=%d), 0x6099:01=%d, 0x6099:02=%d, 0x609A=%d",
+        homing_method_,
+        method_feedback,
+        homing_fast_units,
+        homing_slow_units,
+        homing_accel_units);
+
+    return method_feedback;
+}
+
+void CANopenROS2::store_parameters()
+{
+    // 0x1010:01 is optional in the CANopen standard.  Not all drives implement it.
+    // write_sdo is fire-and-forget; a drive that rejects the write will respond with
+    // an SDO abort (0x06020000 = "object does not exist") logged by receive_can_frames.
+    // This function is intentionally best-effort: a failure here does not abort homing.
+    RCLCPP_INFO(this->get_logger(), "Requesting parameter store through 0x1010:01 (best-effort)");
+    write_sdo(OD_STORE_PARAMETERS, 0x01, STORE_SIGNATURE, 4);
+    std::this_thread::sleep_for(std::chrono::milliseconds(250));
+}
+
+void CANopenROS2::restore_mode_after_homing(int32_t previous_mode, int32_t actual_position)
+{
+    if (!homing_restore_previous_mode_ ||
+        previous_mode == MODE_HOMING ||
+        (previous_mode != MODE_PROFILE_POSITION && previous_mode != MODE_PROFILE_VELOCITY))
+    {
+        return;
+    }
+
+    set_operation_mode(static_cast<uint8_t>(previous_mode));
+    const int32_t restored_mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
+    if (restored_mode == MODE_PROFILE_POSITION)
+    {
+        write_sdo(OD_TARGET_POSITION, 0x00, actual_position, 4);
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    else if (restored_mode == MODE_PROFILE_VELOCITY)
+    {
+        write_sdo(OD_TARGET_VELOCITY, 0x00, 0, 4);
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+}
+
+bool CANopenROS2::set_current_position_as_home(std::string & result_message)
+{
+    const int32_t actual_before = read_sdo(OD_ACTUAL_POSITION, 0x00);
+    const int32_t home_offset_before = read_sdo(OD_HOME_OFFSET, 0x00);
+    const int32_t zero_tolerance = 100;
+
+    int32_t candidate_offsets[2] = {
+        home_offset_before - actual_before,
+        home_offset_before + actual_before,
+    };
+
+    int32_t best_offset = home_offset_before;
+    int32_t best_actual = actual_before;
+    int best_candidate = -1;
+    int last_written_candidate = -1;
+
+    for (int i = 0; i < 2; ++i)
+    {
+        write_sdo(OD_HOME_OFFSET, 0x00, candidate_offsets[i], 4);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        const int32_t actual_after = read_sdo(OD_ACTUAL_POSITION, 0x00);
+        RCLCPP_INFO(
+            this->get_logger(),
+            "Method 35 candidate %d: 0x607C=%d, actual position readback=%d",
+            i + 1,
+            candidate_offsets[i],
+            actual_after);
+
+        if (std::abs(actual_after) < std::abs(best_actual))
+        {
+            best_offset = candidate_offsets[i];
+            best_actual = actual_after;
+            best_candidate = i;
+        }
+
+        last_written_candidate = i;
+        if (std::abs(actual_after) <= zero_tolerance)
+        {
+            break;
+        }
+    }
+
+    if (best_candidate < 0)
+    {
+        result_message =
+            "Method 35 could not move the logical position near zero through 0x607C";
+        return false;
+    }
+
+    if (best_candidate != last_written_candidate)
+    {
+        write_sdo(OD_HOME_OFFSET, 0x00, best_offset, 4);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        best_actual = read_sdo(OD_ACTUAL_POSITION, 0x00);
+    }
+
+    if (std::abs(best_actual) > zero_tolerance)
+    {
+        result_message =
+            "Method 35 wrote 0x607C but actual position is still not close to zero (" +
+            std::to_string(best_actual) + ")";
+        return false;
+    }
+
+    if (homing_store_parameters_)
+    {
+        store_parameters();
+    }
+
+    position_ = best_actual;
+    homing_completed_ = true;
+    home_position_ = 0;
+
+    result_message = homing_store_parameters_
+        ? "Current position saved as home using 0x607C; 0x1010 store requested (drive may not persist it across power cycles)"
+        : "Current position saved as home using 0x607C (session only, not persisted to EEPROM)";
+    return true;
+}
+
+// Send the CiA402 homing start sequence (bit-4 rising edge via PDO+SYNC).
+// Called from execute_homing after mode 6 and homing parameters are configured.
+static void send_homing_start(int can_socket, uint8_t node_id, int32_t current_pos)
+{
+    struct can_frame hm_frame;
+    hm_frame.can_id = COB_RPDO1 + node_id;
+    hm_frame.can_dlc = 6;
+    hm_frame.data[2] = current_pos & 0xFF;
+    hm_frame.data[3] = (current_pos >> 8) & 0xFF;
+    hm_frame.data[4] = (current_pos >> 16) & 0xFF;
+    hm_frame.data[5] = (current_pos >> 24) & 0xFF;
+
+    // 1. Ensure bit 4 is low
+    hm_frame.data[0] = CONTROL_ENABLE_OPERATION & 0xFF;
+    hm_frame.data[1] = (CONTROL_ENABLE_OPERATION >> 8) & 0xFF;
+    write(can_socket, &hm_frame, sizeof(struct can_frame));
+
+    // 2. Rising edge on bit 4 (0x1F) triggers homing
+    uint16_t hm_start = CONTROL_ENABLE_OPERATION | CONTROL_NEW_SET_POINT;
+    hm_frame.data[0] = hm_start & 0xFF;
+    hm_frame.data[1] = (hm_start >> 8) & 0xFF;
+    write(can_socket, &hm_frame, sizeof(struct can_frame));
+
+    // 3. Clear bit 4
+    hm_frame.data[0] = CONTROL_ENABLE_OPERATION & 0xFF;
+    hm_frame.data[1] = (CONTROL_ENABLE_OPERATION >> 8) & 0xFF;
+    write(can_socket, &hm_frame, sizeof(struct can_frame));
+}
+
+bool CANopenROS2::execute_homing(std::string & result_message)
+{
+    const int32_t previous_mode = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
+    homing_completed_ = false;
+    home_position_ = 0;
+
+    ensure_operation_enabled();
+    int32_t status_word = read_sdo(OD_STATUS_WORD, 0x00);
+    if ((status_word & 0x006F) != 0x0027)
+    {
+        result_message = "Servo is not in Operation Enabled state, homing aborted";
+        return false;
+    }
+
+    // Always try the drive's native homing mode (CiA402 mode 6) first, including
+    // for method 35.  For method 35 the drive should complete near-instantly (no
+    // physical movement) so a short 3-second timeout is used.  If the drive does
+    // not support native method 35 the code falls back to the manual 0x607C trick.
+    set_operation_mode(MODE_HOMING);
+    const int32_t mode_display = read_sdo(OD_OPERATION_MODE_DISPLAY, 0x00);
+
+    if (mode_display != MODE_HOMING)
+    {
+        if (homing_method_ == 35)
+        {
+            RCLCPP_WARN(this->get_logger(),
+                "Failed to enter homing mode (0x6061=%d); falling back to manual 0x607C for method 35",
+                mode_display);
+            const bool success = set_current_position_as_home(result_message);
+            if (success)
+            {
+                restore_mode_after_homing(previous_mode, position_);
+            }
+            return success;
+        }
+        result_message =
+            "Failed to enter HM: 0x6060 was set to 6 but 0x6061 reports " + std::to_string(mode_display);
+        return false;
+    }
+
+    const int32_t method_feedback = configure_homing_parameters();
+
+    // If the drive rejected the homing method write (0x6098 reads back a different
+    // value), there is no point waiting – the native homing engine will never start.
+    // For method 35 this is a known DSY-C limitation: immediately fall back to the
+    // manual 0x607C approach.
+    if (method_feedback != homing_method_)
+    {
+        if (homing_method_ == 35)
+        {
+            RCLCPP_WARN(this->get_logger(),
+                "Drive rejected homing method 35 (0x6098 reads back %d); "
+                "skipping native attempt, using manual 0x607C approach",
+                method_feedback);
+            set_operation_mode(MODE_PROFILE_POSITION);
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            const bool success = set_current_position_as_home(result_message);
+            if (success)
+            {
+                restore_mode_after_homing(previous_mode, position_);
+            }
+            return success;
+        }
+        result_message =
+            "Drive rejected homing method " + std::to_string(homing_method_) +
+            " (0x6098 reads back " + std::to_string(method_feedback) + ")";
+        return false;
+    }
+
+    // PDO + SYNC rising-edge trigger (CiA402 requirement)
+    const int32_t current_pos = read_sdo(OD_ACTUAL_POSITION, 0x00);
+    send_sync_frame();
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    send_homing_start(can_socket_, node_id_, current_pos);
+    send_sync_frame();
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    send_sync_frame();
+
+    // Method 35 should complete without movement – 3 s is plenty if we reach here.
+    // All other methods use the configured timeout.
+    const double effective_timeout =
+        (homing_method_ == 35) ? 3.0 : homing_timeout_s_;
+
+    const auto deadline = std::chrono::steady_clock::now() +
+        std::chrono::milliseconds(static_cast<int64_t>(effective_timeout * 1000.0));
+    int log_counter = 0;
+
+    while (std::chrono::steady_clock::now() < deadline)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        status_word = read_sdo(OD_STATUS_WORD, 0x00);
+        status_word_ = static_cast<uint16_t>(status_word);
+
+        if (status_word & 0x0008)
+        {
+            check_and_clear_error();
+            result_message = "Homing stopped because the drive entered fault state";
+            return false;
+        }
+
+        // Bit 13 = homing error.  For method 35, the drive may set this to indicate
+        // it does not support the method natively → fall back to manual 0x607C.
+        if (status_word & 0x2000)
+        {
+            check_and_clear_error();
+            if (homing_method_ == 35)
+            {
+                RCLCPP_WARN(this->get_logger(),
+                    "Drive reported homing error for native method 35 (bit 13); "
+                    "falling back to manual 0x607C approach");
+                set_operation_mode(MODE_PROFILE_POSITION);
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                const bool success = set_current_position_as_home(result_message);
+                if (success)
+                {
+                    restore_mode_after_homing(previous_mode, position_);
+                }
+                return success;
+            }
+            result_message = "Homing failed: statusword bit 13 indicates homing error";
+            return false;
+        }
+
+        // Bit 12 = homing completed successfully
+        if (status_word & 0x1000)
+        {
+            const int32_t actual_position = read_sdo(OD_ACTUAL_POSITION, 0x00);
+            position_ = actual_position;
+            homing_completed_ = true;
+            home_position_ = actual_position;
+
+            if (homing_store_parameters_)
+            {
+                store_parameters();
+            }
+
+            restore_mode_after_homing(previous_mode, actual_position);
+
+            result_message = homing_store_parameters_
+                ? "Homing completed: statusword bit 12 set, bit 13 clear, parameters stored"
+                : "Homing completed: statusword bit 12 set, bit 13 clear";
+            return true;
+        }
+
+        if ((log_counter++ % 10) == 0)
+        {
+            RCLCPP_INFO(this->get_logger(), "Waiting for homing result, statusword=0x%04X", status_word);
+        }
+    }
+
+    // Timeout – for method 35 try the manual 0x607C fallback before giving up
+    if (homing_method_ == 35)
+    {
+        RCLCPP_WARN(this->get_logger(),
+            "Native homing timed out for method 35 (drive may not support it); "
+            "falling back to manual 0x607C approach");
+        set_operation_mode(MODE_PROFILE_POSITION);
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        const bool success = set_current_position_as_home(result_message);
+        if (success)
+        {
+            restore_mode_after_homing(previous_mode, position_);
+        }
+        return success;
+    }
+
+    result_message = "Homing timeout waiting for statusword bit 12";
+    return false;
+}
+
 void CANopenROS2::go_to_position(float angle)
 {
     RCLCPP_INFO(this->get_logger(), "👀 Moving to position: %.2f°", angle);

@@ -13,6 +13,13 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     this->declare_parameter<float>("profile_velocity", 30.0);
     this->declare_parameter<float>("profile_acceleration", 30.0);
     this->declare_parameter<float>("profile_deceleration", 30.0);
+    this->declare_parameter<int>("homing_method", 35);
+    this->declare_parameter<float>("homing_fast_velocity", 5.0);
+    this->declare_parameter<float>("homing_slow_velocity", 1.0);
+    this->declare_parameter<float>("homing_acceleration", 5.0);
+    this->declare_parameter<double>("homing_timeout_s", 30.0);
+    this->declare_parameter<bool>("homing_store_parameters", true);
+    this->declare_parameter<bool>("homing_restore_previous_mode", true);
     this->declare_parameter<int>("cycle_period_us", 1000);
     
     // Read parameters
@@ -24,6 +31,13 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     profile_velocity_ = this->get_parameter("profile_velocity").as_double();
     profile_acceleration_ = this->get_parameter("profile_acceleration").as_double();
     profile_deceleration_ = this->get_parameter("profile_deceleration").as_double();
+    homing_method_ = this->get_parameter("homing_method").as_int();
+    homing_fast_velocity_ = this->get_parameter("homing_fast_velocity").as_double();
+    homing_slow_velocity_ = this->get_parameter("homing_slow_velocity").as_double();
+    homing_acceleration_ = this->get_parameter("homing_acceleration").as_double();
+    homing_timeout_s_ = this->get_parameter("homing_timeout_s").as_double();
+    homing_store_parameters_ = this->get_parameter("homing_store_parameters").as_bool();
+    homing_restore_previous_mode_ = this->get_parameter("homing_restore_previous_mode").as_bool();
     cycle_period_us_ = this->get_parameter("cycle_period_us").as_int();
     
     // Compute and cache conversion ratios
@@ -125,6 +139,8 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
         "stop_crane", std::bind(&CANopenROS2::handle_stop, this, std::placeholders::_1, std::placeholders::_2));
     reset_service_ = this->create_service<std_srvs::srv::Trigger>(
         "reset_crane", std::bind(&CANopenROS2::handle_reset, this, std::placeholders::_1, std::placeholders::_2));
+    home_service_ = this->create_service<std_srvs::srv::Trigger>(
+        "home_crane", std::bind(&CANopenROS2::handle_home, this, std::placeholders::_1, std::placeholders::_2));
     set_mode_service_ = this->create_service<std_srvs::srv::SetBool>(
         "set_crane_mode", std::bind(&CANopenROS2::handle_set_mode, this, std::placeholders::_1, std::placeholders::_2));
     

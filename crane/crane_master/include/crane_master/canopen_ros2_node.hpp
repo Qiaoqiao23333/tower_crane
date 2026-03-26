@@ -66,6 +66,10 @@
 #define OD_PROFILE_VELOCITY      0x6081
 #define OD_PROFILE_ACCELERATION  0x6083
 #define OD_PROFILE_DECELERATION  0x6084
+#define OD_HOME_OFFSET           0x607C
+#define OD_HOMING_METHOD         0x6098
+#define OD_HOMING_SPEED          0x6099
+#define OD_HOMING_ACCELERATION   0x609A
 
 // 1. Safety limits (Defined in EDS)
 #define OD_MAX_MOTOR_SPEED       0x6080 // EDS Default: 5000 RPM
@@ -115,6 +119,12 @@ private:
     void go_to_position(float angle);
     void set_velocity(float velocity_deg_per_sec);
     void set_velocity_pdo(float velocity_deg_per_sec);
+    void ensure_operation_enabled();
+    int32_t configure_homing_parameters();
+    bool set_current_position_as_home(std::string & result_message);
+    void restore_mode_after_homing(int32_t previous_mode, int32_t actual_position);
+    bool execute_homing(std::string & result_message);
+    void store_parameters();
     
     // ROS 2 interface functions
     void publish_status();
@@ -128,6 +138,8 @@ private:
                      std::shared_ptr<std_srvs::srv::Trigger::Response> response);
     void handle_set_mode(const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
                         std::shared_ptr<std_srvs::srv::SetBool::Response> response);
+    void handle_home(const std::shared_ptr<std_srvs::srv::Trigger::Request>,
+                    std::shared_ptr<std_srvs::srv::Trigger::Response> response);
     
     // Utility functions
     int32_t angle_to_position(float angle);
@@ -153,6 +165,15 @@ private:
     float profile_velocity_ = 30.0;         // deg/s
     float profile_acceleration_ = 30.0;     // deg/s²
     float profile_deceleration_ = 30.0;     // deg/s²
+    int homing_method_ = 35;                // CiA402 method (35=current position as zero)
+    float homing_fast_velocity_ = 5.0;      // 0x6099:01, deg/s in project units
+    float homing_slow_velocity_ = 1.0;      // 0x6099:02, deg/s in project units
+    float homing_acceleration_ = 5.0;       // 0x609A, deg/s² in project units
+    double homing_timeout_s_ = 30.0;        // Wait timeout for HM completion
+    bool homing_store_parameters_ = true;   // Persist homing offset via 0x1010
+    bool homing_restore_previous_mode_ = true;  // Return to pre-homing mode after HM
+    bool homing_completed_ = false;             // True after a successful homing cycle
+    int32_t home_position_ = 0;                 // Encoder position recorded at home
     int32_t cycle_period_us_ = 1000;        // Communication cycle period (microseconds)
     int can_socket_ = -1;
     uint16_t status_word_ = 0;
@@ -172,6 +193,7 @@ private:
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr start_service_;
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr stop_service_;
     rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_service_;
+    rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr home_service_;
     rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr set_mode_service_;
     
     // SDO waiting mechanism

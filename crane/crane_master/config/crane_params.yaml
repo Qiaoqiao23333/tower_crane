@@ -18,6 +18,13 @@ common:
   profile_velocity: 3.0          # Default profile velocity (deg/s)
   profile_acceleration: 1.0      # Default profile acceleration (deg/s²)
   profile_deceleration: 1.0      # Default profile deceleration (deg/s²)
+  homing_method: 35              # CiA402 HM: 35=current position as home, 32/33/34=search index pulse
+  homing_fast_velocity: 10.0     # 0x6099:01 high speed for switch/index search (deg/s)
+  homing_slow_velocity: 2.0      # 0x6099:02 low speed for zero capture (deg/s)
+  homing_acceleration: 10.0      # 0x609A homing acceleration (deg/s²)
+  homing_timeout_s: 30.0
+  homing_store_parameters: false  # DSY-C drive does not support 0x1010 (returns 0x06020000), disable to suppress the SDO abort error
+  homing_restore_previous_mode: true
 
 slewing:
   node_id: 3
@@ -29,14 +36,16 @@ trolley:
   gear_ratio: 0.1        #### 1/(10) (pulleyratio)
   profile_velocity: 90.0
   profile_acceleration: 30.0      # Default profile acceleration (deg/s²)
-  profile_deceleration: 30.0 
+  profile_deceleration: 30.0
+  homing_method: 35               # Absolute encoder trolley: safest default is zeroing from known current position
 
 hoist:
   node_id: 1
   gear_ratio: 0.025       #### 1/(10*4) (Gearbox*biggear)
   profile_velocity: 120.0
   profile_acceleration: 30.0      # Default profile acceleration (deg/s²)
-  profile_deceleration: 30.0 
+  profile_deceleration: 30.0
+  homing_method: 35               # Absolute encoder hoist: avoid unnecessary travel unless a hard reference is required
 
 
 

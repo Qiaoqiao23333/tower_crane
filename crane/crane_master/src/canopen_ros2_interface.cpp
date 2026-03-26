@@ -28,6 +28,11 @@ void CANopenROS2::publish_status()
         status_str = "Operation inhibit";
     }
     
+    if (homing_completed_)
+    {
+        status_str += " [Homed]";
+    }
+
     status_msg.data = status_str;
     status_pub_->publish(status_msg);
     
@@ -139,6 +144,10 @@ void CANopenROS2::handle_reset(const std::shared_ptr<std_srvs::srv::Trigger::Req
         send_nmt_command(NMT_RESET_NODE);
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
         
+        // Clear homing memory so a fresh home is required after reset
+        homing_completed_ = false;
+        home_position_ = 0;
+
         // Reinitialize motor
         initialize_motor();
         
@@ -149,6 +158,24 @@ void CANopenROS2::handle_reset(const std::shared_ptr<std_srvs::srv::Trigger::Req
     {
         response->success = false;
         response->message = "reset failed: " + std::string(e.what());
+    }
+}
+
+void CANopenROS2::handle_home(const std::shared_ptr<std_srvs::srv::Trigger::Request>,
+                 std::shared_ptr<std_srvs::srv::Trigger::Response> response)
+{
+    RCLCPP_INFO(this->get_logger(), "Received home request");
+
+    try
+    {
+        std::string result_message;
+        response->success = execute_homing(result_message);
+        response->message = result_message;
+    }
+    catch (const std::exception & e)
+    {
+        response->success = false;
+        response->message = "homing failed: " + std::string(e.what());
     }
 }
 

@@ -259,8 +259,8 @@ private:
                     // meters -> degrees
                     cmd_deg = meter2deg(target_val, METERS_PER_DEGREE_TROLLEY);
                 } else if (type == 2) { // Slewing - revolute
-                    // 1:1 mapping between MoveIt value and motor "degrees"
-                    cmd_deg = target_val;
+                    // MoveIt uses radians for revolute joints, but the motor API expects degrees.
+                    cmd_deg = rad2deg(target_val);
                 }
 
                 std_msgs::msg::Float32 msg;
