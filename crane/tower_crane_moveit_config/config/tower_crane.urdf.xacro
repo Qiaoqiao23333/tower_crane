@@ -123,7 +123,7 @@
       <parent  link="trolley_Link" />
       <child  link="hook_Link" />
       <axis  xyz="0 0 -1" />
-      <limit  lower="0" upper="2" effort="50" velocity="1.0" />
+      <limit  lower="-2" upper="2" effort="50" velocity="1.0" />
     </joint>
 
     <link name="hook_Link">
