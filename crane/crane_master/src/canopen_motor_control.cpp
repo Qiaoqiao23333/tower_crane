@@ -790,8 +790,8 @@ void CANopenROS2::set_velocity_pdo(float velocity_deg_per_sec)
     }
     else
     {
-        RCLCPP_DEBUG(this->get_logger(), "🦸‍♀️ ✍️ Velocity PDO sent [Node ID=%d]: %.2f°/s (Command units: %d)", 
-                    node_id_, velocity_deg_per_sec, velocity_units;
+        RCLCPP_DEBUG (this->get_logger(), "🦸‍♀️ ✍️ Velocity PDO sent [Node ID=%d]: %.2f°/s (Command units: %d)", 
+                    node_id_, velocity_deg_per_sec, velocity_units);
     }
     
     RCLCPP_INFO(this->get_logger(), "👣 🤟Velocity command sent: %.2f°/s (Command units: %d)", velocity_deg_per_sec, velocity_units);

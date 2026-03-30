@@ -27,14 +27,14 @@ slewing:
 trolley:
   node_id: 2
   gear_ratio: 0.1        #### 1/(10) (pulleyratio)
-  profile_velocity: 90.0
+  profile_velocity: 60.0
   profile_acceleration: 30.0      # Default profile acceleration (deg/s²)
   profile_deceleration: 30.0 
 
 hoist:
   node_id: 1
   gear_ratio: 0.025       #### 1/(10*4) (Gearbox*biggear)
-  profile_velocity: 120.0
+  profile_velocity: 60.0
   profile_acceleration: 30.0      # Default profile acceleration (deg/s²)
   profile_deceleration: 30.0 
 
