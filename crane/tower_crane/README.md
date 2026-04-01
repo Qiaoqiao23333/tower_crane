@@ -226,6 +226,44 @@ ros2 topic pub /control_force std_msgs/Float64MultiArray \
     "{data: [3.0]}"
 ```
 
+### Send a Joint Position Goal (ROS2 Action)
+
+If you are commanding the crane through the trajectory controller, send goals to:
+
+- `/forward_position_controller/follow_joint_trajectory`
+
+Use these units in the `positions` array:
+
+- `slewing_joint`: radians
+- `trolley_joint`: meters
+- `hook_joint`: meters
+
+Example:
+
+```bash
+ros2 action send_goal /forward_position_controller/follow_joint_trajectory \
+  control_msgs/action/FollowJointTrajectory \
+  "{
+    trajectory: {
+      joint_names: [slewing_joint, trolley_joint, hook_joint],
+      points: [
+        {
+          positions: [1.57, 0.80, 0.30],
+          time_from_start: {sec: 5, nanosec: 0}
+        }
+      ]
+    }
+  }"
+```
+
+In this example:
+
+- `1.57` means about 90 degrees of slewing because `slewing_joint` is in radians
+- `0.80` means `0.80 m` trolley travel
+- `0.30` means `0.30 m` hook/hoist travel
+
+Do not send trolley or hook positions in radians. Only `slewing_joint` is angular; the other two joints are linear.
+
 ### Test Controller
 
 Run preset test scenarios:
