@@ -25,11 +25,16 @@ static double rad2deg(double rad) {
 }
 
 // Helper: degrees to meters (for prismatic joints: Hoist, Trolley)
-// NOTE: for the hoist we now treat the numeric value as 1:1 (no scaling) between
-//       motor "degrees" and the MoveIt linear unit used for the joint.
-//       Adjust here if you later need a physical conversion again.
-static const double METERS_PER_DEGREE_HOIST = 1.0;    // hoist: 1:1 mapping
-static const double METERS_PER_DEGREE_TROLLEY = 1.0;  // trolley: 1:1 mapping
+// Motor command/feedback unit is degree; MoveIt unit is meter.
+// Trolley conversion is set to match requested behavior:
+//   deg = meter * 1000 / (24 * pi) * 360
+// Hoist conversion uses a driving diameter of 80 mm.
+static const double TROLLEY_DRIVE_DIAMETER_MM = 24.0;
+static const double HOIST_DRIVE_DIAMETER_MM = 80.0;
+static const double METERS_PER_DEGREE_TROLLEY =
+    (TROLLEY_DRIVE_DIAMETER_MM * M_PI) / (377.36 * 360.0); //dont aks why is 0.377.36, it just a magic number parameter
+static const double METERS_PER_DEGREE_HOIST =
+    (HOIST_DRIVE_DIAMETER_MM * M_PI) / (2000.0 * 360.0);
 
 static double deg2meter(double deg, double ratio) {
     return deg * ratio;
@@ -259,8 +264,8 @@ private:
                     // meters -> degrees
                     cmd_deg = meter2deg(target_val, METERS_PER_DEGREE_TROLLEY);
                 } else if (type == 2) { // Slewing - revolute
-                    // 1:1 mapping between MoveIt value and motor "degrees"
-                    cmd_deg = target_val;
+                    // MoveIt uses radians; motor command uses degrees
+                    cmd_deg = rad2deg(target_val);
                 }
 
                 std_msgs::msg::Float32 msg;
