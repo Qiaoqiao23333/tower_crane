@@ -159,11 +159,14 @@ private:
     int32_t position_ = 0;
     int32_t prev_position_ = 0;
     rclcpp::Time prev_position_time_;
+    bool sync_producer_ = false;
+    int sync_period_ms_ = 20;
     
     // ROS 2 interfaces
     rclcpp::CallbackGroup::SharedPtr status_cb_group_;
     rclcpp::TimerBase::SharedPtr timer_;
     rclcpp::TimerBase::SharedPtr status_timer_;
+    rclcpp::TimerBase::SharedPtr sync_timer_;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr status_pub_;
     rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr position_pub_;
     rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr velocity_pub_;

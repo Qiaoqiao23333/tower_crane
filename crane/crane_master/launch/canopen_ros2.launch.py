@@ -110,6 +110,8 @@ def launch_nodes(context):
                 'profile_acceleration': float(merged.get('profile_acceleration', 30.0)),
                 'profile_deceleration': float(merged.get('profile_deceleration', 30.0)),
                 'cycle_period_us':     int(merged.get('cycle_period_us', 1000)),
+                'sync_producer':       bool(merged.get('sync_producer', False)),
+                'sync_period_ms':      int(merged.get('sync_period_ms', 20)),
             }]
         }
 

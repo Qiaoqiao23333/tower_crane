@@ -14,6 +14,8 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     this->declare_parameter<float>("profile_acceleration", 30.0);
     this->declare_parameter<float>("profile_deceleration", 30.0);
     this->declare_parameter<int>("cycle_period_us", 1000);
+    this->declare_parameter<bool>("sync_producer", false);
+    this->declare_parameter<int>("sync_period_ms", 20);
     
     // Read parameters
     can_interface_ = this->get_parameter("can_interface_name").as_string();
@@ -25,6 +27,8 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
     profile_acceleration_ = this->get_parameter("profile_acceleration").as_double();
     profile_deceleration_ = this->get_parameter("profile_deceleration").as_double();
     cycle_period_us_ = this->get_parameter("cycle_period_us").as_int();
+    sync_producer_ = this->get_parameter("sync_producer").as_bool();
+    sync_period_ms_ = this->get_parameter("sync_period_ms").as_int();
     
     // Compute and cache conversion ratios
     // Formula: (angle / 360°) × (target_units_per_rev_ / gear_ratio_) = command units
@@ -179,6 +183,17 @@ CANopenROS2::CANopenROS2() : Node("canopen_ros2")
         std::chrono::milliseconds(1000),
         std::bind(&CANopenROS2::publish_status, this),
         status_cb_group_);
+    
+    // Periodic SYNC producer — enable on exactly ONE node so all drives
+    // receive SYNC and respond with their synchronous TPDOs.
+    if (sync_producer_)
+    {
+        RCLCPP_INFO(this->get_logger(),
+            "SYNC producer enabled: sending SYNC every %d ms", sync_period_ms_);
+        sync_timer_ = this->create_wall_timer(
+            std::chrono::milliseconds(sync_period_ms_),
+            std::bind(&CANopenROS2::send_sync_frame, this));
+    }
 }
 
 CANopenROS2::~CANopenROS2()

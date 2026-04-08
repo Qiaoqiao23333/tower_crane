@@ -29,6 +29,7 @@ static double rad2deg(double rad) {
 // Trolley conversion is set to match requested behavior:
 //   deg = meter * 1000 / (24 * pi) * 360
 // Hoist conversion uses a driving diameter of 80 mm.
+// Keep these ratios in sync with hil_trajectory_eval.py (METERS_PER_DEGREE_*).
 static const double TROLLEY_DRIVE_DIAMETER_MM = 24.0;
 static const double HOIST_DRIVE_DIAMETER_MM = 80.0;
 static const double METERS_PER_DEGREE_TROLLEY =

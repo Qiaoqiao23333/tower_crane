@@ -18,6 +18,8 @@ common:
   profile_velocity: 3.0          # Default profile velocity (deg/s)
   profile_acceleration: 1.0      # Default profile acceleration (deg/s²)
   profile_deceleration: 1.0      # Default profile deceleration (deg/s²)
+  sync_producer: false            # Only ONE node should produce SYNC (see hoist)
+  sync_period_ms: 20              # SYNC interval in ms (20 ms = 50 Hz TPDO rate)
 
 slewing:
   node_id: 3
@@ -36,7 +38,8 @@ hoist:
   gear_ratio: 0.025       #### 1/(10*4) (Gearbox*biggear)
   profile_velocity: 60.0
   profile_acceleration: 30.0      # Default profile acceleration (deg/s²)
-  profile_deceleration: 30.0 
+  profile_deceleration: 30.0
+  sync_producer: true             # Hoist node is the SYNC master for all drives
 
 
 

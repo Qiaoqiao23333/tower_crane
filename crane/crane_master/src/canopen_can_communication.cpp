@@ -219,126 +219,120 @@ int32_t CANopenROS2::read_sdo(uint16_t index, uint8_t subindex)
 
 void CANopenROS2::receive_can_frames()
 {
+    // Drain ALL queued CAN frames per timer call to keep up with
+    // high-rate TPDO responses triggered by periodic SYNC.
     struct can_frame frame;
-    ssize_t nbytes = read(can_socket_, &frame, sizeof(struct can_frame));
+    constexpr int MAX_FRAMES_PER_CALL = 32;  // safety limit
     
-    if (nbytes < 0)
+    for (int n = 0; n < MAX_FRAMES_PER_CALL; ++n)
     {
-        if (errno != EAGAIN && errno != EWOULDBLOCK)
+        ssize_t nbytes = read(can_socket_, &frame, sizeof(struct can_frame));
+        
+        if (nbytes < 0)
         {
-            RCLCPP_ERROR(this->get_logger(), "😩 Failed to receive CAN frame: %s", strerror(errno));
-        }
-        return;
-    }
-    
-    // Process received CAN frame
-    uint32_t cob_id = frame.can_id & 0x780;  // function code
-    uint8_t node_id = frame.can_id & 0x7F;   // node ID
-    
-    if (node_id != node_id_)
-    {
-        return;  // not our node
-    }
-    
-    RCLCPP_DEBUG(this->get_logger(), "🔊🔊🔊 Received CAN frame: ID=0x%03X, DLC=%d, Data=0x%02X%02X%02X%02X%02X%02X%02X%02X",
-        frame.can_id, frame.can_dlc,
-        frame.data[0], frame.data[1], frame.data[2], frame.data[3],
-        frame.data[4], frame.data[5], frame.data[6], frame.data[7]);
-    
-    // Detect SDO response (COB-ID = 0x580 + node_id)
-    if (frame.can_id == static_cast<canid_t>(COB_TSDO + node_id_))
-    {
-        // Handle SDO response
-        uint8_t command = frame.data[0];
-        uint16_t index = frame.data[1] | (frame.data[2] << 8);
-        uint8_t subindex = frame.data[3];
-        
-        RCLCPP_DEBUG(this->get_logger(), "🤝🤝🤝 Received SDO response [Node ID=%d]: COB-ID=0x%03X, Command=0x%02X, Index=0x%04X, Subindex=0x%02X", 
-                     node_id_, frame.can_id, command, index, subindex);
-        
-        // Protect shared variables with mutex
-        std::lock_guard<std::mutex> lock(sdo_mutex_);
-        
-        if (command == 0x80)  // SDO abort
-        {
-            uint32_t abort_code = frame.data[4] | (frame.data[5] << 8) | (frame.data[6] << 16) | (frame.data[7] << 24);
-            RCLCPP_ERROR(this->get_logger(), "😩 SDO abort [Node ID=%d]: Index=0x%04X, Subindex=0x%02X, Error code=0x%08X", node_id_, index, subindex, abort_code);
-            
-            // If this is the SDO response we are waiting for
-            if (!sdo_response_received_ && index == expected_sdo_index_ && subindex == expected_sdo_subindex_)
+            if (errno != EAGAIN && errno != EWOULDBLOCK)
             {
-                sdo_read_value_ = 0;  // return 0 on error
-                sdo_response_received_ = true;
-                RCLCPP_DEBUG(this->get_logger(), "🤝🤝🤝 SDO abort response matched, setting flag");
+                RCLCPP_ERROR(this->get_logger(), "Failed to receive CAN frame: %s", strerror(errno));
             }
+            break;  // no more frames queued
         }
-        else 
+        
+        // Filter by node ID
+        uint32_t cob_id = frame.can_id & 0x780;  // function code
+        uint8_t node_id = frame.can_id & 0x7F;   // node ID
+        
+        if (node_id != node_id_)
         {
-            // Extract data (for SDO response data is in bytes 4–7)
-            int32_t data = frame.data[4] | (frame.data[5] << 8) | (frame.data[6] << 16) | (frame.data[7] << 24);
+            continue;  // not our node, try next frame
+        }
+        
+        RCLCPP_DEBUG(this->get_logger(), "Received CAN frame: ID=0x%03X, DLC=%d, Data=0x%02X%02X%02X%02X%02X%02X%02X%02X",
+            frame.can_id, frame.can_dlc,
+            frame.data[0], frame.data[1], frame.data[2], frame.data[3],
+            frame.data[4], frame.data[5], frame.data[6], frame.data[7]);
+        
+        // Detect SDO response (COB-ID = 0x580 + node_id)
+        if (frame.can_id == static_cast<canid_t>(COB_TSDO + node_id_))
+        {
+            uint8_t command = frame.data[0];
+            uint16_t index = frame.data[1] | (frame.data[2] << 8);
+            uint8_t subindex = frame.data[3];
             
-            // If this is the response we expect, set flag and data
-            if (!sdo_response_received_ && index == expected_sdo_index_ && subindex == expected_sdo_subindex_)
-            {
-                sdo_read_value_ = data;
-                sdo_response_received_ = true;
-                RCLCPP_DEBUG(this->get_logger(), "🤝🤝🤝 SDO response matched, setting flag and data: 0x%08X (%d)", data, data);
-            }
+            RCLCPP_DEBUG(this->get_logger(), "Received SDO response [Node ID=%d]: COB-ID=0x%03X, Command=0x%02X, Index=0x%04X, Subindex=0x%02X", 
+                         node_id_, frame.can_id, command, index, subindex);
             
-            // Also handle specific SDO updates for status monitoring
-            if (index == OD_STATUS_WORD && subindex == 0x00)  // status word
+            std::lock_guard<std::mutex> lock(sdo_mutex_);
+            
+            if (command == 0x80)  // SDO abort
             {
-                uint16_t status_word = data & 0xFFFF;
-                status_word_ = status_word;
+                uint32_t abort_code = frame.data[4] | (frame.data[5] << 8) | (frame.data[6] << 16) | (frame.data[7] << 24);
+                RCLCPP_ERROR(this->get_logger(), "SDO abort [Node ID=%d]: Index=0x%04X, Subindex=0x%02X, Error code=0x%08X", node_id_, index, subindex, abort_code);
                 
-                // Check target reached bit
-                if (status_word & 0x0400)
+                if (!sdo_response_received_ && index == expected_sdo_index_ && subindex == expected_sdo_subindex_)
                 {
-                    RCLCPP_INFO(this->get_logger(), "🎯 Target position reached");
+                    sdo_read_value_ = 0;
+                    sdo_response_received_ = true;
                 }
             }
-            else if (index == OD_ACTUAL_POSITION && subindex == 0x00)  // actual position
+            else 
             {
-                position_ = data;
-                float angle = position_to_angle(position_);
+                int32_t data = frame.data[4] | (frame.data[5] << 8) | (frame.data[6] << 16) | (frame.data[7] << 24);
                 
-                // Publish position (if publisher is initialized)
+                if (!sdo_response_received_ && index == expected_sdo_index_ && subindex == expected_sdo_subindex_)
+                {
+                    sdo_read_value_ = data;
+                    sdo_response_received_ = true;
+                }
+                
+                if (index == OD_STATUS_WORD && subindex == 0x00)
+                {
+                    uint16_t status_word = data & 0xFFFF;
+                    status_word_ = status_word;
+                    
+                    if (status_word & 0x0400)
+                    {
+                        RCLCPP_INFO(this->get_logger(), "Target position reached");
+                    }
+                }
+                else if (index == OD_ACTUAL_POSITION && subindex == 0x00)
+                {
+                    position_ = data;
+                    float angle = position_to_angle(position_);
+                    
+                    if (position_pub_)
+                    {
+                        auto msg = std_msgs::msg::Float32();
+                        msg.data = angle;
+                        position_pub_->publish(msg);
+                    }
+                }
+            }
+        }
+        else if (cob_id == COB_TPDO1)
+        {
+            if (frame.can_dlc >= 6)
+            {
+                uint16_t status_word = frame.data[0] | (frame.data[1] << 8);
+                int32_t position = frame.data[2] | (frame.data[3] << 8) | (frame.data[4] << 16) | (frame.data[5] << 24);
+                
+                status_word_ = status_word;
+                position_ = position;
+                
+                float angle = position_to_angle(position);
+                
                 if (position_pub_)
                 {
-                    auto msg = std_msgs::msg::Float32();
-                    msg.data = angle;
-                    position_pub_->publish(msg);
+                    auto pos_msg = std_msgs::msg::Float32();
+                    pos_msg.data = angle;
+                    position_pub_->publish(pos_msg);
+                }
+                
+                if (status_word & 0x0400)
+                {
+                    RCLCPP_INFO(this->get_logger(), "Target position reached");
                 }
             }
         }
-    }
-    else if (cob_id == COB_TPDO1)
-    {
-        // Handle TPDO1 response
-        if (frame.can_dlc >= 6)  // status word (2 bytes) + actual position (4 bytes)
-        {
-            uint16_t status_word = frame.data[0] | (frame.data[1] << 8);
-            int32_t position = frame.data[2] | (frame.data[3] << 8) | (frame.data[4] << 16) | (frame.data[5] << 24);
-            
-            status_word_ = status_word;
-            position_ = position;
-            
-            float angle = position_to_angle(position);
-            
-            // Publish position (if publisher is initialized)
-            if (position_pub_)
-            {
-                auto pos_msg = std_msgs::msg::Float32();
-                pos_msg.data = angle;
-                position_pub_->publish(pos_msg);
-            }
-            
-            // Check target reached bit
-            if (status_word & 0x0400)
-            {
-                RCLCPP_INFO(this->get_logger(), "🎯 Target position reached");
-            }
-        }
-    }
+    }  // end for-loop
 }
 
