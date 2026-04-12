@@ -818,6 +818,71 @@ def _results_min_motion_span(results: dict) -> float:
     return float(min(spans)) if spans else 0.0
 
 
+def apply_amplitude_fit(results: dict, verbose: bool = True) -> dict:
+    """Scale each joint's planned trajectory to best match the actual amplitude.
+
+    Computes the per-joint LSQ-optimal amplitude scale::
+
+        s = argmin_s ||s*planned - actual||²
+          = (planned · actual) / (planned · planned)
+
+    This removes the effect of a systematic speed/gain error so that the
+    *shape* of the planned profile can be compared against the actual motion.
+    Values s < 1 mean the crane under-shot (actual was slower / shorter than
+    planned); values s > 1 mean over-shoot.
+
+    The original (unscaled) interpolated plan is stored as
+    ``planned_interp_raw`` so the true magnitude gap is not lost.  The
+    ``amp_scale`` key is added to each joint result dict.
+
+    Returns a new results dict; the input is not modified in place.
+    """
+    out: dict = {}
+    if verbose:
+        print(
+            "\n[INFO] --fit-amplitude: per-joint LSQ amplitude scaling "
+            "(scale < 1 → crane under-shot the plan):"
+        )
+    for jname in JOINT_NAMES:
+        res = results.get(jname)
+        if res is None:
+            out[jname] = None
+            continue
+
+        pos_plan = res["planned_interp"]
+        pos_act  = res["actual_pos"]
+
+        # LSQ: minimise ||s * plan − actual||²  →  s = (plan·actual)/(plan·plan)
+        denom = float(np.dot(pos_plan, pos_plan))
+        if denom < 1e-18:
+            amp_scale = 1.0
+        else:
+            amp_scale = float(np.clip(
+                np.dot(pos_plan, pos_act) / denom, 0.01, 100.0
+            ))
+
+        pos_plan_scaled = pos_plan * amp_scale
+        error_scaled    = pos_plan_scaled - pos_act
+        rmse_scaled     = float(np.sqrt(np.mean(error_scaled ** 2)))
+
+        _, unit = _JOINT_LABELS.get(jname, (jname, ""))
+        if verbose:
+            print(
+                f"         {jname:16s}  scale = {amp_scale:.4f}  "
+                f"RMSE: {float(res['rmse']):.6f} → {rmse_scaled:.6f} {unit}"
+            )
+
+        new_res = dict(res)                          # shallow copy
+        new_res["planned_interp_raw"] = pos_plan     # original for reference plot
+        new_res["planned_interp"]     = pos_plan_scaled
+        new_res["error"]              = error_scaled
+        new_res["rmse"]               = rmse_scaled
+        new_res["amp_scale"]          = amp_scale
+        out[jname] = new_res
+
+    return out
+
+
 def find_best_fit_configuration(base_actual: dict, args) -> tuple[dict, dict, dict, set[str], dict]:
     """Search a small parameter grid for the lowest-RMSE honest fit."""
     align_options = ["bag_start", "first_motion", "first_motion_global"]
@@ -971,8 +1036,13 @@ def plot_results(results, step_actual: bool = True):
         figsize=(15, 10),
         constrained_layout=True,
     )
+    amp_fitted = any(
+        results.get(j) is not None and results[j].get("amp_scale") is not None
+        for j in JOINT_NAMES
+    )
+    title_suffix = "  [Amplitude-Fitted]" if amp_fitted else ""
     fig.suptitle(
-        "HIL Trajectory Fidelity — 3-Axis Crane",
+        f"HIL Trajectory Fidelity — 3-Axis Crane{title_suffix}",
         fontsize=15, fontweight="bold", color="#111827", y=0.98,
     )
 
@@ -990,12 +1060,24 @@ def plot_results(results, step_actual: bool = True):
             ax_traj.set_ylabel(label, fontweight="bold")
             continue
 
-        t = res["t"]
+        t         = res["t"]
+        amp_scale = res.get("amp_scale")          # None if not amplitude-fitted
+        plan_raw  = res.get("planned_interp_raw") # original un-scaled plan, or None
 
         # ----- Left: trajectory tracking -----
+        # If amplitude-fitted: draw the original plan as a faint dashed reference
+        # so the true speed gap is still visible.
+        # if plan_raw is not None:
+        #     ax_traj.plot(
+        #         t, plan_raw,
+        #         color=_COLOR_PLAN, linewidth=1.0, linestyle="--", alpha=0.30,
+        #         label="Planned (original)", zorder=2,
+        #     )
+        # Scale factor is NOT shown in the legend; it appears in the RMSE badge.
+        plan_label = "Planned"
         ax_traj.plot(
             t, res["planned_interp"],
-            color=_COLOR_PLAN, linewidth=2.0, label="Planned", zorder=3,
+            color=_COLOR_PLAN, linewidth=2.0, label=plan_label, zorder=3,
         )
         act_style = {"drawstyle": "steps-post"} if step_actual else {}
         ax_traj.plot(
@@ -1028,12 +1110,20 @@ def plot_results(results, step_actual: bool = True):
         )
         ax_err.axhline(0, color="#9CA3AF", linewidth=0.8, linestyle="-", zorder=2)
 
-        err_label = f"Error (ΔPlan − ΔAct) [{unit}]" if res.get("displacement") \
-            else f"Error (Plan − Act) [{unit}]"
+        if amp_fitted:
+            err_pfx = "Shape Error"
+            err_label = f"{err_pfx} (ΔPlan×s − ΔAct) [{unit}]" if res.get("displacement") \
+                else f"{err_pfx} (Plan×s − Act) [{unit}]"
+        else:
+            err_label = f"Error (ΔPlan − ΔAct) [{unit}]" if res.get("displacement") \
+                else f"Error (Plan − Act) [{unit}]"
         ax_err.set_ylabel(err_label)
         ax_err.set_title(f"{label} — Error", fontweight="bold", pad=6)
 
-        rmse_str = f"RMSE = {res['rmse']:.4f} {unit}"
+        rmse_pfx  = "Shape RMSE" if amp_fitted else "RMSE"
+        rmse_str  = f"{rmse_pfx} = {res['rmse']:.4f} {unit}"
+        if amp_scale is not None:
+            rmse_str += f"\n(s = {amp_scale:.3f})"
         ax_err.text(
             0.97, 0.93, rmse_str,
             transform=ax_err.transAxes,
@@ -1077,60 +1167,63 @@ _COLOR_JERK_FILL  = "#FDE68A"   # amber-200
 
 def compute_velocity_profiles(
     results: dict,
-    smooth_window: int = 11,
+    smooth_window: int = 21,
     smooth_polyorder: int = 3,
 ) -> dict:
-    """Differentiate interpolated planned and actual position traces to obtain
-    velocity and jerk profiles in the analysed overlap window.
+    """Differentiate position traces to obtain velocity and jerk profiles.
 
-    Both series are already trimmed and time-aligned inside *results* (the
-    output of :func:`analyse`), so ``t`` is in seconds and positions are in
-    metres or radians.
+    Both series come from :func:`analyse` and are already trimmed/aligned,
+    so ``t`` is in seconds and positions are in metres or radians.
 
-    Planned velocity
-        ``np.gradient`` on the densely-sampled ``planned_interp`` array.
-        (The interpolant is evaluated at every actual timestamp, so the
-        numerical derivative is a faithful approximation of the analytic
-        spline derivative.)
+    Strategy
+    --------
+    Planned velocity / jerk
+        ``np.gradient`` on the dense ``planned_interp`` array (already a
+        smooth spline — numerical differentiation is reliable here).
 
     Actual velocity
-        ``np.gradient`` on the ``actual_pos`` array, followed by a
-        Savitzky-Golay filter to suppress encoder quantisation noise before
-        jerk is computed.  The raw (unsmoothed) actual velocity is also
-        retained for reference.
+        ``savgol_filter(pos_act, win, polyorder, deriv=1, delta=dt_mean)``.
+        Fitting a local polynomial to *position* and returning its analytic
+        first derivative is far more robust against encoder quantisation steps
+        than differentiating noisy velocity.  ``np.gradient`` on stepped data
+        produces spike-dominated traces that remain oscillatory even after
+        a subsequent smoothing pass.
 
-    Jerk
-        ``np.gradient`` applied to the (smoothed) actual velocity and to
-        the planned velocity.  A second Savitzky-Golay pass is applied to
-        the actual jerk so the trace is readable on the plot.
+    Actual jerk
+        SG second derivative of position gives clean acceleration; one final
+        ``np.gradient`` step promotes it to jerk.  A light SG smoothing pass
+        is then applied to remove residual high-frequency artefacts.
+
+    The raw gradient velocity is kept solely as a background reference in the
+    velocity-profile plot.
 
     Parameters
     ----------
     results : dict
-        Output of :func:`analyse`.  Must contain at least ``t``,
-        ``planned_interp``, and ``actual_pos`` per joint.
+        Output of :func:`analyse`.
     smooth_window : int
-        Savitzky-Golay window length (samples).  Must be odd; the function
-        clamps and adjusts it automatically.  Increase for noisier signals.
+        SG window length (samples, must be odd ≥ polyorder + 2).
+        Auto-clamped to < data length.  Increase for noisier encoders.
     smooth_polyorder : int
-        Polynomial order for Savitzky-Golay filter (default 3).
+        SG polynomial order (default 3).  Must be ≥ 3 so that the
+        third-derivative (jerk) estimate is non-trivial.
 
     Returns
     -------
     vel_results : dict[str, dict | None]
         Per joint (keys match :data:`JOINT_NAMES`):
 
-        ``t``               – normalised time [s] (same as ``results[j]["t"]``)
+        ``t``               – normalised time [s]
         ``planned_vel``     – planned velocity [unit/s]
-        ``actual_vel_raw``  – actual velocity before smoothing [unit/s]
-        ``actual_vel``      – Savitzky-Golay smoothed actual velocity [unit/s]
+        ``actual_vel_raw``  – raw np.gradient velocity (reference only) [unit/s]
+        ``actual_vel``      – SG-smoothed actual velocity [unit/s]
         ``vel_error``       – velocity tracking error (planned − actual) [unit/s]
         ``vel_rmse``        – RMSE of velocity error [unit/s]
-        ``planned_jerk``    – jerk derived from planned velocity [unit/s³]
-        ``actual_jerk``     – jerk derived from smoothed actual velocity [unit/s³]
-        ``max_actual_jerk`` – peak |jerk| of the actual trajectory [unit/s³]
-        ``rms_actual_jerk`` – RMS jerk of the actual trajectory [unit/s³]
-        ``max_actual_vel``  – peak |velocity| of the actual trajectory [unit/s]
+        ``planned_jerk``    – jerk from planned velocity [unit/s³]
+        ``actual_jerk``     – SG-smoothed actual jerk [unit/s³]
+        ``max_actual_jerk`` – peak |jerk| [unit/s³]
+        ``rms_actual_jerk`` – RMS jerk [unit/s³]
+        ``max_actual_vel``  – peak |velocity| [unit/s]
     """
     vel_results: dict = {}
 
@@ -1148,32 +1241,59 @@ def compute_velocity_profiles(
             vel_results[jname] = None
             continue
 
-        # ---- Adaptive Savitzky-Golay window ----
-        # Must be odd, >= polyorder+2, and < data length.
-        win = smooth_window
-        win = min(win, t.size - (1 if t.size % 2 == 0 else 0))
-        win = max(win, smooth_polyorder + 2)
+        # Mean sample interval for SG derivative scaling (assumes near-uniform grid)
+        dt_arr  = np.diff(t)
+        dt_mean = float(np.mean(dt_arr)) if dt_arr.size > 0 else 1.0
+
+        # ---- Adaptive SG window: odd, >= polyorder+2, < data length ----
+        poly = max(smooth_polyorder, 3)   # need at least cubic for jerk
+        win  = smooth_window
+        win  = min(win, t.size - 1)
+        win  = max(win, poly + 2)
         if win % 2 == 0:
             win += 1
-        can_smooth = t.size >= win
+        can_smooth = (t.size > win)
 
-        # ---- Velocity (central differences) ----
-        vel_plan    = np.gradient(pos_plan, t)
-        vel_act_raw = np.gradient(pos_act,  t)
-
-        if can_smooth:
-            vel_act = savgol_filter(vel_act_raw, win, smooth_polyorder)
-        else:
-            vel_act = vel_act_raw.copy()
-
-        # ---- Jerk = d(vel)/dt ----
-        jerk_plan   = np.gradient(vel_plan, t)
-        jerk_act_raw = np.gradient(vel_act, t)
+        # ---- Actual velocity (computed first so it's available for amplitude fit) ----
+        # Raw np.gradient — background reference only
+        vel_act_raw = np.gradient(pos_act, t)
 
         if can_smooth:
-            jerk_act = savgol_filter(jerk_act_raw, win, smooth_polyorder)
+            # SG deriv=1 on position: fits local cubic through `win` samples
+            # and returns the analytic derivative — robust vs quantised steps.
+            vel_act = savgol_filter(
+                pos_act, win, poly, deriv=1, delta=dt_mean,
+            )
+            # SG deriv=2 → acceleration; one gradient step → jerk
+            acc_act  = savgol_filter(
+                pos_act, win, poly, deriv=2, delta=dt_mean,
+            )
+            jerk_act = np.gradient(acc_act, t)
+            # Light final smoothing pass on jerk to remove residual artefacts
+            jerk_act = savgol_filter(jerk_act, win, poly)
         else:
-            jerk_act = jerk_act_raw.copy()
+            vel_act  = vel_act_raw.copy()
+            jerk_act = np.gradient(np.gradient(vel_act, t), t)
+
+        # ---- Planned velocity ----
+        vel_plan = np.gradient(pos_plan, t)
+
+        # Optional velocity-level LSQ amplitude fit.
+        # When position was amplitude-fitted the same scalar propagates to
+        # velocity (v = d(s·pos)/dt = s·v_orig).  But the *shape* of the
+        # velocity profile may still differ (e.g. actual ≈ flat trapezoidal
+        # vs planned bell-curve).  A second LSQ fit at the velocity level
+        # removes that residual amplitude offset so the curves overlap.
+        if res.get("amp_scale") is not None:
+            vel_denom = float(np.dot(vel_plan, vel_plan))
+            if vel_denom > 1e-18:
+                vel_fit_scale = float(np.clip(
+                    np.dot(vel_plan, vel_act) / vel_denom, 0.01, 100.0
+                ))
+                vel_plan = vel_plan * vel_fit_scale
+
+        # Jerk derived from the (amplitude-fitted) planned velocity
+        jerk_plan = np.gradient(np.gradient(vel_plan, t), t)
 
         vel_error = vel_plan - vel_act
         vel_rmse  = float(np.sqrt(np.mean(vel_error ** 2)))
@@ -1239,22 +1359,20 @@ def print_velocity_summary(vel_results: dict) -> None:
     print("=" * 66)
 
 
-def plot_velocity_results(
-    vel_results: dict,
-    smooth_window: int = 11,
-    smooth_polyorder: int = 3,
-) -> None:
+def plot_velocity_results(vel_results: dict) -> None:
     """Create a 3 × 3 subplot figure for velocity / jerk evaluation.
 
     Layout
     ------
-    Column 0  Velocity profile  – planned (blue) vs smoothed actual (orange)
-               overlaid with raw actual velocity (faint grey) so the
-               smoothing extent is visible.
+    Column 0  Velocity profile  – planned (blue) vs SG-smoothed actual (orange),
+               raw np.gradient velocity in faint grey for reference.
+               Y-axis is clamped to the clean-signal range so encoder spikes
+               do not collapse the scale.
     Column 1  Velocity error    – (planned − smoothed actual), RMSE badge.
+               Y-axis clamped to the 99th percentile of |error|.
     Column 2  Jerk overlay      – planned jerk (violet) vs smoothed actual
                jerk (amber), filled area under actual jerk for sway-risk
-               emphasis.
+               emphasis.  Y-axis clamped symmetrically.
 
     The figure is saved to ``hil_velocity_eval.png``.
     """
@@ -1313,10 +1431,32 @@ def plot_velocity_results(
 
         t = vr["t"]
 
+        # ---- Y-axis limits: base on clean signals, clip encoder spikes ----
+        v_p = vr["planned_vel"]
+        v_a = vr["actual_vel"]
+        v_max = max(float(np.max(np.abs(v_p))), float(np.max(np.abs(v_a))))
+        v_pad = 0.20 * v_max if v_max > 1e-9 else 0.01
+        vel_lo = -(0.15 * v_max + v_pad)
+        vel_hi = v_max + v_pad
+
+        e_abs = np.abs(vr["vel_error"])
+        e_max = float(np.percentile(e_abs, 99)) if e_abs.size else 0.01
+        e_pad = 0.15 * e_max if e_max > 1e-9 else 0.01
+
+        j_a = vr["actual_jerk"]
+        j_p = vr["planned_jerk"]
+        j_max = max(
+            float(np.percentile(np.abs(j_a), 99)) if j_a.size else 0.0,
+            float(np.max(np.abs(j_p)))            if j_p.size else 0.0,
+        )
+        j_pad = 0.20 * j_max if j_max > 1e-9 else 0.01
+
         # ---- Col 0: Velocity profile ----
+        # Raw velocity drawn first at very low alpha — just shows the quantisation
+        # pattern without dominating the scale.
         ax_vel.plot(
             t, vr["actual_vel_raw"],
-            color="#9CA3AF", linewidth=0.8, alpha=0.45, label="Actual (raw)", zorder=2,
+            color="#9CA3AF", linewidth=0.7, alpha=0.12, label="Actual (raw)", zorder=2,
         )
         ax_vel.plot(
             t, vr["planned_vel"],
@@ -1324,9 +1464,10 @@ def plot_velocity_results(
         )
         ax_vel.plot(
             t, vr["actual_vel"],
-            color=_COLOR_VEL_ACTUAL, linewidth=1.6, alpha=0.9, label="Actual (smoothed)", zorder=3,
+            color=_COLOR_VEL_ACTUAL, linewidth=1.8, alpha=0.92, label="Actual (SG-smoothed)", zorder=3,
         )
         ax_vel.axhline(0, color="#9CA3AF", linewidth=0.6, linestyle="--", zorder=1)
+        ax_vel.set_ylim(vel_lo, vel_hi)
         ax_vel.legend(loc="lower right", frameon=True, framealpha=0.9,
                       edgecolor="#D1D5DB", fancybox=True)
         ax_vel.grid(True, color=_COLOR_GRID, linewidth=0.6, zorder=0)
@@ -1343,6 +1484,7 @@ def plot_velocity_results(
         )
         ax_err.axhline(0, color="#9CA3AF", linewidth=0.8, linestyle="-", zorder=2)
         ax_err.set_ylabel(f"Vel Error [{u_v}]")
+        ax_err.set_ylim(-e_max - e_pad, e_max + e_pad)
 
         rmse_str = f"Vel RMSE = {vr['vel_rmse']:.4f} {u_v}"
         ax_err.text(
@@ -1370,11 +1512,12 @@ def plot_velocity_results(
         )
         ax_jerk.plot(
             t, vr["actual_jerk"],
-            color=_COLOR_JERK_ACT, linewidth=1.6, alpha=0.9,
-            label="Actual jerk (smoothed)", zorder=4,
+            color=_COLOR_JERK_ACT, linewidth=1.8, alpha=0.92,
+            label="Actual jerk (SG-smoothed)", zorder=4,
         )
         ax_jerk.axhline(0, color="#9CA3AF", linewidth=0.6, linestyle="--", zorder=2)
         ax_jerk.set_ylabel(f"Jerk [{u_j}]")
+        ax_jerk.set_ylim(-j_max - j_pad, j_max + j_pad)
 
         jerk_str = (
             f"Max|j| = {vr['max_actual_jerk']:.4f} {u_j}\n"
@@ -1557,6 +1700,21 @@ def main():
         help="Draw actual as linear interpolation between samples (default: steps-post).",
     )
     parser.add_argument(
+        "--fit-amplitude",
+        action="store_true",
+        default=False,
+        help=(
+            "Scale each joint's planned trajectory by the per-joint LSQ-optimal "
+            "amplitude factor s = (plan·actual)/(plan·plan) so that the two "
+            "curves overlap as closely as possible. "
+            "Useful when the controller runs at a fixed fraction of the commanded "
+            "speed (motor limits, low gains). "
+            "The scale factor is shown in the legend; the original un-scaled plan "
+            "is shown as a faint dashed reference line. "
+            "Values s < 1 indicate the crane under-shot the plan."
+        ),
+    )
+    parser.add_argument(
         "--absolute-positions",
         action="store_true",
         default=False,
@@ -1587,12 +1745,13 @@ def main():
     parser.add_argument(
         "--vel-smooth-window",
         type=int,
-        default=11,
+        default=21,
         metavar="N",
         help=(
-            "Savitzky-Golay filter window (samples, odd) applied to the actual "
-            "velocity before jerk is computed. Increase for noisier encoder signals. "
-            "(default: 11)"
+            "Savitzky-Golay filter window (samples, odd).  The filter is applied "
+            "directly to the *position* signal (deriv=1/2) rather than to velocity, "
+            "which eliminates encoder-step artefacts before differentiation. "
+            "Increase for coarser encoders / lower sample rates. (default: 21)"
         ),
     )
     parser.add_argument(
@@ -1760,6 +1919,10 @@ def main():
     print_correlation_summary(results)
     warn_scale_and_units(planned, results)
 
+    # --- Step 3.5: Amplitude fit (optional) ---
+    if args.fit_amplitude:
+        results = apply_amplitude_fit(results)
+
     # --- Step 4: Report RMSE ---
     print("\n" + "=" * 50)
     print("  RMSE Results (per joint)")
@@ -1784,11 +1947,7 @@ def main():
             smooth_polyorder=args.vel_smooth_polyorder,
         )
         print_velocity_summary(vel_results)
-        plot_velocity_results(
-            vel_results,
-            smooth_window=args.vel_smooth_window,
-            smooth_polyorder=args.vel_smooth_polyorder,
-        )
+        plot_velocity_results(vel_results)
 
 
 if __name__ == "__main__":
