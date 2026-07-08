@@ -1,0 +1,89 @@
+### Virtual Crane 
+Option 1: Virtual CANController
+sudo modprobe vcan
+sudo ip link add dev vcan0 type vcan
+sudo ip link set vcan0 txqueuelen 1000
+sudo ip link set up vcan0
+
+
+
+ros2 launch tower_crane_moveit_config bringup.launch.py can_interface_name:=vcan0
+
+
+colcon build --symlink-install
+ros2 launch crane_master canopen_ros2.launch.py can_interface_name:=vcan0
+
+ros2 action send_goal /forward_position_controller/follow_joint_trajectory control_msgs/action/FollowJointTrajectory "
+
+trajectory:
+
+  joint_names: [slewing_joint, trolley_joint, hook_joint]
+
+  points:
+
+  - positions: [0.0, -0.0, 0.0]
+
+    time_from_start:
+
+      sec: 1
+
+" --feedback
+
+ros2 action send_goal /forward_position_controller/follow_joint_trajectory control_msgs/action/FollowJointTrajectory "
+
+trajectory:
+
+  joint_names: [slewing_joint, trolley_joint, hook_joint]
+
+  points:
+
+  - positions: [20.0, 500.0, -1000.0]
+
+    time_from_start:
+
+      sec: 1
+
+" --feedback
+
+
+
+ros2 service call /trolley_joint/target canopen_interfaces/srv/COTargetDouble "target: -0.5" 
+
+
+#### Real Crane 
+Option 3: candleLight USB-CAN Adapter
+
+sudo modprobe gs_usb
+sudo ip link set can0 up type can bitrate 500000
+sudo ip link set can0 txqueuelen 1000
+sudo ip link set up can0
+
+## Checkign the harbit 
+candump can0 |grep 701
+### can0  701   [1]  7F is in a preoperation mode
+### can0  701   [1]  7F
+
+### Hoist working (up, down)[-400,1800]
+### Trolley working (back, down)[-1000,1000]
+
+source /opt/ros/humble/setup.bash && export ROS_DOMAIN_ID=8 && cd /home/robotlabmain/appdata/ros_2/CraneScada/backend && /home/robotlabmain/appdata/ros_2/CraneScada/.venv/bin/python app.py
+
+## in the rontend 
+cd frontend/
+(.venv) robotlabmain@robotlabmain:~/appdata/ros_2/CraneScada/frontend$ npm run dev
+
+## in the backend
+source /opt/ros/humble/setup.bash && cd /home/robotlabmain/appdata/ros_2/CraneScada/backend && /home/robotlabmain/appdata/ros_2/CraneScada/.venv/bin/python app.py
+
+### 701 is hoist and 702 is trolly 703 slewing 
+
+### velocity speed 
+ros2 service call /hoist/set_crane_mode std_srvs/srv/SetBool "data: false"
+ros2 topic pub /hoist/target_position std_msgs/msg/Float32 "data: -50.0" --once
+
+
+#### Velocity for the slewing
+ros2 service call /slewing/set_crane_mode std_srvs/srv/SetBool "data: false"
+ros2 topic pub /slewing/target_position std_msgs/msg/Float32 "data: 0.0" --once
+
+
